@@ -157,6 +157,20 @@ export class Storage {
     return conversation?.workingDir || this.config.workingDir;
   }
 
+  setClaudeSessionId(conversationId: string, sessionId: string): void {
+    const conversation = this.data.conversations[conversationId];
+    if (conversation) {
+      conversation.claudeSessionId = sessionId;
+      conversation.updatedAt = Date.now();
+      saveData(this.data);
+    }
+  }
+
+  getClaudeSessionId(conversationId: string): string | undefined {
+    const conversation = this.data.conversations[conversationId];
+    return conversation?.claudeSessionId;
+  }
+
   deleteConversation(id: string): void {
     delete this.data.conversations[id];
     if (this.config.currentConversationId === id) {

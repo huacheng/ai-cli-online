@@ -5,7 +5,8 @@ import type { ClaudeCodeResult } from './types.js';
 export interface ClaudeCodeOptions {
   workingDir: string;
   message: string;
-  sessionId?: string;
+  sessionId?: string; // Claude Code session ID for --resume or --session-id
+  isNewSession?: boolean; // If true, use --session-id to create new session; if false, use --resume
   onData?: (data: string) => void; // Callback for real-time streaming output
 }
 
@@ -15,14 +16,20 @@ const CLAUDE_PATH = process.env.CLAUDE_PATH || '/home/ubuntu/.local/bin/claude';
  * Execute Claude Code CLI with a message using node-pty for proper TTY support
  */
 export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<ClaudeCodeResult> {
-  const { workingDir, message, sessionId, onData } = options;
+  const { workingDir, message, sessionId, isNewSession, onData } = options;
 
   return new Promise((resolve) => {
     const args = ['--print', '--dangerously-skip-permissions'];
 
-    // Add session resume if provided
+    // Handle session management
     if (sessionId) {
-      args.push('--resume', sessionId);
+      if (isNewSession) {
+        // First message in conversation - create new session with specified ID
+        args.push('--session-id', sessionId);
+      } else {
+        // Subsequent messages - resume existing session
+        args.push('--resume', sessionId);
+      }
     }
 
     // Add the message as the last argument (no shell escaping needed with pty)
@@ -67,12 +74,14 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
         resolve({
           success: true,
           output: cleanOutput,
+          sessionId, // Return the session ID for tracking
         });
       } else {
         resolve({
           success: false,
           output: cleanOutput,
           error: `Process exited with code ${exitCode}`,
+          sessionId, // Return even on failure for potential retry
         });
       }
     });

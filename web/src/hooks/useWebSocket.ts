@@ -182,6 +182,20 @@ export function useWebSocket() {
           // Heartbeat response, ignore
           break;
 
+        case 'stream': {
+          // Real-time streaming update
+          const streamPayload = response.payload as {
+            messageId: string;
+            chunk: string;
+            content: string;
+          };
+          // Update message content with streamed data
+          updateMessage(streamPayload.messageId, {
+            content: streamPayload.content,
+          });
+          break;
+        }
+
         case 'cleared':
           // Conversation cleared
           clearMessages();

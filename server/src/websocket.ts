@@ -5,6 +5,22 @@ import { executeClaudeCode } from './claude.js';
 import type { WSMessage, WSResponse, Message } from './types.js';
 
 /**
+ * Strip ANSI escape codes for streaming display
+ */
+function stripAnsiForStream(str: string): string {
+  return str
+    // Standard ANSI escape sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
+    // OSC sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    // Bell and other control chars
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x07]/g, '');
+}
+
+/**
  * Detect working directory change from Claude output
  * Looks for patterns like:
  * - "Shell cwd was reset to /path/to/dir"
@@ -175,10 +191,24 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
 
   // Get or create conversation
   let conversation = storage.getCurrentConversation();
+  let isNewSession = false;
+
   if (!conversation) {
     const id = uuidv4();
     conversation = storage.createConversation(id);
     console.log(`[WS] Created new conversation: ${id}`);
+  }
+
+  // Check if we need to create a new Claude session
+  let claudeSessionId = storage.getClaudeSessionId(conversation.id);
+  if (!claudeSessionId) {
+    // Generate new Claude session ID for this conversation
+    claudeSessionId = uuidv4();
+    storage.setClaudeSessionId(conversation.id, claudeSessionId);
+    isNewSession = true;
+    console.log(`[WS] Created new Claude session: ${claudeSessionId}`);
+  } else {
+    console.log(`[WS] Resuming Claude session: ${claudeSessionId}`);
   }
 
   // Add user message
@@ -216,10 +246,32 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
   const workingDir = storage.getConversationWorkingDir(conversation.id);
   console.log(`[WS] Executing Claude Code in ${workingDir}: ${content}`);
 
+  // Track streamed content for real-time updates
+  let streamedContent = '';
+
   try {
     const result = await executeClaudeCode({
       workingDir,
       message: content,
+      sessionId: claudeSessionId,
+      isNewSession,
+      // Real-time streaming callback
+      onData: (chunk) => {
+        // Strip ANSI codes from chunk for display
+        const cleanChunk = stripAnsiForStream(chunk);
+        if (cleanChunk) {
+          streamedContent += cleanChunk;
+          // Send stream update to client
+          send(ws, {
+            type: 'stream',
+            payload: {
+              messageId: assistantMessage.id,
+              chunk: cleanChunk,
+              content: streamedContent,
+            },
+          });
+        }
+      },
     });
 
     // Update assistant message with result

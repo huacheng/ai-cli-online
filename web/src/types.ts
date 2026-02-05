@@ -12,6 +12,6 @@ export interface WSMessage {
 }
 
 export interface WSResponse {
-  type: 'message' | 'history' | 'working_dir' | 'error' | 'pong' | 'status' | 'cleared';
+  type: 'message' | 'history' | 'working_dir' | 'error' | 'pong' | 'status' | 'cleared' | 'stream';
   payload: unknown;
 }
