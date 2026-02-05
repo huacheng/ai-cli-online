@@ -21,8 +21,8 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
       args.push('--resume', sessionId);
     }
 
-    // Add the message
-    args.push('--message', message);
+    // Add the prompt as the last argument (not --message)
+    args.push(message);
 
     console.log(`[Claude] Executing in ${workingDir}: claude ${args.join(' ')}`);
 
