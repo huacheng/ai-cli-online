@@ -1,8 +1,9 @@
 import express from 'express';
-import { createServer } from 'http';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer } from 'ws';
 import { config } from 'dotenv';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupWebSocket } from './websocket.js';
@@ -17,6 +18,11 @@ config();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
+const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false'; // Default to true
+
+// SSL certificate paths
+const CERT_PATH = join(__dirname, '../certs/server.crt');
+const KEY_PATH = join(__dirname, '../certs/server.key');
 
 async function main() {
   // Check if Claude Code is available
@@ -91,26 +97,52 @@ async function main() {
     console.log('Serving static files from:', webDistPath);
   }
 
-  const server = createServer(app);
+  // Check if SSL certificates exist
+  const hasSSL = existsSync(CERT_PATH) && existsSync(KEY_PATH);
+  const useHttps = HTTPS_ENABLED && hasSSL;
+
+  let server;
+  if (useHttps) {
+    const sslOptions = {
+      cert: readFileSync(CERT_PATH),
+      key: readFileSync(KEY_PATH),
+    };
+    server = createHttpsServer(sslOptions, app);
+    console.log('HTTPS enabled with SSL certificates');
+  } else {
+    server = createHttpServer(app);
+    if (HTTPS_ENABLED && !hasSSL) {
+      console.log('WARNING: HTTPS enabled but certificates not found, falling back to HTTP');
+    }
+  }
 
   // WebSocket server
   const wss = new WebSocketServer({ server, path: '/ws' });
   setupWebSocket(wss, AUTH_TOKEN);
+
+  const protocol = useHttps ? 'https' : 'http';
+  const wsProtocol = useHttps ? 'wss' : 'ws';
 
   server.listen(Number(PORT), HOST, () => {
     console.log('');
     console.log('='.repeat(50));
     console.log('  CLI-Online Server Started');
     console.log('='.repeat(50));
-    console.log(`  HTTP:      http://${HOST}:${PORT}`);
-    console.log(`  WebSocket: ws://${HOST}:${PORT}/ws`);
+    console.log(`  ${protocol.toUpperCase()}:      ${protocol}://${HOST}:${PORT}`);
+    console.log(`  WebSocket: ${wsProtocol}://${HOST}:${PORT}/ws`);
     console.log(`  Working:   ${storage.getWorkingDir()}`);
+    console.log(`  SSL:       ${useHttps ? 'Enabled (self-signed)' : 'Disabled'}`);
     if (AUTH_TOKEN) {
       console.log(`  Auth:      Token required`);
     } else {
       console.log(`  Auth:      No authentication (development mode)`);
     }
     console.log('='.repeat(50));
+    if (useHttps) {
+      console.log('');
+      console.log('  Note: Using self-signed certificate.');
+      console.log('  Browser will show security warning - click "Advanced" to proceed.');
+    }
     console.log('');
   });
 }

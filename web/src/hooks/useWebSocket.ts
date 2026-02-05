@@ -2,9 +2,10 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import type { WSMessage, WSResponse, Message } from '../types';
 
+// Auto-detect protocol based on page protocol
 const WS_BASE = import.meta.env.DEV
-  ? 'ws://localhost:3001/ws'
-  : `ws://${window.location.host}/ws`;
+  ? 'wss://localhost:3001/ws'  // Use wss for development too (self-signed cert)
+  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 const RECONNECT_DELAY = 3000;
 

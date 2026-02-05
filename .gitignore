@@ -31,3 +31,6 @@ npm-debug.log*
 
 # Data files
 data/
+
+# SSL certificates (generate locally, don't commit)
+server/certs/
