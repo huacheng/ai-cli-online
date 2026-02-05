@@ -143,6 +143,20 @@ export class Storage {
     }
   }
 
+  updateConversationWorkingDir(conversationId: string, workingDir: string): void {
+    const conversation = this.data.conversations[conversationId];
+    if (conversation) {
+      conversation.workingDir = workingDir;
+      conversation.updatedAt = Date.now();
+      saveData(this.data);
+    }
+  }
+
+  getConversationWorkingDir(conversationId: string): string {
+    const conversation = this.data.conversations[conversationId];
+    return conversation?.workingDir || this.config.workingDir;
+  }
+
   deleteConversation(id: string): void {
     delete this.data.conversations[id];
     if (this.config.currentConversationId === id) {

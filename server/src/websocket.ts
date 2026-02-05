@@ -4,6 +4,41 @@ import { storage } from './storage.js';
 import { executeClaudeCode } from './claude.js';
 import type { WSMessage, WSResponse, Message } from './types.js';
 
+/**
+ * Detect working directory change from Claude output
+ * Looks for patterns like:
+ * - "Shell cwd was reset to /path/to/dir"
+ * - "已切换到 /path/to/dir 目录"
+ * - "已切换到 `/path/to/dir` 目录"
+ */
+function detectWorkingDirChange(output: string): string | null {
+  // Pattern 1: Shell cwd was reset to /path
+  const shellCwdMatch = output.match(/Shell cwd was reset to ([^\s\n]+)/);
+  if (shellCwdMatch) {
+    return shellCwdMatch[1];
+  }
+
+  // Pattern 2: 已切换到 /path 目录 or 已切换到 `/path` 目录
+  const chineseMatch = output.match(/已切换到\s*[`"]?([^`"\s\n]+)[`"]?\s*目录/);
+  if (chineseMatch) {
+    return chineseMatch[1];
+  }
+
+  // Pattern 3: Changed directory to /path
+  const changedMatch = output.match(/[Cc]hanged (?:directory|dir) to ([^\s\n]+)/);
+  if (changedMatch) {
+    return changedMatch[1];
+  }
+
+  // Pattern 4: cd /path (direct cd command output)
+  const cdMatch = output.match(/^cd\s+([^\s\n]+)/m);
+  if (cdMatch) {
+    return cdMatch[1];
+  }
+
+  return null;
+}
+
 export function setupWebSocket(wss: WebSocketServer, authToken: string): void {
   wss.on('connection', (ws, req) => {
     // Simple token authentication via query parameter
@@ -53,7 +88,10 @@ function sendError(ws: WebSocket, error: string): void {
 
 function sendState(ws: WebSocket): void {
   const conversation = storage.getCurrentConversation();
-  const workingDir = storage.getWorkingDir();
+  // Use conversation-specific workingDir, fallback to global
+  const workingDir = conversation
+    ? storage.getConversationWorkingDir(conversation.id)
+    : storage.getWorkingDir();
 
   send(ws, {
     type: 'history',
@@ -152,8 +190,8 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
     payload: { messageId: assistantMessage.id, status: 'running' },
   });
 
-  // Execute Claude Code
-  const workingDir = storage.getWorkingDir();
+  // Execute Claude Code using conversation-specific workingDir
+  const workingDir = storage.getConversationWorkingDir(conversation.id);
   console.log(`[WS] Executing Claude Code in ${workingDir}: ${content}`);
 
   try {
@@ -171,6 +209,19 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
       content: responseContent,
       status: result.success ? 'completed' : 'error',
     });
+
+    // Detect working directory change from Claude output
+    const newWorkingDir = detectWorkingDirChange(result.output);
+    if (newWorkingDir && newWorkingDir !== workingDir) {
+      console.log(`[WS] Working directory changed: ${workingDir} -> ${newWorkingDir}`);
+      storage.updateConversationWorkingDir(conversation.id, newWorkingDir);
+
+      // Notify client of working directory change
+      send(ws, {
+        type: 'working_dir',
+        payload: { workingDir: newWorkingDir },
+      });
+    }
 
     // Send completed message to client
     send(ws, {
