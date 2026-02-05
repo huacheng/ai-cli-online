@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import type { Message } from './types';
 
 interface AppState {
+  // Auth token
+  token: string | null;
+  setToken: (token: string | null) => void;
+
   // Connection state
   connected: boolean;
   setConnected: (connected: boolean) => void;
@@ -26,6 +30,17 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
+  // Auth token
+  token: null,
+  setToken: (token) => {
+    if (token) {
+      localStorage.setItem('cli-online-token', token);
+    } else {
+      localStorage.removeItem('cli-online-token');
+    }
+    set({ token });
+  },
+
   // Connection state
   connected: false,
   setConnected: (connected) => set({ connected }),

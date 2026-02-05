@@ -3,10 +3,16 @@ import { useStore } from './store';
 import { WorkingDirBar } from './components/WorkingDirBar';
 import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
+import { LoginForm } from './components/LoginForm';
 
 function App() {
   const { sendMessage, setWorkingDirectory } = useWebSocket();
-  const { error, setError } = useStore();
+  const { error, setError, token, setToken } = useStore();
+
+  // Show login form if no token
+  if (!token) {
+    return <LoginForm />;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
@@ -17,6 +23,12 @@ function App() {
           <h1 className="text-xl font-bold">CLI-Online</h1>
           <span className="text-gray-400 text-sm">Claude Code Web Assistant</span>
         </div>
+        <button
+          onClick={() => setToken(null)}
+          className="text-gray-400 hover:text-white text-sm px-3 py-1 rounded hover:bg-gray-700"
+        >
+          退出
+        </button>
       </header>
 
       {/* Working Directory Bar */}

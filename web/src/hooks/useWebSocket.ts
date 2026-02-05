@@ -2,11 +2,30 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import type { WSMessage, WSResponse, Message } from '../types';
 
-const WS_URL = import.meta.env.DEV
+const WS_BASE = import.meta.env.DEV
   ? 'ws://localhost:3001/ws'
   : `ws://${window.location.host}/ws`;
 
 const RECONNECT_DELAY = 3000;
+
+// Get token from URL params or localStorage
+function getToken(): string | null {
+  // First check URL params
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get('token');
+  if (urlToken) {
+    // Save to localStorage for future use
+    localStorage.setItem('cli-online-token', urlToken);
+    // Remove token from URL for security
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('token');
+    window.history.replaceState({}, '', newUrl.toString());
+    return urlToken;
+  }
+
+  // Then check localStorage
+  return localStorage.getItem('cli-online-token');
+}
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -20,15 +39,32 @@ export function useWebSocket() {
     updateMessage,
     setIsLoading,
     setError,
+    token,
+    setToken,
   } = useStore();
+
+  // Initialize token on mount
+  useEffect(() => {
+    const savedToken = getToken();
+    if (savedToken) {
+      setToken(savedToken);
+    }
+  }, [setToken]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
-    console.log('[WS] Connecting to', WS_URL);
-    const ws = new WebSocket(WS_URL);
+    const currentToken = useStore.getState().token;
+    if (!currentToken) {
+      console.log('[WS] No token, waiting for authentication');
+      return;
+    }
+
+    const wsUrl = `${WS_BASE}?token=${encodeURIComponent(currentToken)}`;
+    console.log('[WS] Connecting...');
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('[WS] Connected');
@@ -39,10 +75,18 @@ export function useWebSocket() {
       ws.send(JSON.stringify({ type: 'get_history' }));
     };
 
-    ws.onclose = () => {
-      console.log('[WS] Disconnected');
+    ws.onclose = (event) => {
+      console.log('[WS] Disconnected, code:', event.code);
       setConnected(false);
       wsRef.current = null;
+
+      // If unauthorized, clear token
+      if (event.code === 4001) {
+        setError('认证失败，请检查 Token');
+        setToken(null);
+        localStorage.removeItem('cli-online-token');
+        return;
+      }
 
       // Auto reconnect
       if (reconnectTimeoutRef.current) {
@@ -69,7 +113,7 @@ export function useWebSocket() {
     };
 
     wsRef.current = ws;
-  }, [setConnected, setError]);
+  }, [setConnected, setError, setToken]);
 
   const handleMessage = useCallback(
     (response: WSResponse) => {
@@ -166,9 +210,11 @@ export function useWebSocket() {
     [send]
   );
 
-  // Connect on mount
+  // Connect when token is available
   useEffect(() => {
-    connect();
+    if (token) {
+      connect();
+    }
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -178,7 +224,7 @@ export function useWebSocket() {
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [token, connect]);
 
   return {
     sendMessage,
