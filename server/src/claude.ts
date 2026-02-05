@@ -21,19 +21,26 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
       args.push('--resume', sessionId);
     }
 
-    // Add the prompt as the last argument (not --message)
-    args.push(message);
+    // Add the prompt as the last argument, properly quoted for shell
+    // Escape single quotes in message and wrap with single quotes
+    const escapedMessage = message.replace(/'/g, "'\\''");
+    args.push(`'${escapedMessage}'`);
 
-    console.log(`[Claude] Executing in ${workingDir}: claude ${args.join(' ')}`);
+    // Use full path for reliability
+    const claudePath = process.env.CLAUDE_PATH || '/home/ubuntu/.local/bin/claude';
+    console.log(`[Claude] Executing in ${workingDir}: ${claudePath}`, args);
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(claudePath, args, {
       cwd: workingDir,
       env: {
         ...process.env,
         // Ensure non-interactive mode
         CI: 'true',
       },
+      // shell: true is required for claude CLI to work properly with pipe
       shell: true,
+      // Explicit stdio to capture output
+      stdio: ['inherit', 'pipe', 'pipe'],
     });
 
     let stdout = '';
