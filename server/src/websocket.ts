@@ -121,13 +121,6 @@ export function setupWebSocket(wss: WebSocketServer, authToken: string): void {
       }
     });
 
-    ws.on('close', () => {
-      console.log('[WS] Client disconnected');
-    });
-
-    ws.on('error', (err) => {
-      console.error('[WS] WebSocket error:', err);
-    });
   });
 }
 

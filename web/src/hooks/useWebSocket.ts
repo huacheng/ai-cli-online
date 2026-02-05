@@ -55,8 +55,20 @@ export function useWebSocket() {
   }, [setToken]);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
+    // 关闭任何现有连接，确保只有一个活跃连接
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('[WS] Already connected, skipping');
+        return;
+      }
+      if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.log('[WS] Connection in progress, skipping');
+        return;
+      }
+      // 关闭旧连接
+      console.log('[WS] Closing stale connection');
+      wsRef.current.close();
+      wsRef.current = null;
     }
 
     const currentToken = useStore.getState().token;
@@ -66,7 +78,7 @@ export function useWebSocket() {
     }
 
     const wsUrl = `${WS_BASE}?token=${encodeURIComponent(currentToken)}`;
-    console.log('[WS] Connecting...');
+    console.log('[WS] Connecting to:', wsUrl);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -109,12 +121,22 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const response: WSResponse = JSON.parse(event.data);
-        console.log('[WS] Received message type:', response.type, 'hasHandler:', !!handleMessageRef.current);
+        // 详细日志：显示消息类型和关键信息
+        if (response.type === 'stream') {
+          const p = response.payload as { messageId: string; content: string };
+          console.log('[WS] 📥 STREAM received, msgId:', p.messageId, 'len:', p.content?.length);
+        } else if (response.type === 'message') {
+          const p = response.payload as { id: string; role: string; status?: string };
+          console.log('[WS] 📥 MESSAGE received, id:', p.id, 'role:', p.role, 'status:', p.status);
+        } else {
+          console.log('[WS] 📥 Received:', response.type);
+        }
+
         // Use ref to always get the latest handleMessage
         if (handleMessageRef.current) {
           handleMessageRef.current(response);
         } else {
-          console.error('[WS] handleMessageRef.current is null!');
+          console.error('[WS] ❌ handleMessageRef.current is null!');
         }
       } catch (err) {
         console.error('[WS] Failed to parse message:', err);
@@ -196,15 +218,29 @@ export function useWebSocket() {
             chunk: string;
             content: string;
           };
-          console.log('[WS] Stream received, id:', streamPayload.messageId, 'content length:', streamPayload.content.length);
           // Check if message exists in store
           const currentMessages = useStore.getState().messages;
           const targetMsg = currentMessages.find(m => m.id === streamPayload.messageId);
-          console.log('[WS] Target message found:', !!targetMsg, 'total messages:', currentMessages.length);
+          console.log('[WS] 🔄 Processing stream:', {
+            msgId: streamPayload.messageId,
+            contentLen: streamPayload.content?.length,
+            found: !!targetMsg,
+            totalMsgs: currentMessages.length,
+            msgIds: currentMessages.map(m => m.id.slice(0, 8)),
+          });
+
+          if (!targetMsg) {
+            console.warn('[WS] ⚠️ Target message not found! Stream will be ignored.');
+          }
+
           // Update message content with streamed data
           updateMessage(streamPayload.messageId, {
             content: streamPayload.content,
           });
+
+          // Verify update
+          const afterUpdate = useStore.getState().messages.find(m => m.id === streamPayload.messageId);
+          console.log('[WS] ✅ After update, content length:', afterUpdate?.content?.length);
           break;
         }
 
