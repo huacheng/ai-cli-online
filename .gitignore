@@ -1,0 +1,5 @@
+# Reference projects (external code for reference only)
+ref-projects/
+
+# OMC state files
+.omc/
