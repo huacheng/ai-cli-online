@@ -121,9 +121,31 @@ async function handleMessage(ws: WebSocket, message: WSMessage): Promise<void> {
       await handleSendMessage(ws, message.payload as { content: string });
       break;
 
+    case 'clear_conversation':
+      handleClearConversation(ws);
+      break;
+
     default:
       sendError(ws, `Unknown message type: ${message.type}`);
   }
+}
+
+function handleClearConversation(ws: WebSocket): void {
+  const conversation = storage.getCurrentConversation();
+  if (conversation) {
+    // Delete current conversation and create a new one
+    const workingDir = storage.getConversationWorkingDir(conversation.id);
+    storage.deleteConversation(conversation.id);
+
+    // Create a new conversation with the same working directory
+    const newConversation = storage.createConversation(uuidv4());
+    storage.updateConversationWorkingDir(newConversation.id, workingDir);
+
+    console.log(`[WS] Cleared conversation, created new: ${newConversation.id}`);
+  }
+
+  // Notify client
+  send(ws, { type: 'cleared', payload: {} });
 }
 
 function handleSetWorkingDir(ws: WebSocket, payload: { dir: string }): void {

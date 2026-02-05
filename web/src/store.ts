@@ -19,6 +19,7 @@ interface AppState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  clearMessages: () => void;
 
   // Loading state
   isLoading: boolean;
@@ -60,6 +61,7 @@ export const useStore = create<AppState>((set) => ({
         msg.id === id ? { ...msg, ...updates } : msg
       ),
     })),
+  clearMessages: () => set({ messages: [] }),
 
   // Loading state
   isLoading: false,

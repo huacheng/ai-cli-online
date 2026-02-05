@@ -38,6 +38,7 @@ export function useWebSocket() {
     setMessages,
     addMessage,
     updateMessage,
+    clearMessages,
     setIsLoading,
     setError,
     token,
@@ -181,11 +182,16 @@ export function useWebSocket() {
           // Heartbeat response, ignore
           break;
 
+        case 'cleared':
+          // Conversation cleared
+          clearMessages();
+          break;
+
         default:
           console.log('[WS] Unknown message type:', response.type);
       }
     },
-    [setMessages, setWorkingDir, addMessage, updateMessage, setIsLoading, setError]
+    [setMessages, setWorkingDir, addMessage, updateMessage, clearMessages, setIsLoading, setError]
   );
 
   const send = useCallback((message: WSMessage) => {
@@ -211,6 +217,10 @@ export function useWebSocket() {
     [send]
   );
 
+  const clearConversation = useCallback(() => {
+    send({ type: 'clear_conversation' });
+  }, [send]);
+
   // Connect when token is available
   useEffect(() => {
     if (token) {
@@ -230,5 +240,6 @@ export function useWebSocket() {
   return {
     sendMessage,
     setWorkingDirectory,
+    clearConversation,
   };
 }

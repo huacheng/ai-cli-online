@@ -1,13 +1,34 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 
-interface MessageInputProps {
-  onSend: (content: string) => void;
+// Command definitions
+interface Command {
+  name: string;
+  description: string;
+  type: 'local' | 'passthrough';
 }
 
-export function MessageInput({ onSend }: MessageInputProps) {
+const COMMANDS: Command[] = [
+  { name: '/clear', description: '清除会话历史', type: 'local' },
+  { name: '/help', description: '显示帮助信息', type: 'passthrough' },
+  { name: '/model', description: '查看或切换模型', type: 'passthrough' },
+  { name: '/compact', description: '压缩对话历史', type: 'passthrough' },
+  { name: '/config', description: '查看配置信息', type: 'passthrough' },
+  { name: '/cost', description: '查看费用统计', type: 'passthrough' },
+];
+
+interface MessageInputProps {
+  onSend: (content: string) => void;
+  onClear: () => void;
+}
+
+export function MessageInput({ onSend, onClear }: MessageInputProps) {
   const [input, setInput] = useState('');
+  const [showCommands, setShowCommands] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { isLoading, connected } = useStore();
 
   // Auto-resize textarea
@@ -19,24 +40,120 @@ export function MessageInput({ onSend }: MessageInputProps) {
     }
   }, [input]);
 
+  // Filter commands based on input
+  useEffect(() => {
+    if (input.startsWith('/')) {
+      const query = input.toLowerCase();
+      const filtered = COMMANDS.filter((cmd) =>
+        cmd.name.toLowerCase().startsWith(query)
+      );
+      setFilteredCommands(filtered);
+      setShowCommands(filtered.length > 0);
+      setSelectedIndex(0);
+    } else {
+      setShowCommands(false);
+    }
+  }, [input]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && connected) {
-      onSend(input.trim());
+      executeInput(input.trim());
+    }
+  };
+
+  const executeInput = (value: string) => {
+    // Check if it's a local command
+    if (value === '/clear') {
+      onClear();
       setInput('');
+      setShowCommands(false);
+      return;
+    }
+
+    // Send to server (either passthrough command or regular message)
+    onSend(value);
+    setInput('');
+    setShowCommands(false);
+  };
+
+  const selectCommand = (command: Command) => {
+    if (command.type === 'local') {
+      executeInput(command.name);
+    } else {
+      setInput(command.name + ' ');
+      setShowCommands(false);
+      textareaRef.current?.focus();
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Submit on Enter (without Shift)
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
+    if (showCommands) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < filteredCommands.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredCommands.length - 1
+        );
+      } else if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredCommands[selectedIndex]) {
+          selectCommand(filteredCommands[selectedIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        setShowCommands(false);
+      }
+    } else {
+      // Submit on Enter (without Shift)
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit(e);
+      }
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white">
+    <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white relative">
+      {/* Command menu */}
+      {showCommands && (
+        <div
+          ref={menuRef}
+          className="absolute bottom-full left-4 right-4 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-10"
+        >
+          <div className="py-1">
+            {filteredCommands.map((cmd, index) => (
+              <button
+                key={cmd.name}
+                type="button"
+                onClick={() => selectCommand(cmd)}
+                className={`w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-100 ${
+                  index === selectedIndex ? 'bg-blue-50' : ''
+                }`}
+              >
+                <span className="font-mono text-blue-600 font-medium">
+                  {cmd.name}
+                </span>
+                <span className="text-gray-500 text-sm">{cmd.description}</span>
+                {cmd.type === 'local' && (
+                  <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                    本地
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500 border-t">
+            <kbd className="px-1 bg-gray-200 rounded">Tab</kbd> 或{' '}
+            <kbd className="px-1 bg-gray-200 rounded">Enter</kbd> 选择 ·{' '}
+            <kbd className="px-1 bg-gray-200 rounded">Esc</kbd> 关闭
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-3 items-end">
         <div className="flex-1 relative">
           <textarea
@@ -49,7 +166,7 @@ export function MessageInput({ onSend }: MessageInputProps) {
                 ? '等待连接...'
                 : isLoading
                 ? '等待执行完成...'
-                : '描述你的任务，例如: 帮我创建一个 hello.py 文件'
+                : '输入任务描述，或 / 查看命令'
             }
             disabled={isLoading || !connected}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"

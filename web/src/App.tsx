@@ -6,7 +6,7 @@ import { MessageInput } from './components/MessageInput';
 import { LoginForm } from './components/LoginForm';
 
 function App() {
-  const { sendMessage, setWorkingDirectory } = useWebSocket();
+  const { sendMessage, setWorkingDirectory, clearConversation } = useWebSocket();
   const { error, setError, token, setToken } = useStore();
 
   // Show login form if no token
@@ -50,7 +50,7 @@ function App() {
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <MessageList />
-        <MessageInput onSend={sendMessage} />
+        <MessageInput onSend={sendMessage} onClear={clearConversation} />
       </main>
     </div>
   );
