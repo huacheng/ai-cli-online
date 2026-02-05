@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import remarkGfm from 'remark-gfm';
 import { useStore } from '../store';
 import type { Message } from '../types';
 
@@ -43,35 +46,86 @@ function MessageItem({ message }: { message: Message }) {
             <span>正在执行任务...</span>
           </div>
         ) : (
-          <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : ''}`}>
+          <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'prose-gray'}`}>
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
-                // Style code blocks
                 code({ className, children, ...props }) {
-                  const isInline = !className;
-                  if (isInline) {
+                  const match = /language-(\w+)/.exec(className || '');
+                  const codeString = String(children).replace(/\n$/, '');
+
+                  if (match) {
                     return (
-                      <code
-                        className={`${
-                          isUser ? 'bg-blue-700' : 'bg-gray-100'
-                        } px-1 py-0.5 rounded text-sm`}
-                        {...props}
+                      <SyntaxHighlighter
+                        style={oneDark}
+                        language={match[1]}
+                        PreTag="div"
+                        customStyle={{
+                          margin: 0,
+                          borderRadius: '0.5rem',
+                          fontSize: '0.875rem',
+                        }}
                       >
-                        {children}
-                      </code>
+                        {codeString}
+                      </SyntaxHighlighter>
                     );
                   }
+
                   return (
-                    <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto">
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    </pre>
+                    <code
+                      className={`${
+                        isUser ? 'bg-blue-700/50' : 'bg-gray-100'
+                      } px-1.5 py-0.5 rounded text-sm font-mono`}
+                      {...props}
+                    >
+                      {children}
+                    </code>
                   );
                 },
-                // Style pre blocks
                 pre({ children }) {
-                  return <>{children}</>;
+                  return <div className="not-prose my-4">{children}</div>;
+                },
+                table({ children }) {
+                  return (
+                    <div className="overflow-x-auto my-4">
+                      <table className="min-w-full border-collapse border border-gray-300">
+                        {children}
+                      </table>
+                    </div>
+                  );
+                },
+                th({ children }) {
+                  return (
+                    <th className="border border-gray-300 bg-gray-100 px-3 py-2 text-left font-semibold">
+                      {children}
+                    </th>
+                  );
+                },
+                td({ children }) {
+                  return (
+                    <td className="border border-gray-300 px-3 py-2">
+                      {children}
+                    </td>
+                  );
+                },
+                a({ href, children }) {
+                  return (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`underline ${isUser ? 'text-blue-200' : 'text-blue-600'} hover:opacity-80`}
+                    >
+                      {children}
+                    </a>
+                  );
+                },
+                blockquote({ children }) {
+                  return (
+                    <blockquote className={`border-l-4 ${isUser ? 'border-blue-400' : 'border-gray-300'} pl-4 italic my-4`}>
+                      {children}
+                    </blockquote>
+                  );
                 },
               }}
             >

@@ -31,6 +31,7 @@ function getToken(): string | null {
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const handleMessageRef = useRef<((response: WSResponse) => void) | null>(null);
 
   const {
     setConnected,
@@ -108,7 +109,13 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const response: WSResponse = JSON.parse(event.data);
-        handleMessage(response);
+        console.log('[WS] Received message type:', response.type, 'hasHandler:', !!handleMessageRef.current);
+        // Use ref to always get the latest handleMessage
+        if (handleMessageRef.current) {
+          handleMessageRef.current(response);
+        } else {
+          console.error('[WS] handleMessageRef.current is null!');
+        }
       } catch (err) {
         console.error('[WS] Failed to parse message:', err);
       }
@@ -189,6 +196,11 @@ export function useWebSocket() {
             chunk: string;
             content: string;
           };
+          console.log('[WS] Stream received, id:', streamPayload.messageId, 'content length:', streamPayload.content.length);
+          // Check if message exists in store
+          const currentMessages = useStore.getState().messages;
+          const targetMsg = currentMessages.find(m => m.id === streamPayload.messageId);
+          console.log('[WS] Target message found:', !!targetMsg, 'total messages:', currentMessages.length);
           // Update message content with streamed data
           updateMessage(streamPayload.messageId, {
             content: streamPayload.content,
@@ -207,6 +219,9 @@ export function useWebSocket() {
     },
     [setMessages, setWorkingDir, addMessage, updateMessage, clearMessages, setIsLoading, setError]
   );
+
+  // Keep ref updated with latest handleMessage (sync, not in useEffect)
+  handleMessageRef.current = handleMessage;
 
   const send = useCallback((message: WSMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

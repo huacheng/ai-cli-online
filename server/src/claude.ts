@@ -93,15 +93,37 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
  */
 function stripAnsi(str: string): string {
   return str
-    // Standard ANSI escape sequences
+    // Standard ANSI escape sequences (CSI) - comprehensive pattern
     // eslint-disable-next-line no-control-regex
-    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
-    // OSC (Operating System Command) sequences like \x1B]...;\x07
+    .replace(/\x1B\[[0-9;?]*[A-Za-z]/g, '')
+    // Alternative CSI format with any parameters
     // eslint-disable-next-line no-control-regex
-    .replace(/\x1B\][^\x07]*\x07/g, '')
+    .replace(/\x1B\[[<>=?]?[0-9;]*[A-Za-z]/g, '')
+    // OSC (Operating System Command) sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '')
+    // Single character escape sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B[@-Z\\-_]/g, '')
+    // Private mode sequences (like CSI ? Pm h/l)
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[\?[0-9;]*[a-z]/gi, '')
+    // DEC private modes
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[[0-9;]*[hHlL]/g, '')
+    // Bracketed paste mode and similar
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[[<>]?[0-9;]*[a-z]/gi, '')
+    // Orphaned escape sequences parameters (like "9;4;0;")
+    .replace(/(?:^|[\n\r])?\d+(?:;\d+)*;(?=[\n\r]|$)/g, '')
+    // Incomplete escape sequences at end of string (like "[<u")
+    .replace(/\[<[a-z]?$/gi, '')
+    .replace(/\[\??\d*;?\d*[a-z]?$/gi, '')
     // Bell character
     // eslint-disable-next-line no-control-regex
     .replace(/\x07/g, '')
+    // Carriage return (for progress indicators)
+    .replace(/\r(?!\n)/g, '')
     // Other control characters except newline and tab
     // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');

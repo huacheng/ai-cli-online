@@ -9,15 +9,40 @@ import type { WSMessage, WSResponse, Message } from './types.js';
  */
 function stripAnsiForStream(str: string): string {
   return str
-    // Standard ANSI escape sequences
+    // Standard ANSI escape sequences (CSI) - comprehensive pattern
     // eslint-disable-next-line no-control-regex
-    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
-    // OSC sequences
+    .replace(/\x1B\[[0-9;?]*[A-Za-z]/g, '')
+    // Alternative CSI format with any parameters
     // eslint-disable-next-line no-control-regex
-    .replace(/\x1B\][^\x07]*\x07/g, '')
-    // Bell and other control chars
+    .replace(/\x1B\[[<>=?]?[0-9;]*[A-Za-z]/g, '')
+    // OSC (Operating System Command) sequences
     // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x07]/g, '');
+    .replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '')
+    // Single character escape sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B[@-Z\\-_]/g, '')
+    // Private mode sequences (like CSI ? Pm h/l)
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[\?[0-9;]*[a-z]/gi, '')
+    // DEC private modes
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[[0-9;]*[hHlL]/g, '')
+    // Bracketed paste mode and similar
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[[<>]?[0-9;]*[a-z]/gi, '')
+    // Orphaned escape sequences parameters (like "9;4;0;")
+    .replace(/(?:^|[\n\r])?\d+(?:;\d+)*;(?=[\n\r]|$)/g, '')
+    // Incomplete escape sequences at end of string (like "[<u")
+    .replace(/\[<[a-z]?$/gi, '')
+    .replace(/\[\??\d*;?\d*[a-z]?$/gi, '')
+    // Bell character
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x07/g, '')
+    // Carriage return (for progress indicators)
+    .replace(/\r(?!\n)/g, '')
+    // Other control characters except newline and tab
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
 /**
@@ -55,6 +80,8 @@ function detectWorkingDirChange(output: string): string | null {
   return null;
 }
 
+let connectionCounter = 0;
+
 export function setupWebSocket(wss: WebSocketServer, authToken: string): void {
   wss.on('connection', (ws, req) => {
     // Simple token authentication via query parameter
@@ -67,7 +94,19 @@ export function setupWebSocket(wss: WebSocketServer, authToken: string): void {
       return;
     }
 
-    console.log('[WS] Client connected');
+    const connId = ++connectionCounter;
+    console.log(`[WS] Client connected (conn #${connId}), total connections: ${wss.clients.size}`);
+
+    // Store connection ID on the ws object
+    (ws as WebSocket & { connId: number }).connId = connId;
+
+    // Monitor connection state
+    ws.on('close', (code, reason) => {
+      console.log(`[WS #${connId}] Connection closed, code: ${code}, reason: ${reason}`);
+    });
+    ws.on('error', (err) => {
+      console.error(`[WS #${connId}] Error:`, err);
+    });
 
     // Send initial state
     sendState(ws);
@@ -93,8 +132,15 @@ export function setupWebSocket(wss: WebSocketServer, authToken: string): void {
 }
 
 function send(ws: WebSocket, response: WSResponse): void {
+  const connId = (ws as WebSocket & { connId: number }).connId || 0;
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(response));
+    const data = JSON.stringify(response);
+    ws.send(data);
+    if (response.type === 'stream' || response.type === 'message') {
+      console.log(`[WS #${connId}] Sent ${response.type}, size: ${data.length}`);
+    }
+  } else {
+    console.log(`[WS #${connId}] Cannot send ${response.type}, readyState: ${ws.readyState}`);
   }
 }
 
@@ -236,10 +282,10 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
   };
   storage.addMessage(conversation.id, assistantMessage);
 
-  // Send status update
+  // Send assistant message placeholder to client first
   send(ws, {
-    type: 'status',
-    payload: { messageId: assistantMessage.id, status: 'running' },
+    type: 'message',
+    payload: assistantMessage,
   });
 
   // Execute Claude Code using conversation-specific workingDir
@@ -259,8 +305,10 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
       onData: (chunk) => {
         // Strip ANSI codes from chunk for display
         const cleanChunk = stripAnsiForStream(chunk);
-        if (cleanChunk) {
+        console.log(`[Stream] Raw chunk length: ${chunk.length}, Clean chunk length: ${cleanChunk.length}`);
+        if (cleanChunk.trim()) {
           streamedContent += cleanChunk;
+          console.log(`[Stream] Sending stream update, total length: ${streamedContent.length}`);
           // Send stream update to client
           send(ws, {
             type: 'stream',
@@ -273,6 +321,9 @@ async function handleSendMessage(ws: WebSocket, payload: { content: string }): P
         }
       },
     });
+
+    // Small delay to ensure stream messages are received by client
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Update assistant message with result
     const responseContent = result.success
