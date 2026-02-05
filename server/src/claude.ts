@@ -1,3 +1,4 @@
+import * as pty from 'node-pty';
 import { spawn } from 'child_process';
 import type { ClaudeCodeResult } from './types.js';
 
@@ -5,13 +6,16 @@ export interface ClaudeCodeOptions {
   workingDir: string;
   message: string;
   sessionId?: string;
+  onData?: (data: string) => void; // Callback for real-time streaming output
 }
 
+const CLAUDE_PATH = process.env.CLAUDE_PATH || '/home/ubuntu/.local/bin/claude';
+
 /**
- * Execute Claude Code CLI with a message
+ * Execute Claude Code CLI with a message using node-pty for proper TTY support
  */
 export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<ClaudeCodeResult> {
-  const { workingDir, message, sessionId } = options;
+  const { workingDir, message, sessionId, onData } = options;
 
   return new Promise((resolve) => {
     const args = ['--print', '--dangerously-skip-permissions'];
@@ -21,69 +25,77 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
       args.push('--resume', sessionId);
     }
 
-    // Add the prompt as the last argument, properly quoted for shell
-    // Escape single quotes in message and wrap with single quotes
-    const escapedMessage = message.replace(/'/g, "'\\''");
-    args.push(`'${escapedMessage}'`);
+    // Add the message as the last argument (no shell escaping needed with pty)
+    args.push(message);
 
-    // Use full path for reliability
-    const claudePath = process.env.CLAUDE_PATH || '/home/ubuntu/.local/bin/claude';
-    console.log(`[Claude] Executing in ${workingDir}: ${claudePath}`, args);
+    console.log(`[Claude] Executing in ${workingDir}: ${CLAUDE_PATH}`, args);
 
-    const proc = spawn(claudePath, args, {
+    // Use node-pty for proper TTY emulation
+    const ptyProcess = pty.spawn(CLAUDE_PATH, args, {
+      name: 'xterm-256color',
+      cols: 120,
+      rows: 30,
       cwd: workingDir,
       env: {
         ...process.env,
-        // Ensure non-interactive mode
-        CI: 'true',
+        CI: 'true', // Non-interactive mode
+        TERM: 'xterm-256color',
       },
-      // shell: true is required for claude CLI to work properly with pipe
-      shell: true,
-      // Explicit stdio to capture output
-      stdio: ['inherit', 'pipe', 'pipe'],
     });
 
-    let stdout = '';
-    let stderr = '';
+    let output = '';
 
-    proc.stdout.on('data', (data) => {
-      const chunk = data.toString();
-      stdout += chunk;
-      console.log(`[Claude stdout] ${chunk}`);
+    // Handle data output (real-time streaming)
+    ptyProcess.onData((data) => {
+      output += data;
+      console.log(`[Claude pty] ${data}`);
+
+      // Call streaming callback if provided
+      if (onData) {
+        onData(data);
+      }
     });
 
-    proc.stderr.on('data', (data) => {
-      const chunk = data.toString();
-      stderr += chunk;
-      console.log(`[Claude stderr] ${chunk}`);
-    });
+    // Handle process exit
+    ptyProcess.onExit(({ exitCode }) => {
+      console.log(`[Claude] Process exited with code ${exitCode}`);
 
-    proc.on('close', (code) => {
-      console.log(`[Claude] Process exited with code ${code}`);
+      // Clean up ANSI escape codes from output
+      const cleanOutput = stripAnsi(output).trim();
 
-      if (code === 0) {
+      if (exitCode === 0) {
         resolve({
           success: true,
-          output: stdout.trim(),
+          output: cleanOutput,
         });
       } else {
         resolve({
           success: false,
-          output: stdout.trim(),
-          error: stderr.trim() || `Process exited with code ${code}`,
+          output: cleanOutput,
+          error: `Process exited with code ${exitCode}`,
         });
       }
     });
-
-    proc.on('error', (err) => {
-      console.error(`[Claude] Process error:`, err);
-      resolve({
-        success: false,
-        output: '',
-        error: err.message,
-      });
-    });
   });
+}
+
+/**
+ * Strip ANSI escape codes and control characters from string
+ */
+function stripAnsi(str: string): string {
+  return str
+    // Standard ANSI escape sequences
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
+    // OSC (Operating System Command) sequences like \x1B]...;\x07
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    // Bell character
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x07/g, '')
+    // Other control characters except newline and tab
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
 /**
@@ -91,7 +103,7 @@ export async function executeClaudeCode(options: ClaudeCodeOptions): Promise<Cla
  */
 export async function checkClaudeCodeAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
-    const proc = spawn('claude', ['--version'], { shell: true });
+    const proc = spawn(CLAUDE_PATH, ['--version']);
 
     proc.on('close', (code) => {
       resolve(code === 0);
