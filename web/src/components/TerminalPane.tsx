@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import type { TerminalInstance } from '../types';
@@ -21,7 +20,6 @@ const paneButtonStyle: React.CSSProperties = {
 export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
   const splitTerminal = useStore((s) => s.splitTerminal);
-  const [viewerMode, setViewerMode] = useState(false);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
@@ -53,16 +51,6 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
-            onClick={() => setViewerMode((v) => !v)}
-            style={{
-              ...paneButtonStyle,
-              color: viewerMode ? '#7aa2f7' : '#565f89',
-            }}
-            title={viewerMode ? 'Exit viewer mode' : 'Viewer mode: output in capture-pane viewer'}
-          >
-            {'\u21C5'}
-          </button>
-          <button
             onClick={() => splitTerminal(terminal.id, 'horizontal')}
             style={paneButtonStyle}
             title="Split horizontal (left/right)"
@@ -90,7 +78,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
 
       {/* Terminal */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <TerminalView sessionId={terminal.id} viewerMode={viewerMode} />
+        <TerminalView sessionId={terminal.id} />
       </div>
 
       {/* Error bar */}

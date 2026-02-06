@@ -15,14 +15,7 @@ export function useTerminalWebSocket(
   terminalRef: React.RefObject<Terminal | null>,
   sessionId: string,
   onScrollbackContent?: (data: string) => void,
-  onVisibleContent?: (data: string) => void,
-  onOutput?: () => void,
 ) {
-  // Use refs for callbacks that shouldn't trigger reconnect
-  const onOutputRef = useRef<(() => void) | undefined>();
-  onOutputRef.current = onOutput;
-  const onVisibleContentRef = useRef<((data: string) => void) | undefined>();
-  onVisibleContentRef.current = onVisibleContent;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(RECONNECT_MIN);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -116,7 +109,6 @@ export function useTerminalWebSocket(
         switch (msg.type) {
           case 'output':
             terminal?.write(msg.data);
-            onOutputRef.current?.();
             break;
           case 'scrollback':
             terminal?.write(msg.data);
@@ -129,9 +121,6 @@ export function useTerminalWebSocket(
             break;
           case 'scrollback-content':
             onScrollbackContent?.(msg.data);
-            break;
-          case 'visible-content':
-            onVisibleContentRef.current?.(msg.data);
             break;
           case 'pong':
             break;
@@ -162,12 +151,6 @@ export function useTerminalWebSocket(
     }
   }, []);
 
-  const requestVisible = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'capture-visible' }));
-    }
-  }, []);
-
   // Connect when token is available
   useEffect(() => {
     const token = useStore.getState().token;
@@ -185,5 +168,5 @@ export function useTerminalWebSocket(
     };
   }, [connect, cleanup]);
 
-  return { sendInput, sendResize, requestScrollback, requestVisible };
+  return { sendInput, sendResize, requestScrollback };
 }

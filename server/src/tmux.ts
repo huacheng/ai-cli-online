@@ -79,26 +79,6 @@ export function captureScrollback(name: string): string {
   }
 }
 
-/**
- * Capture visible pane content + limited history (500 lines).
- * Used for live viewer mode with frequent refreshes.
- */
-export function captureVisible(name: string): string {
-  try {
-    const output = execFileSync('tmux', [
-      'capture-pane',
-      '-t', name,
-      '-p',
-      '-e',
-      '-S', '-500',
-    ], { encoding: 'utf-8', maxBuffer: 2 * 1024 * 1024 });
-    return output;
-  } catch (err) {
-    console.error(`[tmux] Failed to capture visible for ${name}:`, err);
-    return '';
-  }
-}
-
 /** Resize tmux window to match terminal dimensions */
 export function resizeSession(name: string, cols: number, rows: number): void {
   try {
