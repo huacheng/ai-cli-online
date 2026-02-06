@@ -53,7 +53,12 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     terminal.loadAddon(new WebLinksAddon());
 
     terminal.open(containerRef.current);
-    fitAddon.fit();
+
+    // Delay initial fit to ensure container has final dimensions
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      sendResize(terminal.cols, terminal.rows);
+    });
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
