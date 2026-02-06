@@ -65,6 +65,16 @@ export function useTerminalWebSocket(
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
 
+      // Sync actual terminal dimensions after connection.
+      // The initial URL params may have used defaults (80x24) because
+      // the terminal wasn't created/fit yet when connect() was called.
+      setTimeout(() => {
+        const term = terminalRef.current;
+        if (term && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        }
+      }, 300);
+
       pingTimerRef.current = window.setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'ping' }));
