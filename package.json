@@ -1,6 +1,6 @@
 {
   "name": "cli-online",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Claude Code Web Chat - Access Claude Code through a web interface",
   "private": true,
   "workspaces": [
