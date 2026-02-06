@@ -20,6 +20,7 @@ const paneButtonStyle: React.CSSProperties = {
 export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
   const splitTerminal = useStore((s) => s.splitTerminal);
+  const customName = useStore((s) => s.sessionNames[terminal.id]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
@@ -43,7 +44,8 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             backgroundColor: terminal.connected ? '#9ece6a' : '#f7768e',
           }} />
           <span style={{ fontSize: '11px', color: '#565f89' }}>
-            {terminal.id}
+            {customName || terminal.id}
+            {customName && <span style={{ color: '#414868' }}> ({terminal.id})</span>}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')
               : ' (disconnected)'}

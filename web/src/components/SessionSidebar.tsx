@@ -163,6 +163,8 @@ export function SessionSidebar() {
     fetchSessions,
   } = useStore();
 
+  const terminalCount = useStore((s) => s.terminals.length);
+
   // Poll sessions when sidebar is open
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -170,6 +172,13 @@ export function SessionSidebar() {
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
   }, [sidebarOpen, fetchSessions]);
+
+  // Refresh when terminals are added/removed (small delay for tmux session creation)
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const timer = setTimeout(fetchSessions, 800);
+    return () => clearTimeout(timer);
+  }, [terminalCount, sidebarOpen, fetchSessions]);
 
   return (
     <div
