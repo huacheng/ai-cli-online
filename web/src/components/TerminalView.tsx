@@ -54,14 +54,20 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 
     terminal.open(containerRef.current);
 
-    // Delay initial fit to ensure container has final dimensions
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-      sendResize(terminal.cols, terminal.rows);
-    });
-
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+
+    // Multiple fit attempts to handle layout timing edge cases
+    const doFit = () => {
+      try {
+        fitAddon.fit();
+        sendResize(terminal.cols, terminal.rows);
+      } catch {
+        // Ignore fit errors during initialization
+      }
+    };
+    requestAnimationFrame(doFit);
+    const retryTimer = setTimeout(doFit, 100);
 
     // Forward user input to WebSocket
     terminal.onData((data) => {
@@ -80,6 +86,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      clearTimeout(retryTimer);
       resizeObserver.disconnect();
       terminal.dispose();
       terminalRef.current = null;
