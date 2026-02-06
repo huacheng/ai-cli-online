@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。支持多终端分屏（水平/垂直任意嵌套）和滚动回看。
+CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。支持多终端分屏（水平/垂直任意嵌套）和 capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
@@ -113,6 +113,7 @@ interface SplitNode {
 | `input` | `{ data: string }` | 原始键入数据 |
 | `resize` | `{ cols, rows }` | 终端尺寸变更 |
 | `ping` | - | 心跳检测 |
+| `capture-scrollback` | - | 请求 capture-pane 滚动历史 |
 
 ### 服务端 → 客户端
 
@@ -120,6 +121,7 @@ interface SplitNode {
 |------|---------|------|
 | `output` | `{ data: string }` | PTY 输出 (原始 ANSI) |
 | `scrollback` | `{ data: string }` | 重连时的历史输出 (最多 10000 行) |
+| `scrollback-content` | `{ data: string }` | capture-pane 滚动历史 (带 ANSI 颜色) |
 | `connected` | `{ resumed: boolean }` | 连接状态 |
 | `error` | `{ error: string }` | 错误信息 |
 | `pong` | `{ timestamp }` | 心跳响应 |
@@ -133,6 +135,16 @@ interface SplitNode {
 - 同一 sessionId 的新连接会踢掉旧连接
 - 浏览器窗口 resize 自动同步到 tmux
 
+## 滚动历史回看
+
+通过 `tmux capture-pane` 实现，不依赖 `stripAltScreen`，不影响 vim/less/htop 等使用 alternate screen 的程序。
+
+- 点击终端右上角 `↑` 按钮 → 发送 `capture-scrollback` 请求
+- 服务端执行 `tmux capture-pane -p -e -S -10000`，`-e` 保留 ANSI 颜色转义码
+- 前端用只读 xterm.js 实例 (`disableStdin: true`, `scrollback: 50000`) 渲染返回内容
+- 渲染前将 `\n` 转为 `\r\n`（xterm.js 需要 CR+LF 才能正确换行回到第 0 列）
+- ESC 键或点击 `✕` 关闭覆盖层
+
 ## tmux 配置
 
 创建 session 时自动设置以下全局选项：
@@ -140,7 +152,7 @@ interface SplitNode {
 | 选项 | 值 | 说明 |
 |------|-----|------|
 | history-limit | 50000 | 大容量滚动历史 |
-| terminal-overrides | xterm*:smcup@:rmcup@ | 禁用 alternate screen，使 xterm.js scrollback 生效 |
+| terminal-overrides | xterm*:smcup@:rmcup@ | 禁用 alternate screen（滚动历史回看使用 capture-pane 方案，此项仅保留兼容） |
 | status | off | 关闭状态栏，避免 scrollback 噪音 |
 | mouse | off | 鼠标滚轮由 xterm.js 处理 |
 
@@ -156,5 +168,5 @@ interface SplitNode {
 
 - [x] 多对话并行 (多个 tmux session)
 - [x] 水平 + 垂直分割布局
-- [x] 终端滚动回看
+- [x] 终端滚动回看 (capture-pane + xterm.js 只读查看器，带 ANSI 颜色)
 - [ ] 成果文档导出

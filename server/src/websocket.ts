@@ -4,6 +4,7 @@ import {
   hasSession,
   createSession,
   captureScrollback,
+  captureVisible,
   resizeSession,
 } from './tmux.js';
 import { PtySession } from './pty.js';
@@ -109,6 +110,11 @@ export function setupWebSocket(
           case 'capture-scrollback': {
             const content = captureScrollback(sessionName);
             send(ws, { type: 'scrollback-content', data: content });
+            break;
+          }
+          case 'capture-visible': {
+            const content = captureVisible(sessionName);
+            send(ws, { type: 'visible-content', data: content });
             break;
           }
         }

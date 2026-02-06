@@ -27,27 +27,82 @@ const TERMINAL_THEME = {
   brightWhite: '#c0caf5',
 };
 
+const FONT_FAMILY = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace";
+
 interface TerminalViewProps {
   sessionId: string;
+  viewerMode: boolean;
 }
 
-export function TerminalView({ sessionId }: TerminalViewProps) {
+export function TerminalView({ sessionId, viewerMode }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const viewerModeRef = useRef(viewerMode);
+  viewerModeRef.current = viewerMode;
+
+  // Scrollback overlay state (normal mode)
   const [scrollbackVisible, setScrollbackVisible] = useState(false);
   const [scrollbackData, setScrollbackData] = useState('');
+
+  // Live viewer state (viewer mode)
+  const [liveViewerData, setLiveViewerData] = useState('');
+  const debounceTimerRef = useRef<number | null>(null);
 
   const handleScrollbackContent = useCallback((data: string) => {
     setScrollbackData(data);
     setScrollbackVisible(true);
   }, []);
 
-  const { sendInput, sendResize, requestScrollback } = useTerminalWebSocket(
+  const handleVisibleContent = useCallback((data: string) => {
+    setLiveViewerData(data);
+  }, []);
+
+  const handleOutput = useCallback(() => {
+    if (!viewerModeRef.current) return;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = window.setTimeout(() => {
+      requestVisibleRef.current?.();
+    }, 500);
+  }, []);
+
+  const { sendInput, sendResize, requestScrollback, requestVisible } = useTerminalWebSocket(
     terminalRef,
     sessionId,
     handleScrollbackContent,
+    handleVisibleContent,
+    handleOutput,
   );
+
+  // Stable ref for requestVisible (avoid stale closure in handleOutput)
+  const requestVisibleRef = useRef(requestVisible);
+  requestVisibleRef.current = requestVisible;
+
+  // Request initial capture when entering viewer mode
+  useEffect(() => {
+    if (viewerMode) {
+      requestVisible();
+    }
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [viewerMode, requestVisible]);
+
+  // Re-fit terminal when leaving viewer mode
+  useEffect(() => {
+    if (!viewerMode && fitAddonRef.current && terminalRef.current) {
+      // Delay to let container resize settle
+      const timer = setTimeout(() => {
+        try {
+          fitAddonRef.current?.fit();
+          if (terminalRef.current) {
+            sendResize(terminalRef.current.cols, terminalRef.current.rows);
+          }
+        } catch { /* ignore */ }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [viewerMode, sendResize]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -56,7 +111,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
       cursorBlink: true,
       scrollback: 10000,
       fontSize: 14,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+      fontFamily: FONT_FAMILY,
       theme: TERMINAL_THEME,
       allowProposedApi: true,
     });
@@ -70,25 +125,40 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Multiple fit attempts to handle layout timing edge cases
+    // Fit terminal to container, retrying until container has valid dimensions
     const doFit = () => {
+      if (viewerModeRef.current) return false; // Don't fit in viewer mode
       try {
-        fitAddon.fit();
-        sendResize(terminal.cols, terminal.rows);
+        const el = containerRef.current;
+        if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+          fitAddon.fit();
+          sendResize(terminal.cols, terminal.rows);
+          return true;
+        }
       } catch {
         // Ignore fit errors during initialization
       }
+      return false;
     };
-    requestAnimationFrame(doFit);
-    const retryTimer = setTimeout(doFit, 100);
+
+    // Retry fit on an interval until successful or max attempts reached
+    requestAnimationFrame(() => doFit());
+    let retryCount = 0;
+    const retryInterval = setInterval(() => {
+      retryCount++;
+      if (doFit() || retryCount >= 10) {
+        clearInterval(retryInterval);
+      }
+    }, 100);
 
     // Forward user input to WebSocket
     terminal.onData((data) => {
       sendInput(data);
     });
 
-    // ResizeObserver for auto-fit
+    // ResizeObserver for auto-fit (skip in viewer mode to preserve tmux pane size)
     const resizeObserver = new ResizeObserver(() => {
+      if (viewerModeRef.current) return;
       try {
         fitAddon.fit();
         sendResize(terminal.cols, terminal.rows);
@@ -99,7 +169,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     resizeObserver.observe(containerRef.current);
 
     return () => {
-      clearTimeout(retryTimer);
+      clearInterval(retryInterval);
       resizeObserver.disconnect();
       terminal.dispose();
       terminalRef.current = null;
@@ -109,46 +179,79 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {/* Live viewer (viewer mode): fills top area */}
+      {viewerMode && (
+        <>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 81,
+            overflow: 'hidden',
+          }}>
+            <LiveViewer data={liveViewerData} />
+          </div>
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 80,
+            height: 1,
+            backgroundColor: '#414868',
+            zIndex: 2,
+          }} />
+        </>
+      )}
+
+      {/* Main terminal: full size in normal mode, small input area in viewer mode */}
       <div
         ref={containerRef}
         style={{
-          width: '100%',
-          height: '100%',
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: viewerMode ? '80px' : '100%',
           backgroundColor: '#1a1b26',
         }}
       />
-      {/* Scrollback toggle button */}
-      <button
-        onClick={() => {
-          if (scrollbackVisible) {
-            setScrollbackVisible(false);
-          } else {
-            requestScrollback();
-          }
-        }}
-        title="Toggle scrollback history"
-        style={{
-          position: 'absolute',
-          top: 4,
-          right: 4,
-          zIndex: 10,
-          background: scrollbackVisible ? '#7aa2f7' : 'rgba(65, 72, 104, 0.7)',
-          color: '#c0caf5',
-          border: 'none',
-          borderRadius: 4,
-          padding: '2px 8px',
-          fontSize: 12,
-          cursor: 'pointer',
-          opacity: 0.8,
-          lineHeight: '20px',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-      >
-        {scrollbackVisible ? '✕' : '↑'}
-      </button>
-      {/* Scrollback overlay with read-only xterm.js viewer */}
-      {scrollbackVisible && (
+
+      {/* Scrollback toggle button (normal mode only) */}
+      {!viewerMode && (
+        <button
+          onClick={() => {
+            if (scrollbackVisible) {
+              setScrollbackVisible(false);
+            } else {
+              requestScrollback();
+            }
+          }}
+          title="Toggle scrollback history"
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            zIndex: 10,
+            background: scrollbackVisible ? '#7aa2f7' : 'rgba(65, 72, 104, 0.7)',
+            color: '#c0caf5',
+            border: 'none',
+            borderRadius: 4,
+            padding: '2px 8px',
+            fontSize: 12,
+            cursor: 'pointer',
+            opacity: 0.8,
+            lineHeight: '20px',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+        >
+          {scrollbackVisible ? '\u2715' : '\u2191'}
+        </button>
+      )}
+
+      {/* Scrollback overlay (normal mode) */}
+      {!viewerMode && scrollbackVisible && (
         <ScrollbackViewer
           data={scrollbackData}
           onClose={() => setScrollbackVisible(false)}
@@ -170,7 +273,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       disableStdin: true,
       scrollback: 50000,
       fontSize: 14,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+      fontFamily: FONT_FAMILY,
       theme: TERMINAL_THEME,
     });
 
@@ -180,7 +283,6 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
 
     requestAnimationFrame(() => {
       try { fitAddon.fit(); } catch { /* ignore */ }
-      // Convert \n to \r\n so xterm.js returns cursor to column 0 on each line
       const normalized = data.replace(/\r?\n/g, '\r\n');
       terminal.write(normalized, () => {
         terminal.scrollToBottom();
@@ -192,7 +294,6 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     });
     resizeObserver.observe(viewerRef.current);
 
-    // ESC key to close
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -234,5 +335,71 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
         style={{ flex: 1, overflow: 'hidden' }}
       />
     </div>
+  );
+}
+
+/** Persistent read-only xterm.js for live capture-pane viewing */
+function LiveViewer({ data }: { data: string }) {
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const prevDataRef = useRef('');
+
+  // Create terminal once
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    const terminal = new Terminal({
+      cursorBlink: false,
+      disableStdin: true,
+      scrollback: 50000,
+      fontSize: 14,
+      fontFamily: FONT_FAMILY,
+      theme: TERMINAL_THEME,
+    });
+
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.open(viewerRef.current);
+
+    terminalRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+
+    requestAnimationFrame(() => {
+      try { fitAddon.fit(); } catch { /* ignore */ }
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      try { fitAddon.fit(); } catch { /* ignore */ }
+    });
+    resizeObserver.observe(viewerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      terminal.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
+    };
+  }, []);
+
+  // Update content when data changes
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal || !data) return;
+    if (data === prevDataRef.current) return; // Skip if unchanged
+    prevDataRef.current = data;
+
+    terminal.reset();
+    const normalized = data.replace(/\r?\n/g, '\r\n');
+    terminal.write(normalized, () => {
+      terminal.scrollToBottom();
+    });
+  }, [data]);
+
+  return (
+    <div
+      ref={viewerRef}
+      style={{ width: '100%', height: '100%' }}
+    />
   );
 }
