@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
-import { isTmuxAvailable, listSessions, buildSessionName, killSession } from './tmux.js';
+import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId } from './tmux.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,6 +78,10 @@ async function main() {
   // Kill a specific session
   app.delete('/api/sessions/:sessionId', (req, res) => {
     if (!checkAuth(req, res)) return;
+    if (!isValidSessionId(req.params.sessionId)) {
+      res.status(400).json({ error: 'Invalid sessionId' });
+      return;
+    }
     const token = (req.query.token as string) || 'default';
     const sessionName = buildSessionName(token, req.params.sessionId);
     killSession(sessionName);
@@ -116,7 +120,7 @@ async function main() {
   }
 
   // WebSocket server
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
   setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR);
 
   const protocol = useHttps ? 'https' : 'http';

@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import {
   buildSessionName,
+  isValidSessionId,
   hasSession,
   createSession,
   captureScrollback,
@@ -39,7 +40,14 @@ export function setupWebSocket(
     const token = url.searchParams.get('token');
     const cols = Math.max(1, parseInt(url.searchParams.get('cols') || '80', 10));
     const rows = Math.max(1, parseInt(url.searchParams.get('rows') || '24', 10));
-    const sessionId = url.searchParams.get('sessionId') || undefined;
+    const rawSessionId = url.searchParams.get('sessionId') || undefined;
+    const sessionId = rawSessionId && isValidSessionId(rawSessionId) ? rawSessionId : undefined;
+
+    if (rawSessionId && !sessionId) {
+      console.log(`[WS] Invalid sessionId rejected: ${rawSessionId}`);
+      ws.close(4004, 'Invalid sessionId');
+      return;
+    }
 
     // Auth check
     if (authToken && token !== authToken) {
@@ -110,10 +118,13 @@ export function setupWebSocket(
           case 'input':
             ptySession?.write(msg.data);
             break;
-          case 'resize':
-            ptySession?.resize(msg.cols, msg.rows);
-            resizeSession(sessionName, msg.cols, msg.rows);
+          case 'resize': {
+            const c = Math.max(1, Math.min(500, Math.floor(msg.cols || 80)));
+            const r = Math.max(1, Math.min(500, Math.floor(msg.rows || 24)));
+            ptySession?.resize(c, r);
+            resizeSession(sessionName, c, r);
             break;
+          }
           case 'ping':
             send(ws, { type: 'pong', timestamp: Date.now() });
             break;

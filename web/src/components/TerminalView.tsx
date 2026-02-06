@@ -102,19 +102,25 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
       sendInput(data);
     });
 
-    // ResizeObserver for auto-fit
+    // ResizeObserver for auto-fit (throttled to avoid resize storms)
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit();
-        sendResize(terminal.cols, terminal.rows);
-      } catch {
-        // Ignore fit errors during transitions
-      }
+      if (resizeTimer) return;
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        try {
+          fitAddon.fit();
+          sendResize(terminal.cols, terminal.rows);
+        } catch {
+          // Ignore fit errors during transitions
+        }
+      }, 150);
     });
     resizeObserver.observe(containerRef.current);
 
     return () => {
       clearInterval(retryInterval);
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       terminal.dispose();
       terminalRef.current = null;

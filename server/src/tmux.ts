@@ -16,6 +16,11 @@ export function tokenToSessionName(token: string): string {
   return `cli-online-${hash.slice(0, 8)}`;
 }
 
+/** Validate sessionId: only allow alphanumeric, underscore, hyphen, max 32 chars */
+export function isValidSessionId(sessionId: string): boolean {
+  return /^[a-zA-Z0-9_-]{1,32}$/.test(sessionId);
+}
+
 /**
  * Build a tmux session name from token + optional sessionId.
  * Without sessionId, behaves identically to tokenToSessionName (backward compat).

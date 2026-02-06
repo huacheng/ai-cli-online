@@ -8,6 +8,19 @@ export type ExitCallback = (code: number, signal: number) => void;
  * When the WebSocket disconnects, we kill only the PTY (detach from tmux),
  * leaving the tmux session alive for later reconnection.
  */
+/** Keys to strip from the environment passed to PTY subprocesses */
+const SENSITIVE_ENV_KEYS = ['AUTH_TOKEN', 'SECRET', 'PASSWORD', 'API_KEY', 'PRIVATE_KEY', 'ACCESS_TOKEN'];
+
+function sanitizedEnv(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string>;
+  for (const key of Object.keys(env)) {
+    if (SENSITIVE_ENV_KEYS.some((s) => key.toUpperCase().includes(s))) {
+      delete env[key];
+    }
+  }
+  return env;
+}
+
 export class PtySession {
   private proc: pty.IPty;
   private dataListeners: DataCallback[] = [];
@@ -19,7 +32,7 @@ export class PtySession {
       name: 'xterm-256color',
       cols,
       rows,
-      env: process.env as Record<string, string>,
+      env: sanitizedEnv(),
     });
 
     this.proc.onData((data) => {
