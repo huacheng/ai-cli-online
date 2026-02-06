@@ -78,10 +78,18 @@ async function main() {
     next();
   });
 
-  // Auth check helper
+  // Auth check helper — reads Authorization header first, falls back to query param
+  function extractToken(req: express.Request): string | undefined {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.slice(7);
+    }
+    return req.query.token as string | undefined;
+  }
+
   function checkAuth(req: express.Request, res: express.Response): boolean {
     if (!AUTH_TOKEN) return true;
-    const token = req.query.token as string | undefined;
+    const token = extractToken(req);
     if (!token || !safeTokenCompare(token, AUTH_TOKEN)) {
       res.status(401).json({ error: 'Unauthorized' });
       return false;
@@ -97,7 +105,7 @@ async function main() {
   // List sessions for a token
   app.get('/api/sessions', async (req, res) => {
     if (!checkAuth(req, res)) return;
-    const token = (req.query.token as string) || 'default';
+    const token = extractToken(req) || 'default';
     const sessions = await listSessions(token);
     const activeNames = getActiveSessionNames();
     const result = sessions.map((s) => ({
@@ -116,7 +124,7 @@ async function main() {
       res.status(400).json({ error: 'Invalid sessionId' });
       return;
     }
-    const token = (req.query.token as string) || 'default';
+    const token = extractToken(req) || 'default';
     const sessionName = buildSessionName(token, req.params.sessionId);
     await killSession(sessionName);
     res.json({ ok: true });

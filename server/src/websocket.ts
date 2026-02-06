@@ -50,9 +50,8 @@ export function setupWebSocket(
   maxConnections = 10,
 ): void {
   const compareToken = tokenCompare || ((a: string, b: string) => a === b);
-  wss.on('connection', async (ws, req) => {
+  wss.on('connection', (ws, req) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
-    const token = url.searchParams.get('token');
     const cols = Math.max(1, parseInt(url.searchParams.get('cols') || '80', 10));
     const rows = Math.max(1, parseInt(url.searchParams.get('rows') || '24', 10));
     const rawSessionId = url.searchParams.get('sessionId') || undefined;
@@ -64,80 +63,112 @@ export function setupWebSocket(
       return;
     }
 
-    // Auth check
-    if (authToken && (!token || !compareToken(token, authToken))) {
-      console.log('[WS] Unauthorized connection attempt');
-      ws.close(4001, 'Unauthorized');
-      return;
-    }
-
-    const sessionName = buildSessionName(token || 'default', sessionId);
-
-    // Connection limit per token
-    const tokenPrefix = tokenToSessionName(token || 'default') + '-';
-    if (countConnectionsForToken(tokenPrefix) >= maxConnections) {
-      console.log(`[WS] Connection limit (${maxConnections}) reached for token`);
-      ws.close(4005, 'Too many connections');
-      return;
-    }
-
-    console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
-
-    // Kick duplicate connection for same token
-    const existing = activeConnections.get(sessionName);
-    if (existing && existing.readyState === WebSocket.OPEN) {
-      console.log(`[WS] Kicking existing connection for session: ${sessionName}`);
-      existing.close(4002, 'Replaced by new connection');
-    }
-    activeConnections.set(sessionName, ws);
-
-    // Check or create tmux session
-    const resumed = await hasSession(sessionName);
-    if (!resumed) {
-      await createSession(sessionName, cols, rows, defaultCwd);
-    } else {
-      // Resize existing session to match new client
-      await resizeSession(sessionName, cols, rows);
-    }
-
-    // Send scrollback for resumed sessions
-    if (resumed) {
-      const scrollback = await captureScrollback(sessionName);
-      if (scrollback) {
-        send(ws, { type: 'scrollback', data: scrollback });
-      }
-    }
-
-    // Notify client of connection status
-    send(ws, { type: 'connected', resumed });
-
-    // Attach PTY to tmux session
+    // First-message auth: wait for { type: 'auth', token } before setting up session.
+    // A 5-second timeout ensures unauthenticated connections don't linger.
+    let authenticated = !authToken; // skip auth if no token configured
+    let sessionName = '';
     let ptySession: PtySession | null = null;
-    try {
-      ptySession = new PtySession(sessionName, cols, rows);
-    } catch (err) {
-      console.error(`[WS] Failed to attach PTY to session ${sessionName}:`, err);
-      send(ws, { type: 'error', error: 'Failed to attach to terminal session' });
-      ws.close(4003, 'PTY attach failed');
-      return;
+    const AUTH_TIMEOUT = 5000;
+
+    const authTimer = authToken
+      ? setTimeout(() => {
+          if (!authenticated) {
+            console.log('[WS] Auth timeout — no auth message received');
+            ws.close(4001, 'Auth timeout');
+          }
+        }, AUTH_TIMEOUT)
+      : null;
+
+    async function initSession(token: string) {
+      sessionName = buildSessionName(token, sessionId);
+
+      // Connection limit per token
+      const tokenPrefix = tokenToSessionName(token) + '-';
+      if (countConnectionsForToken(tokenPrefix) >= maxConnections) {
+        console.log(`[WS] Connection limit (${maxConnections}) reached for token`);
+        ws.close(4005, 'Too many connections');
+        return;
+      }
+
+      console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
+
+      // Kick duplicate connection for same session
+      const existing = activeConnections.get(sessionName);
+      if (existing && existing.readyState === WebSocket.OPEN) {
+        console.log(`[WS] Kicking existing connection for session: ${sessionName}`);
+        existing.close(4002, 'Replaced by new connection');
+      }
+      activeConnections.set(sessionName, ws);
+
+      // Check or create tmux session
+      const resumed = await hasSession(sessionName);
+      if (!resumed) {
+        await createSession(sessionName, cols, rows, defaultCwd);
+      } else {
+        await resizeSession(sessionName, cols, rows);
+      }
+
+      // Send scrollback for resumed sessions
+      if (resumed) {
+        const scrollback = await captureScrollback(sessionName);
+        if (scrollback) {
+          send(ws, { type: 'scrollback', data: scrollback });
+        }
+      }
+
+      send(ws, { type: 'connected', resumed });
+
+      // Attach PTY to tmux session
+      try {
+        ptySession = new PtySession(sessionName, cols, rows);
+      } catch (err) {
+        console.error(`[WS] Failed to attach PTY to session ${sessionName}:`, err);
+        send(ws, { type: 'error', error: 'Failed to attach to terminal session' });
+        ws.close(4003, 'PTY attach failed');
+        return;
+      }
+
+      ptySession.onData((data) => {
+        send(ws, { type: 'output', data });
+      });
+
+      ptySession.onExit((code, signal) => {
+        console.log(`[WS] PTY exited for session ${sessionName}, code: ${code}, signal: ${signal}`);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close(1000, 'PTY exited');
+        }
+      });
     }
 
-    // PTY → WebSocket relay
-    ptySession.onData((data) => {
-      send(ws, { type: 'output', data });
-    });
+    // If no auth required, init immediately with default token
+    if (authenticated) {
+      initSession('default');
+    }
 
-    ptySession.onExit((code, signal) => {
-      console.log(`[WS] PTY exited for session ${sessionName}, code: ${code}, signal: ${signal}`);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close(1000, 'PTY exited');
-      }
-    });
-
-    // WebSocket → PTY relay
     ws.on('message', async (raw) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
+
+        // Handle auth message (must be first message when auth is enabled)
+        if (msg.type === 'auth') {
+          if (authenticated) return; // already authenticated, ignore
+          if (authTimer) clearTimeout(authTimer);
+          if (!msg.token || !compareToken(msg.token, authToken)) {
+            console.log('[WS] Unauthorized — invalid token in auth message');
+            ws.close(4001, 'Unauthorized');
+            return;
+          }
+          authenticated = true;
+          await initSession(msg.token);
+          return;
+        }
+
+        // All other messages require authentication
+        if (!authenticated) {
+          ws.close(4001, 'Auth required');
+          return;
+        }
+
         switch (msg.type) {
           case 'input':
             ptySession?.write(msg.data);
@@ -163,18 +194,20 @@ export function setupWebSocket(
       }
     });
 
-    // Cleanup on disconnect — kill PTY only (tmux stays alive)
     ws.on('close', () => {
-      console.log(`[WS] Client disconnected, session: ${sessionName}`);
-      if (activeConnections.get(sessionName) === ws) {
-        activeConnections.delete(sessionName);
+      if (authTimer) clearTimeout(authTimer);
+      if (sessionName) {
+        console.log(`[WS] Client disconnected, session: ${sessionName}`);
+        if (activeConnections.get(sessionName) === ws) {
+          activeConnections.delete(sessionName);
+        }
       }
       ptySession?.kill();
       ptySession = null;
     });
 
     ws.on('error', (err) => {
-      console.error(`[WS] Error for session ${sessionName}:`, err);
+      console.error(`[WS] Error${sessionName ? ` for session ${sessionName}` : ''}:`, err);
     });
   });
 }

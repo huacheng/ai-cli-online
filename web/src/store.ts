@@ -273,7 +273,9 @@ export const useStore = create<AppState>((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/sessions?token=${encodeURIComponent(token)}`);
+      const res = await fetch(`${API_BASE}/api/sessions`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       if (!res.ok) return;
       const data: ServerSession[] = await res.json();
       set({ serverSessions: data });
@@ -286,8 +288,9 @@ export const useStore = create<AppState>((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`, {
+      await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
     } catch {
       // ignore

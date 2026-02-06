@@ -1,5 +1,6 @@
 // Client → Server messages
 export type ClientMessage =
+  | { type: 'auth'; token: string }
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'ping' }

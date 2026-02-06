@@ -55,12 +55,16 @@ export function useTerminalWebSocket(
     const cols = terminal?.cols || 80;
     const rows = terminal?.rows || 24;
 
-    const wsUrl = `${WS_BASE}?token=${encodeURIComponent(currentToken)}&cols=${cols}&rows=${rows}&sessionId=${encodeURIComponent(sessionId)}`;
+    // Token is sent via first-message auth, not in the URL
+    const wsUrl = `${WS_BASE}?cols=${cols}&rows=${rows}&sessionId=${encodeURIComponent(sessionId)}`;
     console.log(`[WS:${sessionId}] Connecting...`);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log(`[WS:${sessionId}] Connected`);
+      console.log(`[WS:${sessionId}] Connected, sending auth...`);
+      // Send auth as first message
+      ws.send(JSON.stringify({ type: 'auth', token: currentToken }));
+
       setTerminalConnected(sessionId, true);
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
