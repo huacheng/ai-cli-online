@@ -11,6 +11,9 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
   background-color: #1a1b26;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body.resizing-panes {
