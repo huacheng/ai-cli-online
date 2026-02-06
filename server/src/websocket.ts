@@ -50,7 +50,7 @@ export function setupWebSocket(
   maxConnections = 10,
 ): void {
   const compareToken = tokenCompare || ((a: string, b: string) => a === b);
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', async (ws, req) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const token = url.searchParams.get('token');
     const cols = Math.max(1, parseInt(url.searchParams.get('cols') || '80', 10));
@@ -92,17 +92,17 @@ export function setupWebSocket(
     activeConnections.set(sessionName, ws);
 
     // Check or create tmux session
-    const resumed = hasSession(sessionName);
+    const resumed = await hasSession(sessionName);
     if (!resumed) {
-      createSession(sessionName, cols, rows, defaultCwd);
+      await createSession(sessionName, cols, rows, defaultCwd);
     } else {
       // Resize existing session to match new client
-      resizeSession(sessionName, cols, rows);
+      await resizeSession(sessionName, cols, rows);
     }
 
     // Send scrollback for resumed sessions
     if (resumed) {
-      const scrollback = captureScrollback(sessionName);
+      const scrollback = await captureScrollback(sessionName);
       if (scrollback) {
         send(ws, { type: 'scrollback', data: scrollback });
       }
@@ -135,7 +135,7 @@ export function setupWebSocket(
     });
 
     // WebSocket → PTY relay
-    ws.on('message', (raw) => {
+    ws.on('message', async (raw) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
         switch (msg.type) {
@@ -146,14 +146,14 @@ export function setupWebSocket(
             const c = Math.max(1, Math.min(500, Math.floor(msg.cols || 80)));
             const r = Math.max(1, Math.min(500, Math.floor(msg.rows || 24)));
             ptySession?.resize(c, r);
-            resizeSession(sessionName, c, r);
+            await resizeSession(sessionName, c, r);
             break;
           }
           case 'ping':
             send(ws, { type: 'pong', timestamp: Date.now() });
             break;
           case 'capture-scrollback': {
-            const content = captureScrollback(sessionName);
+            const content = await captureScrollback(sessionName);
             send(ws, { type: 'scrollback-content', data: content });
             break;
           }

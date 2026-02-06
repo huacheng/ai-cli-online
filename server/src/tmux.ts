@@ -1,5 +1,8 @@
-import { execFileSync } from 'child_process';
+import { execFile as execFileCb, execFileSync } from 'child_process';
+import { promisify } from 'util';
 import { createHash } from 'crypto';
+
+const execFile = promisify(execFileCb);
 
 export interface TmuxSessionInfo {
   sessionName: string;
@@ -31,9 +34,9 @@ export function buildSessionName(token: string, sessionId?: string): string {
 }
 
 /** Check if a tmux session exists */
-export function hasSession(name: string): boolean {
+export async function hasSession(name: string): Promise<boolean> {
   try {
-    execFileSync('tmux', ['has-session', '-t', name], { stdio: 'ignore' });
+    await execFile('tmux', ['has-session', '-t', name], { stdio: 'ignore' } as any);
     return true;
   } catch {
     return false;
@@ -41,13 +44,13 @@ export function hasSession(name: string): boolean {
 }
 
 /** Create a new tmux session (detached) */
-export function createSession(
+export async function createSession(
   name: string,
   cols: number,
   rows: number,
   cwd: string,
-): void {
-  execFileSync('tmux', [
+): Promise<void> {
+  await execFile('tmux', [
     'new-session',
     '-d',
     '-s', name,
@@ -57,9 +60,9 @@ export function createSession(
 
   // Configure tmux for web terminal usage (per-session, not global)
   try {
-    execFileSync('tmux', ['set-option', '-t', name, 'history-limit', '50000'], { stdio: 'ignore' });
-    execFileSync('tmux', ['set-option', '-t', name, 'status', 'off'], { stdio: 'ignore' });
-    execFileSync('tmux', ['set-option', '-t', name, 'mouse', 'off'], { stdio: 'ignore' });
+    await execFile('tmux', ['set-option', '-t', name, 'history-limit', '50000']);
+    await execFile('tmux', ['set-option', '-t', name, 'status', 'off']);
+    await execFile('tmux', ['set-option', '-t', name, 'mouse', 'off']);
   } catch {
     // Ignore if already set or server quirks
   }
@@ -69,18 +72,18 @@ export function createSession(
 
 /**
  * Capture scrollback buffer with ANSI escape sequences preserved.
- * Returns the last 1000 lines of the pane.
+ * Returns the last 10000 lines of the pane.
  */
-export function captureScrollback(name: string): string {
+export async function captureScrollback(name: string): Promise<string> {
   try {
-    const output = execFileSync('tmux', [
+    const { stdout } = await execFile('tmux', [
       'capture-pane',
       '-t', name,
       '-p',
       '-e',
       '-S', '-10000',
     ], { encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 });
-    return output;
+    return stdout;
   } catch (err) {
     console.error(`[tmux] Failed to capture scrollback for ${name}:`, err);
     return '';
@@ -88,23 +91,23 @@ export function captureScrollback(name: string): string {
 }
 
 /** Resize tmux window to match terminal dimensions */
-export function resizeSession(name: string, cols: number, rows: number): void {
+export async function resizeSession(name: string, cols: number, rows: number): Promise<void> {
   try {
-    execFileSync('tmux', [
+    await execFile('tmux', [
       'resize-window',
       '-t', name,
       '-x', String(cols),
       '-y', String(rows),
-    ], { stdio: 'ignore' });
+    ]);
   } catch {
     // Resize can fail if dimensions haven't changed, ignore
   }
 }
 
 /** Kill a tmux session */
-export function killSession(name: string): void {
+export async function killSession(name: string): Promise<void> {
   try {
-    execFileSync('tmux', ['kill-session', '-t', name], { stdio: 'ignore' });
+    await execFile('tmux', ['kill-session', '-t', name]);
     console.log(`[tmux] Killed session: ${name}`);
   } catch {
     // Session may already be gone
@@ -112,17 +115,17 @@ export function killSession(name: string): void {
 }
 
 /** List all tmux sessions belonging to a given token */
-export function listSessions(token: string): TmuxSessionInfo[] {
+export async function listSessions(token: string): Promise<TmuxSessionInfo[]> {
   const prefix = tokenToSessionName(token) + '-';
   try {
-    const output = execFileSync('tmux', [
+    const { stdout } = await execFile('tmux', [
       'list-sessions',
       '-F',
       '#{session_name}:#{session_created}',
-    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    ], { encoding: 'utf-8' });
 
     const results: TmuxSessionInfo[] = [];
-    for (const line of output.trim().split('\n')) {
+    for (const line of stdout.trim().split('\n')) {
       if (!line) continue;
       const lastColon = line.lastIndexOf(':');
       if (lastColon === -1) continue;
@@ -140,30 +143,27 @@ export function listSessions(token: string): TmuxSessionInfo[] {
 }
 
 /** Clean up idle tmux sessions older than the given TTL (hours) */
-export function cleanupStaleSessions(ttlHours: number): void {
+export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
   const cutoff = Math.floor(Date.now() / 1000) - ttlHours * 3600;
   try {
-    const output = execFileSync('tmux', [
+    const { stdout } = await execFile('tmux', [
       'list-sessions',
       '-F',
       '#{session_name}:#{session_created}:#{session_attached}',
-    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    ], { encoding: 'utf-8' });
 
-    for (const line of output.trim().split('\n')) {
+    for (const line of stdout.trim().split('\n')) {
       if (!line) continue;
       const parts = line.split(':');
       if (parts.length < 3) continue;
       const attached = parseInt(parts[parts.length - 1], 10);
       const created = parseInt(parts[parts.length - 2], 10);
       const name = parts.slice(0, parts.length - 2).join(':');
-      // Only clean up our sessions, not other tmux users'
       if (!name.startsWith('cli-online-')) continue;
-      // Skip attached sessions
       if (attached > 0) continue;
-      // Kill if older than TTL
       if (created < cutoff) {
         console.log(`[tmux] Cleaning up stale session: ${name} (created ${new Date(created * 1000).toISOString()})`);
-        killSession(name);
+        await killSession(name);
       }
     }
   } catch {
@@ -171,7 +171,7 @@ export function cleanupStaleSessions(ttlHours: number): void {
   }
 }
 
-/** Check if tmux is available on the system */
+/** Check if tmux is available on the system (sync — startup only) */
 export function isTmuxAvailable(): boolean {
   try {
     execFileSync('tmux', ['-V'], { stdio: 'ignore' });

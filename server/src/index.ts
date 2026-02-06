@@ -95,10 +95,10 @@ async function main() {
   });
 
   // List sessions for a token
-  app.get('/api/sessions', (req, res) => {
+  app.get('/api/sessions', async (req, res) => {
     if (!checkAuth(req, res)) return;
     const token = (req.query.token as string) || 'default';
-    const sessions = listSessions(token);
+    const sessions = await listSessions(token);
     const activeNames = getActiveSessionNames();
     const result = sessions.map((s) => ({
       sessionId: s.sessionId,
@@ -110,7 +110,7 @@ async function main() {
   });
 
   // Kill a specific session
-  app.delete('/api/sessions/:sessionId', (req, res) => {
+  app.delete('/api/sessions/:sessionId', async (req, res) => {
     if (!checkAuth(req, res)) return;
     if (!isValidSessionId(req.params.sessionId)) {
       res.status(400).json({ error: 'Invalid sessionId' });
@@ -118,7 +118,7 @@ async function main() {
     }
     const token = (req.query.token as string) || 'default';
     const sessionName = buildSessionName(token, req.params.sessionId);
-    killSession(sessionName);
+    await killSession(sessionName);
     res.json({ ok: true });
   });
 
