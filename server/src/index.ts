@@ -44,6 +44,7 @@ async function main() {
   console.log('tmux is available');
 
   const app = express();
+  app.set('trust proxy', 1); // trust first proxy (nginx)
 
   // Security headers
   app.use(helmet({
@@ -70,7 +71,7 @@ async function main() {
   // CORS
   app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     res.header('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
     if (_req.method === 'OPTIONS') {
       return res.sendStatus(200);
