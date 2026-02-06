@@ -1,0 +1,20 @@
+{
+  "name": "cli-online-shared",
+  "version": "0.1.0",
+  "description": "Shared types for CLI-Online",
+  "type": "module",
+  "main": "dist/types.js",
+  "types": "dist/types.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
