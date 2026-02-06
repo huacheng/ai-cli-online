@@ -139,6 +139,38 @@ export function listSessions(token: string): TmuxSessionInfo[] {
   }
 }
 
+/** Clean up idle tmux sessions older than the given TTL (hours) */
+export function cleanupStaleSessions(ttlHours: number): void {
+  const cutoff = Math.floor(Date.now() / 1000) - ttlHours * 3600;
+  try {
+    const output = execFileSync('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}:#{session_created}:#{session_attached}',
+    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+
+    for (const line of output.trim().split('\n')) {
+      if (!line) continue;
+      const parts = line.split(':');
+      if (parts.length < 3) continue;
+      const attached = parseInt(parts[parts.length - 1], 10);
+      const created = parseInt(parts[parts.length - 2], 10);
+      const name = parts.slice(0, parts.length - 2).join(':');
+      // Only clean up our sessions, not other tmux users'
+      if (!name.startsWith('cli-online-')) continue;
+      // Skip attached sessions
+      if (attached > 0) continue;
+      // Kill if older than TTL
+      if (created < cutoff) {
+        console.log(`[tmux] Cleaning up stale session: ${name} (created ${new Date(created * 1000).toISOString()})`);
+        killSession(name);
+      }
+    }
+  } catch {
+    // No tmux server or no sessions
+  }
+}
+
 /** Check if tmux is available on the system */
 export function isTmuxAvailable(): boolean {
   try {

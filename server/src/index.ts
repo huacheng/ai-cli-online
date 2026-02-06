@@ -8,7 +8,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
-import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId } from './tmux.js';
+import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions } from './tmux.js';
 
 /** Constant-time string comparison to prevent timing side-channel attacks */
 function safeTokenCompare(a: string, b: string): boolean {
@@ -25,6 +25,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 const DEFAULT_WORKING_DIR = process.env.DEFAULT_WORKING_DIR || process.env.HOME || '/home/ubuntu';
 const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
+const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
 
 const CERT_PATH = join(__dirname, '../certs/server.crt');
 const KEY_PATH = join(__dirname, '../certs/server.key');
@@ -42,7 +45,7 @@ async function main() {
 
   // CORS
   app.use((_req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     res.header('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
     if (_req.method === 'OPTIONS') {
@@ -128,7 +131,7 @@ async function main() {
 
   // WebSocket server
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
-  setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR, safeTokenCompare);
+  setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR, safeTokenCompare, MAX_CONNECTIONS);
 
   const protocol = useHttps ? 'https' : 'http';
   const wsProtocol = useHttps ? 'wss' : 'ws';
@@ -146,6 +149,13 @@ async function main() {
     console.log('='.repeat(50));
     console.log('');
   });
+
+  // Periodic cleanup of stale tmux sessions
+  if (SESSION_TTL_HOURS > 0) {
+    const CLEANUP_INTERVAL = 60 * 60 * 1000; // every hour
+    setInterval(() => cleanupStaleSessions(SESSION_TTL_HOURS), CLEANUP_INTERVAL);
+    console.log(`Session TTL: ${SESSION_TTL_HOURS}h (cleanup every hour)`);
+  }
 
   // Graceful shutdown
   const shutdown = () => {

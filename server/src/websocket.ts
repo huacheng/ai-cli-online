@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import {
   buildSessionName,
   isValidSessionId,
+  tokenToSessionName,
   hasSession,
   createSession,
   captureScrollback,
@@ -12,6 +13,17 @@ import type { ClientMessage, ServerMessage } from './types.js';
 
 /** Track active connections per session name to prevent duplicates */
 const activeConnections = new Map<string, WebSocket>();
+
+/** Count active connections for a given token prefix */
+function countConnectionsForToken(tokenPrefix: string): number {
+  let count = 0;
+  for (const [name, ws] of activeConnections) {
+    if (name.startsWith(tokenPrefix) && ws.readyState === WebSocket.OPEN) {
+      count++;
+    }
+  }
+  return count;
+}
 
 /** Get the set of session names with active open WebSocket connections */
 export function getActiveSessionNames(): Set<string> {
@@ -35,6 +47,7 @@ export function setupWebSocket(
   authToken: string,
   defaultCwd: string,
   tokenCompare?: (a: string, b: string) => boolean,
+  maxConnections = 10,
 ): void {
   const compareToken = tokenCompare || ((a: string, b: string) => a === b);
   wss.on('connection', (ws, req) => {
@@ -59,6 +72,15 @@ export function setupWebSocket(
     }
 
     const sessionName = buildSessionName(token || 'default', sessionId);
+
+    // Connection limit per token
+    const tokenPrefix = tokenToSessionName(token || 'default') + '-';
+    if (countConnectionsForToken(tokenPrefix) >= maxConnections) {
+      console.log(`[WS] Connection limit (${maxConnections}) reached for token`);
+      ws.close(4005, 'Too many connections');
+      return;
+    }
+
     console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
 
     // Kick duplicate connection for same token
