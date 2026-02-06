@@ -23,6 +23,12 @@ body.resizing-panes * {
   user-select: none !important;
 }
 
+.session-sidebar {
+  transition: width 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
 body.resizing-panes-v {
   cursor: row-resize !important;
   user-select: none !important;

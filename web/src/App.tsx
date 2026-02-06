@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from './store';
 import { LoginForm } from './components/LoginForm';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
+import { SessionSidebar } from './components/SessionSidebar';
 
 // Read token from URL params or localStorage
 function getInitialToken(): string | null {
@@ -18,7 +19,7 @@ function getInitialToken(): string | null {
 }
 
 function App() {
-  const { token, setToken, terminals, addTerminal } = useStore();
+  const { token, setToken, terminals, addTerminal, toggleSidebar } = useStore();
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -89,26 +90,47 @@ function App() {
             ─
           </button>
         </div>
-        <button
-          onClick={() => setToken(null)}
-          style={{
-            background: 'none',
-            border: '1px solid #292e42',
-            color: '#565f89',
-            padding: '2px 10px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '12px',
-          }}
-        >
-          Logout
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={toggleSidebar}
+            style={{
+              background: 'none',
+              border: '1px solid #292e42',
+              color: '#7aa2f7',
+              padding: '1px 8px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              lineHeight: '1.4',
+            }}
+            title="Toggle session sidebar"
+          >
+            ☰
+          </button>
+          <button
+            onClick={() => setToken(null)}
+            style={{
+              background: 'none',
+              border: '1px solid #292e42',
+              color: '#565f89',
+              padding: '2px 10px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
-      {/* Split pane terminals */}
-      <main style={{ flex: 1, overflow: 'hidden' }}>
-        <SplitPaneContainer />
-      </main>
+      {/* Content area: terminals + sidebar */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <main style={{ flex: 1, overflow: 'hidden' }}>
+          <SplitPaneContainer />
+        </main>
+        <SessionSidebar />
+      </div>
     </div>
   );
 }

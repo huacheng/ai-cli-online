@@ -1,5 +1,22 @@
 import { create } from 'zustand';
-import type { TerminalInstance, LayoutNode, SplitDirection } from './types';
+import type { TerminalInstance, LayoutNode, SplitDirection, ServerSession } from './types';
+
+const SESSION_NAMES_KEY = 'cli-online-session-names';
+
+function loadSessionNames(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_NAMES_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionNames(names: Record<string, string>): void {
+  localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+}
+
+// Build API base URL
+const API_BASE = import.meta.env.DEV ? 'https://localhost:3001' : '';
 
 // Helper: equal sizes for N children
 function equalSizes(count: number): number[] {
@@ -87,7 +104,7 @@ interface AppState {
   nextSplitId: number;
   layout: LayoutNode | null;
 
-  addTerminal: (direction?: SplitDirection) => string;
+  addTerminal: (direction?: SplitDirection, customSessionId?: string) => string;
   splitTerminal: (terminalId: string, direction: SplitDirection) => string;
   removeTerminal: (id: string) => void;
 
@@ -96,6 +113,15 @@ interface AppState {
   setTerminalError: (id: string, error: string | null) => void;
 
   setSplitSizes: (splitId: string, sizes: number[]) => void;
+
+  // Sidebar
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+  serverSessions: ServerSession[];
+  fetchSessions: () => Promise<void>;
+  killServerSession: (sessionId: string) => Promise<void>;
+  sessionNames: Record<string, string>;
+  renameSession: (sessionId: string, name: string) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -114,9 +140,15 @@ export const useStore = create<AppState>((set, get) => ({
   nextSplitId: 1,
   layout: null,
 
-  addTerminal: (direction) => {
+  addTerminal: (direction, customSessionId) => {
     const { nextId, nextSplitId, terminals, layout } = get();
-    const id = `t${nextId}`;
+
+    // If restoring a session that's already open, skip
+    if (customSessionId && terminals.some((t) => t.id === customSessionId)) {
+      return customSessionId;
+    }
+
+    const id = customSessionId || `t${nextId}`;
     const newTerminal: TerminalInstance = { id, connected: false, sessionResumed: false, error: null };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
 
@@ -160,7 +192,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({
       terminals: [...terminals, newTerminal],
-      nextId: nextId + 1,
+      nextId: customSessionId ? nextId : nextId + 1,
       nextSplitId: newNextSplitId,
       layout: newLayout,
     });
@@ -222,5 +254,47 @@ export const useStore = create<AppState>((set, get) => ({
     const { layout } = get();
     if (!layout) return;
     set({ layout: updateSplitSizes(layout, splitId, sizes) });
+  },
+
+  // Sidebar
+  sidebarOpen: false,
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  serverSessions: [],
+  fetchSessions: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/sessions?token=${encodeURIComponent(token)}`);
+      if (!res.ok) return;
+      const data: ServerSession[] = await res.json();
+      set({ serverSessions: data });
+    } catch {
+      // ignore fetch errors
+    }
+  },
+
+  killServerSession: async (sessionId) => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // ignore
+    }
+    // Remove from local terminals if open
+    get().removeTerminal(sessionId);
+    // Refresh list
+    get().fetchSessions();
+  },
+
+  sessionNames: loadSessionNames(),
+  renameSession: (sessionId, name) => {
+    const updated = { ...get().sessionNames, [sessionId]: name };
+    if (!name) delete updated[sessionId];
+    saveSessionNames(updated);
+    set({ sessionNames: updated });
   },
 }));

@@ -24,6 +24,14 @@ export interface TerminalInstance {
   error: string | null;
 }
 
+// Server session info from REST API
+export interface ServerSession {
+  sessionId: string;
+  sessionName: string;
+  createdAt: number;
+  active: boolean;
+}
+
 // Client → Server messages
 export type ClientMessage =
   | { type: 'input'; data: string }

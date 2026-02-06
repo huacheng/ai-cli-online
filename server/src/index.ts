@@ -6,8 +6,8 @@ import { config } from 'dotenv';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupWebSocket } from './websocket.js';
-import { isTmuxAvailable } from './tmux.js';
+import { setupWebSocket, getActiveSessionNames } from './websocket.js';
+import { isTmuxAvailable, listSessions, buildSessionName, killSession } from './tmux.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,16 +37,51 @@ async function main() {
   app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
     if (_req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
     next();
   });
 
+  // Auth check helper
+  function checkAuth(req: express.Request, res: express.Response): boolean {
+    if (!AUTH_TOKEN) return true;
+    const token = req.query.token as string | undefined;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return false;
+    }
+    return true;
+  }
+
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // List sessions for a token
+  app.get('/api/sessions', (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const token = (req.query.token as string) || 'default';
+    const sessions = listSessions(token);
+    const activeNames = getActiveSessionNames();
+    const result = sessions.map((s) => ({
+      sessionId: s.sessionId,
+      sessionName: s.sessionName,
+      createdAt: s.createdAt,
+      active: activeNames.has(s.sessionName),
+    }));
+    res.json(result);
+  });
+
+  // Kill a specific session
+  app.delete('/api/sessions/:sessionId', (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const token = (req.query.token as string) || 'default';
+    const sessionName = buildSessionName(token, req.params.sessionId);
+    killSession(sessionName);
+    res.json({ ok: true });
   });
 
   // Serve static files from web/dist in production

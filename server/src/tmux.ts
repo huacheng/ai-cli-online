@@ -1,6 +1,12 @@
 import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 
+export interface TmuxSessionInfo {
+  sessionName: string;
+  sessionId: string;
+  createdAt: number;
+}
+
 /**
  * Generate a tmux session name from an auth token.
  * Uses SHA256 prefix to avoid leaking the token.
@@ -100,6 +106,34 @@ export function killSession(name: string): void {
     console.log(`[tmux] Killed session: ${name}`);
   } catch {
     // Session may already be gone
+  }
+}
+
+/** List all tmux sessions belonging to a given token */
+export function listSessions(token: string): TmuxSessionInfo[] {
+  const prefix = tokenToSessionName(token) + '-';
+  try {
+    const output = execFileSync('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}:#{session_created}',
+    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+
+    const results: TmuxSessionInfo[] = [];
+    for (const line of output.trim().split('\n')) {
+      if (!line) continue;
+      const lastColon = line.lastIndexOf(':');
+      if (lastColon === -1) continue;
+      const sessionName = line.slice(0, lastColon);
+      const createdAt = parseInt(line.slice(lastColon + 1), 10);
+      if (!sessionName.startsWith(prefix)) continue;
+      const sessionId = sessionName.slice(prefix.length);
+      results.push({ sessionName, sessionId, createdAt });
+    }
+    return results;
+  } catch {
+    // tmux server not running or no sessions
+    return [];
   }
 }
 

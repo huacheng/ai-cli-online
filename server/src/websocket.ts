@@ -12,6 +12,17 @@ import type { ClientMessage, ServerMessage } from './types.js';
 /** Track active connections per session name to prevent duplicates */
 const activeConnections = new Map<string, WebSocket>();
 
+/** Get the set of session names with active open WebSocket connections */
+export function getActiveSessionNames(): Set<string> {
+  const names = new Set<string>();
+  for (const [name, ws] of activeConnections) {
+    if (ws.readyState === WebSocket.OPEN) {
+      names.add(name);
+    }
+  }
+  return names;
+}
+
 function send(ws: WebSocket, msg: ServerMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
