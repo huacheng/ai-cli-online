@@ -187,6 +187,31 @@ export function FileBrowser({ sessionId, onClose }: FileBrowserProps) {
               if (file.type === 'directory') handleNavigate(file.name);
             }}
           >
+            {/* Download button for files */}
+            {file.type === 'file' ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload(file.name);
+                }}
+                disabled={downloading === file.name}
+                style={{
+                  background: 'none',
+                  border: '1px solid #414868',
+                  color: downloading === file.name ? '#565f89' : '#9ece6a',
+                  borderRadius: 3,
+                  padding: '1px 8px',
+                  fontSize: 11,
+                  cursor: downloading === file.name ? 'wait' : 'pointer',
+                  flexShrink: 0,
+                  marginRight: 6,
+                }}
+              >
+                {downloading === file.name ? '...' : '\u2193'}
+              </button>
+            ) : (
+              <span style={{ width: 26, flexShrink: 0, marginRight: 6 }} />
+            )}
             {/* Icon */}
             <span style={{
               width: 20,
@@ -213,32 +238,9 @@ export function FileBrowser({ sessionId, onClose }: FileBrowserProps) {
               color: '#565f89',
               fontSize: 11,
               flexShrink: 0,
-              marginRight: 8,
             }}>
               {file.type === 'file' ? formatSize(file.size) : ''}
             </span>
-            {/* Download button for files */}
-            {file.type === 'file' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownload(file.name);
-                }}
-                disabled={downloading === file.name}
-                style={{
-                  background: 'none',
-                  border: '1px solid #414868',
-                  color: downloading === file.name ? '#565f89' : '#9ece6a',
-                  borderRadius: 3,
-                  padding: '1px 8px',
-                  fontSize: 11,
-                  cursor: downloading === file.name ? 'wait' : 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                {downloading === file.name ? '...' : '\u2193'}
-              </button>
-            )}
           </div>
         ))}
       </div>
