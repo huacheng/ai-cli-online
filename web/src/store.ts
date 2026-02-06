@@ -15,8 +15,8 @@ function saveSessionNames(names: Record<string, string>): void {
   localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
 }
 
-// Build API base URL
-const API_BASE = import.meta.env.DEV ? 'https://localhost:3001' : '';
+// API base URL — always relative (Vite proxy handles dev mode)
+const API_BASE = '';
 
 // Helper: equal sizes for N children
 function equalSizes(count: number): number[] {
