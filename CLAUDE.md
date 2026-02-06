@@ -1,18 +1,18 @@
-# CLI-Online - Claude Code Web Assistant
+# CLI-Online - Web Terminal for Claude Code
 
 ## 项目概述
 
-CLI-Online 是一个 Web 应用，让用户通过浏览器以对话方式使用 Claude Code CLI。解决了 SSH 连接不稳定导致的会话丢失问题。
+CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。
 
 ## 架构
 
 ```
-浏览器 (React) ←→ WebSocket ←→ 后端服务 (Express) ←→ Claude Code CLI
+浏览器 (xterm.js) ←WebSocket raw I/O→ Express (node-pty) ←→ tmux session → shell/claude
 ```
 
-- **前端**: React + Zustand + Tailwind CSS
-- **后端**: Node.js + Express + WebSocket
-- **执行引擎**: Claude Code CLI (非交互模式)
+- **前端**: React + Zustand + xterm.js
+- **后端**: Node.js + Express + node-pty + WebSocket
+- **会话管理**: tmux (持久化终端会话)
 
 ## 目录结构
 
@@ -21,22 +21,21 @@ cli-online/
 ├── server/           # 后端服务 (TypeScript)
 │   └── src/
 │       ├── index.ts      # 主入口，HTTP + WebSocket + 静态文件服务
-│       ├── websocket.ts  # WebSocket 消息处理
-│       ├── claude.ts     # Claude Code CLI 调用封装
-│       ├── storage.ts    # JSON 文件存储 (对话历史、配置)
+│       ├── websocket.ts  # WebSocket ↔ PTY 双向 relay
+│       ├── tmux.ts       # tmux 会话管理 (创建/attach/capture/resize/kill)
+│       ├── pty.ts        # node-pty 封装
 │       └── types.ts      # 共享类型定义
 ├── web/              # 前端应用 (React + Vite)
 │   └── src/
-│       ├── App.tsx           # 主应用组件
+│       ├── App.tsx           # 主应用组件 (Login / Terminal)
 │       ├── store.ts          # Zustand 状态管理
 │       ├── types.ts          # 类型定义
+│       ├── index.css         # 全局样式 + xterm.css
 │       ├── hooks/
-│       │   └── useWebSocket.ts  # WebSocket 连接 Hook
+│       │   └── useTerminalWebSocket.ts  # WebSocket + 自动重连
 │       └── components/
-│           ├── WorkingDirBar.tsx  # 工作目录导航栏
-│           ├── MessageList.tsx    # 消息列表
-│           └── MessageInput.tsx   # 输入框
-├── data/             # 运行时数据 (gitignore)
+│           ├── LoginForm.tsx     # Token 认证表单
+│           └── TerminalView.tsx  # xterm.js 终端视图
 └── package.json      # Monorepo 配置
 ```
 
@@ -79,40 +78,38 @@ npm start
 
 | type | payload | 说明 |
 |------|---------|------|
-| `send_message` | `{ content: string }` | 发送任务给 Claude Code |
-| `set_working_dir` | `{ dir: string }` | 设置工作目录 |
-| `get_history` | - | 获取对话历史 |
+| `input` | `{ data: string }` | 原始键入数据 |
+| `resize` | `{ cols, rows }` | 终端尺寸变更 |
 | `ping` | - | 心跳检测 |
 
 ### 服务端 → 客户端
 
 | type | payload | 说明 |
 |------|---------|------|
-| `message` | `Message` | 消息 (用户/助手) |
-| `history` | `{ messages, workingDir }` | 历史记录 |
-| `working_dir` | `{ workingDir }` | 工作目录变更 |
-| `status` | `{ messageId, status }` | 执行状态更新 |
-| `error` | `{ error }` | 错误信息 |
+| `output` | `{ data: string }` | PTY 输出 (原始 ANSI) |
+| `scrollback` | `{ data: string }` | 重连时的历史输出 |
+| `connected` | `{ resumed: boolean }` | 连接状态 |
+| `error` | `{ error: string }` | 错误信息 |
 | `pong` | `{ timestamp }` | 心跳响应 |
 
-## 数据存储
+连接时通过 query string 传参: `?token=X&cols=80&rows=24`
 
-数据存储在 `server/data/` 目录:
+## 会话管理
 
-- `conversations.json` - 对话历史
-- `config.json` - 配置 (当前对话ID、工作目录)
+- 每个 AUTH_TOKEN 对应一个 tmux session (名称为 token SHA256 前 8 位)
+- 断网后 tmux session 继续运行，重连时通过 `capture-pane` 恢复历史
+- 同一 token 的新连接会踢掉旧连接
+- 浏览器窗口 resize 自动同步到 tmux
 
-## 待实现功能 (阶段二及以后)
+## 前置要求
 
-- [ ] 实时流式输出 (PTY 模式)
-- [ ] Claude Code 会话恢复 (--resume)
-- [ ] 多对话并行 (最多 4 个)
-- [ ] 2xN 瀑布式布局
-- [ ] 成果文档导出
-
-## 注意事项
-
-- Claude Code CLI 必须已安装并可用
-- 后端调用 Claude Code 使用 `--print --dangerously-skip-permissions` 参数
+- Node.js 18+
+- tmux 已安装 (`sudo apt install tmux`)
 - 前端开发时通过 Vite 代理连接后端 (localhost:3001)
 - 生产模式下后端直接服务前端静态文件
+
+## 待实现功能
+
+- [ ] 多对话并行 (多个 tmux session)
+- [ ] 2xN 瀑布式布局
+- [ ] 成果文档导出

@@ -7,87 +7,52 @@ import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupWebSocket } from './websocket.js';
-import { checkClaudeCodeAvailable } from './claude.js';
-import { storage } from './storage.js';
+import { isTmuxAvailable } from './tmux.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Load environment variables
 config();
 
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
-const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false'; // Default to true
+const DEFAULT_WORKING_DIR = process.env.DEFAULT_WORKING_DIR || process.env.HOME || '/home/ubuntu';
+const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false';
 
-// SSL certificate paths
 const CERT_PATH = join(__dirname, '../certs/server.crt');
 const KEY_PATH = join(__dirname, '../certs/server.key');
 
 async function main() {
-  // Check if Claude Code is available
-  const claudeAvailable = await checkClaudeCodeAvailable();
-  if (!claudeAvailable) {
-    console.error('ERROR: Claude Code CLI is not available. Please install it first.');
-    console.error('Run: npm install -g @anthropic-ai/claude-code');
+  // Check tmux availability
+  if (!isTmuxAvailable()) {
+    console.error('ERROR: tmux is not available. Please install it first.');
+    console.error('Run: sudo apt install tmux');
     process.exit(1);
   }
-  console.log('Claude Code CLI is available');
+  console.log('tmux is available');
 
   const app = express();
-  app.use(express.json());
 
-  // CORS middleware for development
-  app.use((req, res, next) => {
+  // CORS
+  app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    if (_req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
     next();
   });
 
-  // Health check endpoint
-  app.get('/api/health', (req, res) => {
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      workingDir: storage.getWorkingDir(),
-    });
-  });
-
-  // Get current working directory
-  app.get('/api/working-dir', (req, res) => {
-    res.json({ workingDir: storage.getWorkingDir() });
-  });
-
-  // Set working directory
-  app.post('/api/working-dir', (req, res) => {
-    const { dir } = req.body;
-    if (!dir) {
-      return res.status(400).json({ error: 'Directory path is required' });
-    }
-    storage.setWorkingDir(dir);
-    res.json({ workingDir: dir });
-  });
-
-  // Get conversation history
-  app.get('/api/conversations', (req, res) => {
-    res.json({ conversations: storage.getAllConversations() });
-  });
-
-  // Get current conversation
-  app.get('/api/conversation', (req, res) => {
-    const conversation = storage.getCurrentConversation();
-    res.json({ conversation });
+  // Health check
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // Serve static files from web/dist in production
   const webDistPath = join(__dirname, '../../web/dist');
   if (existsSync(webDistPath)) {
     app.use(express.static(webDistPath));
-    // SPA fallback - serve index.html for non-API routes
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
         return next();
@@ -97,17 +62,16 @@ async function main() {
     console.log('Serving static files from:', webDistPath);
   }
 
-  // Check if SSL certificates exist
+  // SSL setup
   const hasSSL = existsSync(CERT_PATH) && existsSync(KEY_PATH);
   const useHttps = HTTPS_ENABLED && hasSSL;
 
   let server;
   if (useHttps) {
-    const sslOptions = {
-      cert: readFileSync(CERT_PATH),
-      key: readFileSync(KEY_PATH),
-    };
-    server = createHttpsServer(sslOptions, app);
+    server = createHttpsServer(
+      { cert: readFileSync(CERT_PATH), key: readFileSync(KEY_PATH) },
+      app,
+    );
     console.log('HTTPS enabled with SSL certificates');
   } else {
     server = createHttpServer(app);
@@ -118,7 +82,7 @@ async function main() {
 
   // WebSocket server
   const wss = new WebSocketServer({ server, path: '/ws' });
-  setupWebSocket(wss, AUTH_TOKEN);
+  setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR);
 
   const protocol = useHttps ? 'https' : 'http';
   const wsProtocol = useHttps ? 'wss' : 'ws';
@@ -126,23 +90,14 @@ async function main() {
   server.listen(Number(PORT), HOST, () => {
     console.log('');
     console.log('='.repeat(50));
-    console.log('  CLI-Online Server Started');
+    console.log('  CLI-Online Terminal Server');
     console.log('='.repeat(50));
     console.log(`  ${protocol.toUpperCase()}:      ${protocol}://${HOST}:${PORT}`);
     console.log(`  WebSocket: ${wsProtocol}://${HOST}:${PORT}/ws`);
-    console.log(`  Working:   ${storage.getWorkingDir()}`);
-    console.log(`  SSL:       ${useHttps ? 'Enabled (self-signed)' : 'Disabled'}`);
-    if (AUTH_TOKEN) {
-      console.log(`  Auth:      Token required`);
-    } else {
-      console.log(`  Auth:      No authentication (development mode)`);
-    }
+    console.log(`  CWD:       ${DEFAULT_WORKING_DIR}`);
+    console.log(`  SSL:       ${useHttps ? 'Enabled' : 'Disabled'}`);
+    console.log(`  Auth:      ${AUTH_TOKEN ? 'Token required' : 'No authentication'}`);
     console.log('='.repeat(50));
-    if (useHttps) {
-      console.log('');
-      console.log('  Note: Using self-signed certificate.');
-      console.log('  Browser will show security warning - click "Advanced" to proceed.');
-    }
     console.log('');
   });
 }

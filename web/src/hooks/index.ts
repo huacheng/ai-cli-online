@@ -1,1 +1,1 @@
-export { useWebSocket } from './useWebSocket';
+export { useTerminalWebSocket } from './useTerminalWebSocket';

@@ -1,35 +1,13 @@
-// Message types for WebSocket communication
+// Client → Server messages
+export type ClientMessage =
+  | { type: 'input'; data: string }
+  | { type: 'resize'; cols: number; rows: number }
+  | { type: 'ping' };
 
-export interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: number;
-  status?: 'pending' | 'running' | 'completed' | 'error';
-}
-
-export interface Conversation {
-  id: string;
-  workingDir: string;
-  messages: Message[];
-  claudeSessionId?: string; // Claude Code session ID for --resume
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface WSMessage {
-  type: 'send_message' | 'set_working_dir' | 'get_history' | 'ping' | 'clear_conversation';
-  payload?: unknown;
-}
-
-export interface WSResponse {
-  type: 'message' | 'history' | 'working_dir' | 'error' | 'pong' | 'status' | 'stream' | 'cleared';
-  payload: unknown;
-}
-
-export interface ClaudeCodeResult {
-  success: boolean;
-  output: string;
-  error?: string;
-  sessionId?: string; // Claude Code session ID extracted from output
-}
+// Server → Client messages
+export type ServerMessage =
+  | { type: 'output'; data: string }
+  | { type: 'scrollback'; data: string }
+  | { type: 'connected'; resumed: boolean }
+  | { type: 'error'; error: string }
+  | { type: 'pong'; timestamp: number };

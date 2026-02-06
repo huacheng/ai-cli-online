@@ -13,32 +13,66 @@ export function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <span className="text-5xl">🔐</span>
-          <h1 className="text-2xl font-bold text-white mt-4">CLI-Online</h1>
-          <p className="text-gray-400 mt-2">Claude Code Web Assistant</p>
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#1a1b26',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px',
+    }}>
+      <div style={{
+        backgroundColor: '#24283b',
+        borderRadius: '8px',
+        padding: '32px',
+        width: '100%',
+        maxWidth: '400px',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#c0caf5', marginBottom: '8px' }}>
+            CLI-Online
+          </h1>
+          <p style={{ color: '#565f89', fontSize: '14px' }}>Terminal in your browser</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="token" className="block text-sm font-medium text-gray-300 mb-2">
-              认证 Token
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              htmlFor="token"
+              style={{ display: 'block', fontSize: '13px', color: '#a9b1d6', marginBottom: '8px' }}
+            >
+              Auth Token
             </label>
             <input
               type="password"
               id="token"
               value={inputToken}
               onChange={(e) => setInputToken(e.target.value)}
-              placeholder="输入你的 AUTH_TOKEN"
-              className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your AUTH_TOKEN"
               autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                backgroundColor: '#1a1b26',
+                color: '#c0caf5',
+                border: '1px solid #292e42',
+                borderRadius: '6px',
+                fontSize: '14px',
+                outline: 'none',
+              }}
             />
           </div>
 
           {error && (
-            <div className="bg-red-900/50 border border-red-500 text-red-300 px-4 py-2 rounded-lg text-sm">
+            <div style={{
+              backgroundColor: '#3b2029',
+              border: '1px solid #f7768e',
+              color: '#f7768e',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}>
               {error}
             </div>
           )}
@@ -46,14 +80,24 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={!inputToken.trim()}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+            style={{
+              width: '100%',
+              padding: '10px',
+              backgroundColor: inputToken.trim() ? '#7aa2f7' : '#292e42',
+              color: inputToken.trim() ? '#1a1b26' : '#565f89',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: inputToken.trim() ? 'pointer' : 'not-allowed',
+            }}
           >
-            连接
+            Connect
           </button>
         </form>
 
-        <div className="mt-6 text-center text-gray-500 text-sm">
-          <p>Token 在服务器的 <code className="bg-gray-700 px-1 rounded">server/.env</code> 文件中配置</p>
+        <div style={{ marginTop: '24px', textAlign: 'center', color: '#414868', fontSize: '12px' }}>
+          <p>Token is configured in <code style={{ backgroundColor: '#1a1b26', padding: '2px 4px', borderRadius: '3px' }}>server/.env</code></p>
         </div>
       </div>
     </div>

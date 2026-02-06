@@ -1,3 +1,2 @@
-export { WorkingDirBar } from './WorkingDirBar';
-export { MessageList } from './MessageList';
-export { MessageInput } from './MessageInput';
+export { LoginForm } from './LoginForm';
+export { TerminalView } from './TerminalView';
