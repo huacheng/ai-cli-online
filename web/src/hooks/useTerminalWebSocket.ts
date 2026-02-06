@@ -2,6 +2,14 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import type { Terminal } from '@xterm/xterm';
 
+// Strip alternate screen escape sequences so xterm.js stays in normal buffer mode.
+// tmux attach always enters alternate screen, which disables scrollback.
+// By stripping these, all output goes to the normal buffer where scrollback works.
+const ALT_SCREEN_RE = /\x1b\[\?(1049|1047|47)[hl]/g;
+function stripAltScreen(data: string): string {
+  return data.replace(ALT_SCREEN_RE, '');
+}
+
 // Auto-detect WebSocket URL based on page protocol
 const WS_BASE = import.meta.env.DEV
   ? 'wss://localhost:3001/ws'
@@ -14,6 +22,7 @@ const PING_INTERVAL = 30000;
 export function useTerminalWebSocket(
   terminalRef: React.RefObject<Terminal | null>,
   sessionId: string,
+  onScrollbackContent?: (data: string) => void,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(RECONNECT_MIN);
@@ -107,16 +116,19 @@ export function useTerminalWebSocket(
 
         switch (msg.type) {
           case 'output':
-            terminal?.write(msg.data);
+            terminal?.write(stripAltScreen(msg.data));
             break;
           case 'scrollback':
-            terminal?.write(msg.data);
+            terminal?.write(stripAltScreen(msg.data));
             break;
           case 'connected':
             setTerminalResumed(sessionId, msg.resumed);
             break;
           case 'error':
             setTerminalError(sessionId, msg.error);
+            break;
+          case 'scrollback-content':
+            onScrollbackContent?.(msg.data);
             break;
           case 'pong':
             break;
@@ -127,7 +139,7 @@ export function useTerminalWebSocket(
     };
 
     wsRef.current = ws;
-  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup]);
+  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup, onScrollbackContent]);
 
   const sendInput = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -138,6 +150,12 @@ export function useTerminalWebSocket(
   const sendResize = useCallback((cols: number, rows: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
+    }
+  }, []);
+
+  const requestScrollback = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'capture-scrollback' }));
     }
   }, []);
 
@@ -158,5 +176,5 @@ export function useTerminalWebSocket(
     };
   }, [connect, cleanup]);
 
-  return { sendInput, sendResize };
+  return { sendInput, sendResize, requestScrollback };
 }
