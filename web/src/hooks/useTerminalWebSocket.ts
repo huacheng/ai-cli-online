@@ -22,7 +22,6 @@ const PING_INTERVAL = 30000;
 export function useTerminalWebSocket(
   terminalRef: React.RefObject<Terminal | null>,
   sessionId: string,
-  onScrollbackContent?: (data: string) => void,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(RECONNECT_MIN);
@@ -127,9 +126,6 @@ export function useTerminalWebSocket(
           case 'error':
             setTerminalError(sessionId, msg.error);
             break;
-          case 'scrollback-content':
-            onScrollbackContent?.(msg.data);
-            break;
           case 'pong':
             break;
         }
@@ -139,7 +135,7 @@ export function useTerminalWebSocket(
     };
 
     wsRef.current = ws;
-  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup, onScrollbackContent]);
+  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup]);
 
   const sendInput = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -150,12 +146,6 @@ export function useTerminalWebSocket(
   const sendResize = useCallback((cols: number, rows: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
-    }
-  }, []);
-
-  const requestScrollback = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'capture-scrollback' }));
     }
   }, []);
 
@@ -176,5 +166,5 @@ export function useTerminalWebSocket(
     };
   }, [connect, cleanup]);
 
-  return { sendInput, sendResize, requestScrollback };
+  return { sendInput, sendResize };
 }

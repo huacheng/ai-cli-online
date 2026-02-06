@@ -1,14 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
-
-// Strip ANSI escape sequences for plain text display
-const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)/g;
-function stripAnsi(s: string): string {
-  return s.replace(ANSI_RE, '');
-}
 
 interface TerminalViewProps {
   sessionId: string;
@@ -18,19 +12,8 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [scrollbackVisible, setScrollbackVisible] = useState(false);
-  const [scrollbackContent, setScrollbackContent] = useState('');
 
-  const handleScrollbackContent = useCallback((data: string) => {
-    setScrollbackContent(stripAnsi(data));
-    setScrollbackVisible(true);
-  }, []);
-
-  const { sendInput, sendResize, requestScrollback } = useTerminalWebSocket(
-    terminalRef,
-    sessionId,
-    handleScrollbackContent,
-  );
+  const { sendInput, sendResize } = useTerminalWebSocket(terminalRef, sessionId);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -105,83 +88,13 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
   }, [sendInput, sendResize]);
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div
-        ref={containerRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#1a1b26',
-        }}
-      />
-      {/* Scrollback toggle button */}
-      <button
-        onClick={() => {
-          if (scrollbackVisible) {
-            setScrollbackVisible(false);
-          } else {
-            requestScrollback();
-          }
-        }}
-        title="Toggle scrollback history"
-        style={{
-          position: 'absolute',
-          top: 4,
-          right: 4,
-          zIndex: 10,
-          background: scrollbackVisible ? '#7aa2f7' : 'rgba(65, 72, 104, 0.7)',
-          color: '#c0caf5',
-          border: 'none',
-          borderRadius: 4,
-          padding: '2px 8px',
-          fontSize: 12,
-          cursor: 'pointer',
-          opacity: 0.8,
-          lineHeight: '20px',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-      >
-        {scrollbackVisible ? '✕' : '↑'}
-      </button>
-      {/* Scrollback overlay */}
-      {scrollbackVisible && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 5,
-            backgroundColor: '#1a1b26',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{
-            padding: '6px 12px',
-            background: '#24283b',
-            color: '#7aa2f7',
-            fontSize: 12,
-            borderBottom: '1px solid #414868',
-            flexShrink: 0,
-          }}>
-            Scrollback History (press ✕ to close)
-          </div>
-          <pre style={{
-            flex: 1,
-            margin: 0,
-            padding: 12,
-            overflow: 'auto',
-            color: '#a9b1d6',
-            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-            fontSize: 13,
-            lineHeight: 1.4,
-            whiteSpace: 'pre',
-            tabSize: 8,
-          }}>
-            {scrollbackContent}
-          </pre>
-        </div>
-      )}
-    </div>
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#1a1b26',
+      }}
+    />
   );
 }
