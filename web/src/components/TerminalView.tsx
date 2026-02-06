@@ -4,18 +4,23 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
 
-export function TerminalView() {
+interface TerminalViewProps {
+  sessionId: string;
+}
+
+export function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
 
-  const { sendInput, sendResize } = useTerminalWebSocket(terminalRef);
+  const { sendInput, sendResize } = useTerminalWebSocket(terminalRef, sessionId);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const terminal = new Terminal({
       cursorBlink: true,
+      scrollback: 10000,
       fontSize: 14,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
       theme: {

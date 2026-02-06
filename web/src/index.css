@@ -12,3 +12,23 @@ html, body, #root {
   overflow: hidden;
   background-color: #1a1b26;
 }
+
+body.resizing-panes {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.resizing-panes * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.resizing-panes-v {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+body.resizing-panes-v * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}

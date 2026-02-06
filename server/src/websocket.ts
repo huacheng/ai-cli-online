@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import {
-  tokenToSessionName,
+  buildSessionName,
   hasSession,
   createSession,
   captureScrollback,
@@ -28,6 +28,7 @@ export function setupWebSocket(
     const token = url.searchParams.get('token');
     const cols = Math.max(1, parseInt(url.searchParams.get('cols') || '80', 10));
     const rows = Math.max(1, parseInt(url.searchParams.get('rows') || '24', 10));
+    const sessionId = url.searchParams.get('sessionId') || undefined;
 
     // Auth check
     if (authToken && token !== authToken) {
@@ -36,7 +37,7 @@ export function setupWebSocket(
       return;
     }
 
-    const sessionName = tokenToSessionName(token || 'default');
+    const sessionName = buildSessionName(token || 'default', sessionId);
     console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
 
     // Kick duplicate connection for same token

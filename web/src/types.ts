@@ -1,3 +1,29 @@
+// Layout tree types for split pane support
+export type SplitDirection = 'horizontal' | 'vertical';
+
+export interface LeafNode {
+  type: 'leaf';
+  terminalId: string;
+}
+
+export interface SplitNode {
+  id: string;
+  type: 'split';
+  direction: SplitDirection;
+  children: LayoutNode[];
+  sizes: number[];
+}
+
+export type LayoutNode = LeafNode | SplitNode;
+
+// Terminal instance for connection state tracking
+export interface TerminalInstance {
+  id: string;
+  connected: boolean;
+  sessionResumed: boolean;
+  error: string | null;
+}
+
 // Client → Server messages
 export type ClientMessage =
   | { type: 'input'; data: string }

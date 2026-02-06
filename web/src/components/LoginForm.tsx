@@ -3,7 +3,7 @@ import { useStore } from '../store';
 
 export function LoginForm() {
   const [inputToken, setInputToken] = useState('');
-  const { setToken, error } = useStore();
+  const setToken = useStore((s) => s.setToken);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,20 +62,6 @@ export function LoginForm() {
               }}
             />
           </div>
-
-          {error && (
-            <div style={{
-              backgroundColor: '#3b2029',
-              border: '1px solid #f7768e',
-              color: '#f7768e',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              marginBottom: '16px',
-            }}>
-              {error}
-            </div>
-          )}
 
           <button
             type="submit"

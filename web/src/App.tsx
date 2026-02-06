@@ -1,9 +1,39 @@
+import { useEffect } from 'react';
 import { useStore } from './store';
 import { LoginForm } from './components/LoginForm';
-import { TerminalView } from './components/TerminalView';
+import { SplitPaneContainer } from './components/SplitPaneContainer';
+
+// Read token from URL params or localStorage
+function getInitialToken(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get('token');
+  if (urlToken) {
+    localStorage.setItem('cli-online-token', urlToken);
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('token');
+    window.history.replaceState({}, '', newUrl.toString());
+    return urlToken;
+  }
+  return localStorage.getItem('cli-online-token');
+}
 
 function App() {
-  const { token, setToken, connected, sessionResumed, error, setError } = useStore();
+  const { token, setToken, terminals, addTerminal } = useStore();
+
+  // Initialize token from URL/localStorage on mount
+  useEffect(() => {
+    const saved = getInitialToken();
+    if (saved && !token) {
+      setToken(saved);
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-create first terminal after login
+  useEffect(() => {
+    if (token && terminals.length === 0) {
+      addTerminal();
+    }
+  }, [token]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token) {
     return <LoginForm />;
@@ -23,16 +53,41 @@ function App() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#7aa2f7' }}>CLI-Online</span>
-          <span style={{
-            display: 'inline-block',
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: connected ? '#9ece6a' : '#f7768e',
-          }} />
           <span style={{ fontSize: '12px', color: '#565f89' }}>
-            {connected ? (sessionResumed ? 'Resumed' : 'Connected') : 'Disconnected'}
+            {terminals.length} terminal{terminals.length !== 1 ? 's' : ''}
           </span>
+          <button
+            onClick={() => addTerminal('horizontal')}
+            style={{
+              background: 'none',
+              border: '1px solid #292e42',
+              color: '#7aa2f7',
+              padding: '1px 8px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              lineHeight: '1.4',
+            }}
+            title="Add terminal (horizontal split)"
+          >
+            |
+          </button>
+          <button
+            onClick={() => addTerminal('vertical')}
+            style={{
+              background: 'none',
+              border: '1px solid #292e42',
+              color: '#7aa2f7',
+              padding: '1px 8px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              lineHeight: '1.4',
+            }}
+            title="Add terminal (vertical split)"
+          >
+            ─
+          </button>
         </div>
         <button
           onClick={() => setToken(null)}
@@ -50,32 +105,9 @@ function App() {
         </button>
       </header>
 
-      {/* Error Banner */}
-      {error && (
-        <div style={{
-          padding: '6px 16px',
-          backgroundColor: '#3b2029',
-          borderBottom: '1px solid #f7768e',
-          color: '#f7768e',
-          fontSize: '13px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}>
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            style={{ background: 'none', border: 'none', color: '#f7768e', cursor: 'pointer', fontSize: '16px' }}
-          >
-            x
-          </button>
-        </div>
-      )}
-
-      {/* Terminal */}
+      {/* Split pane terminals */}
       <main style={{ flex: 1, overflow: 'hidden' }}>
-        <TerminalView />
+        <SplitPaneContainer />
       </main>
     </div>
   );

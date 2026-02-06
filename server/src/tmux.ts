@@ -10,6 +10,15 @@ export function tokenToSessionName(token: string): string {
   return `cli-online-${hash.slice(0, 8)}`;
 }
 
+/**
+ * Build a tmux session name from token + optional sessionId.
+ * Without sessionId, behaves identically to tokenToSessionName (backward compat).
+ */
+export function buildSessionName(token: string, sessionId?: string): string {
+  const base = tokenToSessionName(token);
+  return sessionId ? `${base}-${sessionId}` : base;
+}
+
 /** Check if a tmux session exists */
 export function hasSession(name: string): boolean {
   try {
@@ -34,6 +43,14 @@ export function createSession(
     '-x', String(cols),
     '-y', String(rows),
   ], { cwd });
+
+  // Increase history limit for all future panes in this server
+  try {
+    execFileSync('tmux', ['set-option', '-g', 'history-limit', '50000'], { stdio: 'ignore' });
+  } catch {
+    // Ignore if already set or server quirks
+  }
+
   console.log(`[tmux] Created session: ${name} (${cols}x${rows}) in ${cwd}`);
 }
 
@@ -48,7 +65,7 @@ export function captureScrollback(name: string): string {
       '-t', name,
       '-p',
       '-e',
-      '-S', '-1000',
+      '-S', '-10000',
     ], { encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 });
     return output;
   } catch (err) {

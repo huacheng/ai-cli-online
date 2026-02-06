@@ -11,21 +11,10 @@ const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
 const PING_INTERVAL = 30000;
 
-// Get token from URL params or localStorage
-function getToken(): string | null {
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get('token');
-  if (urlToken) {
-    localStorage.setItem('cli-online-token', urlToken);
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.delete('token');
-    window.history.replaceState({}, '', newUrl.toString());
-    return urlToken;
-  }
-  return localStorage.getItem('cli-online-token');
-}
-
-export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | null>) {
+export function useTerminalWebSocket(
+  terminalRef: React.RefObject<Terminal | null>,
+  sessionId: string,
+) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(RECONNECT_MIN);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -33,20 +22,11 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
   const authFailedRef = useRef(false);
 
   const {
-    token,
+    setTerminalConnected,
+    setTerminalResumed,
+    setTerminalError,
     setToken,
-    setConnected,
-    setSessionResumed,
-    setError,
   } = useStore();
-
-  // Initialize token on mount
-  useEffect(() => {
-    const savedToken = getToken();
-    if (savedToken) {
-      setToken(savedToken);
-    }
-  }, [setToken]);
 
   const cleanup = useCallback(() => {
     if (pingTimerRef.current) {
@@ -63,10 +43,8 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
     const currentToken = useStore.getState().token;
     if (!currentToken) return;
 
-    // Don't reconnect if auth failed
     if (authFailedRef.current) return;
 
-    // Skip if already connected/connecting
     if (wsRef.current) {
       const state = wsRef.current.readyState;
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
@@ -76,17 +54,16 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
     const cols = terminal?.cols || 80;
     const rows = terminal?.rows || 24;
 
-    const wsUrl = `${WS_BASE}?token=${encodeURIComponent(currentToken)}&cols=${cols}&rows=${rows}`;
-    console.log('[WS] Connecting...');
+    const wsUrl = `${WS_BASE}?token=${encodeURIComponent(currentToken)}&cols=${cols}&rows=${rows}&sessionId=${encodeURIComponent(sessionId)}`;
+    console.log(`[WS:${sessionId}] Connecting...`);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log('[WS] Connected');
-      setConnected(true);
-      setError(null);
+      console.log(`[WS:${sessionId}] Connected`);
+      setTerminalConnected(sessionId, true);
+      setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
 
-      // Start ping interval
       pingTimerRef.current = window.setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'ping' }));
@@ -95,28 +72,25 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
     };
 
     ws.onclose = (event) => {
-      console.log('[WS] Disconnected, code:', event.code);
-      setConnected(false);
+      console.log(`[WS:${sessionId}] Disconnected, code:`, event.code);
+      setTerminalConnected(sessionId, false);
       cleanup();
 
       if (event.code === 4001) {
-        // Auth failed — don't reconnect
         authFailedRef.current = true;
-        setError('Authentication failed');
+        setTerminalError(sessionId, 'Authentication failed');
         setToken(null);
         localStorage.removeItem('cli-online-token');
         return;
       }
 
       if (event.code === 4002) {
-        // Replaced by new connection — don't reconnect
         return;
       }
 
-      // Exponential backoff reconnect
       const delay = reconnectDelayRef.current;
       reconnectDelayRef.current = Math.min(delay * 2, RECONNECT_MAX);
-      console.log(`[WS] Reconnecting in ${delay}ms...`);
+      console.log(`[WS:${sessionId}] Reconnecting in ${delay}ms...`);
       reconnectTimerRef.current = window.setTimeout(() => {
         connect();
       }, delay);
@@ -139,13 +113,12 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
             terminal?.write(msg.data);
             break;
           case 'connected':
-            setSessionResumed(msg.resumed);
+            setTerminalResumed(sessionId, msg.resumed);
             break;
           case 'error':
-            setError(msg.error);
+            setTerminalError(sessionId, msg.error);
             break;
           case 'pong':
-            // Heartbeat OK
             break;
         }
       } catch {
@@ -154,7 +127,7 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
     };
 
     wsRef.current = ws;
-  }, [terminalRef, setConnected, setSessionResumed, setError, setToken, cleanup]);
+  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup]);
 
   const sendInput = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -170,6 +143,7 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
 
   // Connect when token is available
   useEffect(() => {
+    const token = useStore.getState().token;
     if (token) {
       authFailedRef.current = false;
       connect();
@@ -182,7 +156,7 @@ export function useTerminalWebSocket(terminalRef: React.RefObject<Terminal | nul
         wsRef.current = null;
       }
     };
-  }, [token, connect, cleanup]);
+  }, [connect, cleanup]);
 
   return { sendInput, sendResize };
 }
