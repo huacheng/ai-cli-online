@@ -2,6 +2,8 @@ import express from 'express';
 import { createServer as createHttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer } from 'ws';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -42,6 +44,28 @@ async function main() {
   console.log('tmux is available');
 
   const app = express();
+
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        connectSrc: ["'self'", "wss:", "ws:"],
+      },
+    },
+    frameguard: { action: 'deny' },
+  }));
+
+  // Rate limiting on API endpoints
+  app.use('/api/', rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests' },
+  }));
 
   // CORS
   app.use((_req, res, next) => {
