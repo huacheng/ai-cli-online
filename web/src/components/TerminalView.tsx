@@ -47,7 +47,8 @@ export function TerminalView({ sessionId, viewerMode }: TerminalViewProps) {
 
   // Live viewer state (viewer mode)
   const [liveViewerData, setLiveViewerData] = useState('');
-  const debounceTimerRef = useRef<number | null>(null);
+  const throttleTimerRef = useRef<number | null>(null);
+  const throttleLastRef = useRef(0);
 
   const handleScrollbackContent = useCallback((data: string) => {
     setScrollbackData(data);
@@ -58,12 +59,25 @@ export function TerminalView({ sessionId, viewerMode }: TerminalViewProps) {
     setLiveViewerData(data);
   }, []);
 
+  // Throttle: fire immediately on first output, then at most every 300ms,
+  // with a trailing call to catch the final state after output stops.
   const handleOutput = useCallback(() => {
     if (!viewerModeRef.current) return;
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = window.setTimeout(() => {
+    const now = Date.now();
+    const elapsed = now - throttleLastRef.current;
+
+    if (elapsed >= 300) {
+      // Leading edge: fire immediately
+      throttleLastRef.current = now;
       requestVisibleRef.current?.();
-    }, 500);
+    }
+
+    // Always schedule a trailing edge to capture final state
+    if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current);
+    throttleTimerRef.current = window.setTimeout(() => {
+      throttleLastRef.current = Date.now();
+      requestVisibleRef.current?.();
+    }, 300);
   }, []);
 
   const { sendInput, sendResize, requestScrollback, requestVisible } = useTerminalWebSocket(
@@ -84,7 +98,7 @@ export function TerminalView({ sessionId, viewerMode }: TerminalViewProps) {
       requestVisible();
     }
     return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current);
     };
   }, [viewerMode, requestVisible]);
 

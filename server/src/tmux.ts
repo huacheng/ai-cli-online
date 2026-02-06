@@ -48,8 +48,6 @@ export function createSession(
   try {
     // Large scrollback history
     execFileSync('tmux', ['set-option', '-g', 'history-limit', '50000'], { stdio: 'ignore' });
-    // Disable alternate screen so xterm.js scrollback works
-    execFileSync('tmux', ['set-option', '-g', 'terminal-overrides', 'xterm*:smcup@:rmcup@'], { stdio: 'ignore' });
     // Hide status bar to avoid noise in scrollback
     execFileSync('tmux', ['set-option', '-g', 'status', 'off'], { stdio: 'ignore' });
     // Disable mouse mode so xterm.js handles scroll events

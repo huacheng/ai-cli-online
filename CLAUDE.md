@@ -152,7 +152,6 @@ interface SplitNode {
 | 选项 | 值 | 说明 |
 |------|-----|------|
 | history-limit | 50000 | 大容量滚动历史 |
-| terminal-overrides | xterm*:smcup@:rmcup@ | 禁用 alternate screen（滚动历史回看使用 capture-pane 方案，此项仅保留兼容） |
 | status | off | 关闭状态栏，避免 scrollback 噪音 |
 | mouse | off | 鼠标滚轮由 xterm.js 处理 |
 
