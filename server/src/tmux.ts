@@ -55,14 +55,11 @@ export function createSession(
     '-y', String(rows),
   ], { cwd });
 
-  // Configure tmux for web terminal usage
+  // Configure tmux for web terminal usage (per-session, not global)
   try {
-    // Large scrollback history
-    execFileSync('tmux', ['set-option', '-g', 'history-limit', '50000'], { stdio: 'ignore' });
-    // Hide status bar to avoid noise in scrollback
-    execFileSync('tmux', ['set-option', '-g', 'status', 'off'], { stdio: 'ignore' });
-    // Disable mouse mode so xterm.js handles scroll events
-    execFileSync('tmux', ['set-option', '-g', 'mouse', 'off'], { stdio: 'ignore' });
+    execFileSync('tmux', ['set-option', '-t', name, 'history-limit', '50000'], { stdio: 'ignore' });
+    execFileSync('tmux', ['set-option', '-t', name, 'status', 'off'], { stdio: 'ignore' });
+    execFileSync('tmux', ['set-option', '-t', name, 'mouse', 'off'], { stdio: 'ignore' });
   } catch {
     // Ignore if already set or server quirks
   }

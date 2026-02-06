@@ -34,7 +34,9 @@ export function setupWebSocket(
   wss: WebSocketServer,
   authToken: string,
   defaultCwd: string,
+  tokenCompare?: (a: string, b: string) => boolean,
 ): void {
+  const compareToken = tokenCompare || ((a: string, b: string) => a === b);
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const token = url.searchParams.get('token');
@@ -50,7 +52,7 @@ export function setupWebSocket(
     }
 
     // Auth check
-    if (authToken && token !== authToken) {
+    if (authToken && (!token || !compareToken(token, authToken))) {
       console.log('[WS] Unauthorized connection attempt');
       ws.close(4001, 'Unauthorized');
       return;

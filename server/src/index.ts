@@ -6,8 +6,15 @@ import { config } from 'dotenv';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId } from './tmux.js';
+
+/** Constant-time string comparison to prevent timing side-channel attacks */
+function safeTokenCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -48,7 +55,7 @@ async function main() {
   function checkAuth(req: express.Request, res: express.Response): boolean {
     if (!AUTH_TOKEN) return true;
     const token = req.query.token as string | undefined;
-    if (token !== AUTH_TOKEN) {
+    if (!token || !safeTokenCompare(token, AUTH_TOKEN)) {
       res.status(401).json({ error: 'Unauthorized' });
       return false;
     }
@@ -121,7 +128,7 @@ async function main() {
 
   // WebSocket server
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
-  setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR);
+  setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR, safeTokenCompare);
 
   const protocol = useHttps ? 'https' : 'http';
   const wsProtocol = useHttps ? 'wss' : 'ws';
@@ -139,6 +146,26 @@ async function main() {
     console.log('='.repeat(50));
     console.log('');
   });
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log('\n[shutdown] Closing server...');
+    // Close all WebSocket connections
+    wss.clients.forEach((client) => {
+      client.close(1001, 'Server shutting down');
+    });
+    server.close(() => {
+      console.log('[shutdown] Server closed');
+      process.exit(0);
+    });
+    // Force exit after 5s if graceful close hangs
+    setTimeout(() => {
+      console.log('[shutdown] Forced exit');
+      process.exit(1);
+    }, 5000);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 main().catch((err) => {
