@@ -1,5 +1,8 @@
+import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
+import { FileBrowser } from './FileBrowser';
+import { uploadFiles } from '../api/files';
 import type { TerminalInstance } from '../types';
 
 interface TerminalPaneProps {
@@ -21,6 +24,32 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const customName = useStore((s) => s.sessionNames[terminal.id]);
+  const token = useStore((s) => s.token);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !token) return;
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      await uploadFiles(token, terminal.id, files, (percent) => {
+        setUploadProgress(percent);
+      });
+    } catch (err) {
+      console.error('[upload] Failed:', err);
+      alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      // Reset input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
@@ -52,6 +81,37 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleUpload}
+          />
+          {/* Upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              ...paneButtonStyle,
+              color: uploading ? '#e0af68' : '#565f89',
+            }}
+            title={uploading ? `Uploading ${uploadProgress}%` : 'Upload files'}
+          >
+            {uploading ? `${uploadProgress}%` : '\u2191'}
+          </button>
+          {/* Download / File Browser button */}
+          <button
+            onClick={() => setFileBrowserOpen((v) => !v)}
+            style={{
+              ...paneButtonStyle,
+              color: fileBrowserOpen ? '#7aa2f7' : '#565f89',
+            }}
+            title="Browse files"
+          >
+            {'\u2193'}
+          </button>
           <button
             onClick={() => splitTerminal(terminal.id, 'horizontal')}
             style={paneButtonStyle}
@@ -78,9 +138,15 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
         </div>
       </div>
 
-      {/* Terminal */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      {/* Terminal + FileBrowser overlay */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <TerminalView sessionId={terminal.id} />
+        {fileBrowserOpen && (
+          <FileBrowser
+            sessionId={terminal.id}
+            onClose={() => setFileBrowserOpen(false)}
+          />
+        )}
       </div>
 
       {/* Error bar */}

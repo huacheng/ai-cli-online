@@ -4,13 +4,16 @@ import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer } from 'ws';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
 import { config } from 'dotenv';
-import { existsSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { existsSync, readFileSync, createReadStream } from 'fs';
+import { copyFile, unlink, stat, mkdir } from 'fs/promises';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
-import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions } from './tmux.js';
+import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd } from './tmux.js';
+import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
 
 /** Constant-time string comparison to prevent timing side-channel attacks */
 function safeTokenCompare(a: string, b: string): boolean {
@@ -72,7 +75,7 @@ async function main() {
   app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     if (_req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
@@ -129,6 +132,118 @@ async function main() {
     const sessionName = buildSessionName(token, req.params.sessionId);
     await killSession(sessionName);
     res.json({ ok: true });
+  });
+
+  // --- File transfer APIs ---
+
+  const UPLOAD_TMP_DIR = '/tmp/cli-online-uploads';
+  await mkdir(UPLOAD_TMP_DIR, { recursive: true });
+
+  const upload = multer({
+    dest: UPLOAD_TMP_DIR,
+    limits: { fileSize: 100 * 1024 * 1024, files: 10 },
+  });
+
+  /** Helper: resolve session from request params + auth */
+  function resolveSession(req: express.Request, res: express.Response): string | null {
+    if (!checkAuth(req, res)) return null;
+    const { sessionId } = req.params;
+    if (!isValidSessionId(sessionId)) {
+      res.status(400).json({ error: 'Invalid sessionId' });
+      return null;
+    }
+    const token = extractToken(req) || 'default';
+    return buildSessionName(token, sessionId);
+  }
+
+  // Get current working directory
+  app.get('/api/sessions/:sessionId/cwd', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const cwd = await getCwd(sessionName);
+      res.json({ cwd });
+    } catch {
+      res.status(404).json({ error: 'Session not found or not running' });
+    }
+  });
+
+  // List files in directory
+  app.get('/api/sessions/:sessionId/files', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const cwd = await getCwd(sessionName);
+      const subPath = (req.query.path as string) || '';
+      const targetDir = subPath ? await validatePath(subPath, cwd) : cwd;
+      if (!targetDir) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const files = await listFiles(targetDir);
+      res.json({ cwd: targetDir, files });
+    } catch {
+      res.status(404).json({ error: 'Session not found or directory not accessible' });
+    }
+  });
+
+  // Upload files to CWD
+  app.post('/api/sessions/:sessionId/upload', upload.array('files', 10), async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const cwd = await getCwd(sessionName);
+      const uploadedFiles = req.files as Express.Multer.File[];
+      if (!uploadedFiles || uploadedFiles.length === 0) {
+        res.status(400).json({ error: 'No files provided' });
+        return;
+      }
+      const results: { name: string; size: number }[] = [];
+      for (const file of uploadedFiles) {
+        const destPath = join(cwd, file.originalname);
+        // Use copyFile + unlink instead of rename to handle cross-device moves
+        await copyFile(file.path, destPath);
+        await unlink(file.path).catch(() => {});
+        results.push({ name: file.originalname, size: file.size });
+      }
+      res.json({ uploaded: results });
+    } catch (err) {
+      console.error('[upload] Failed:', err);
+      res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+
+  // Download a file
+  app.get('/api/sessions/:sessionId/download', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const cwd = await getCwd(sessionName);
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        res.status(400).json({ error: 'path query parameter required' });
+        return;
+      }
+      const resolved = await validatePath(filePath, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const fileStat = await stat(resolved);
+      if (!fileStat.isFile()) {
+        res.status(400).json({ error: 'Not a file' });
+        return;
+      }
+      if (fileStat.size > MAX_DOWNLOAD_SIZE) {
+        res.status(413).json({ error: 'File too large (max 100MB)' });
+        return;
+      }
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(basename(resolved))}"`);
+      res.setHeader('Content-Length', fileStat.size);
+      createReadStream(resolved).pipe(res);
+    } catch {
+      res.status(404).json({ error: 'File not found' });
+    }
   });
 
   // Serve static files from web/dist in production

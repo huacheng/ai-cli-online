@@ -171,6 +171,14 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
   }
 }
 
+/** 获取 tmux session 当前活动 pane 的工作目录 */
+export async function getCwd(sessionName: string): Promise<string> {
+  const { stdout } = await execFile('tmux', [
+    'display-message', '-p', '-t', sessionName, '#{pane_current_path}',
+  ], { encoding: 'utf-8' });
+  return stdout.trim();
+}
+
 /** Check if tmux is available on the system (sync — startup only) */
 export function isTmuxAvailable(): boolean {
   try {
