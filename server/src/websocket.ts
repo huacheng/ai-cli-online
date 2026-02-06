@@ -106,6 +106,11 @@ export function setupWebSocket(
           case 'ping':
             send(ws, { type: 'pong', timestamp: Date.now() });
             break;
+          case 'capture-scrollback': {
+            const content = captureScrollback(sessionName);
+            send(ws, { type: 'scrollback-content', data: content });
+            break;
+          }
         }
       } catch {
         // Ignore malformed messages
