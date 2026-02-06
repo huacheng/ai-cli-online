@@ -149,6 +149,14 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const id = customSessionId || `t${nextId}`;
+
+    // Ensure nextId stays ahead of any existing or restored terminal numeric IDs
+    let newNextId = nextId;
+    const match = id.match(/^t(\d+)$/);
+    if (match) {
+      newNextId = Math.max(newNextId, parseInt(match[1], 10) + 1);
+    }
+
     const newTerminal: TerminalInstance = { id, connected: false, sessionResumed: false, error: null };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
 
@@ -192,7 +200,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({
       terminals: [...terminals, newTerminal],
-      nextId: customSessionId ? nextId : nextId + 1,
+      nextId: customSessionId ? newNextId : newNextId + 1,
       nextSplitId: newNextSplitId,
       layout: newLayout,
     });
