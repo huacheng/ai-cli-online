@@ -81,7 +81,7 @@ export function FileBrowser({ sessionId, onClose }: FileBrowserProps) {
         backgroundColor: '#1a1b26',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontFamily: 'inherit',
       }}
     >
       {/* Header */}

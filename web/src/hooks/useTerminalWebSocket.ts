@@ -21,13 +21,11 @@ export function useTerminalWebSocket(
   const reconnectTimerRef = useRef<number | null>(null);
   const pingTimerRef = useRef<number | null>(null);
   const authFailedRef = useRef(false);
+  const onScrollbackRef = useRef(onScrollbackContent);
+  const intentionalCloseRef = useRef(false);
 
-  const {
-    setTerminalConnected,
-    setTerminalResumed,
-    setTerminalError,
-    setToken,
-  } = useStore();
+  // Keep callback ref in sync
+  onScrollbackRef.current = onScrollbackContent;
 
   const cleanup = useCallback(() => {
     if (pingTimerRef.current) {
@@ -41,7 +39,7 @@ export function useTerminalWebSocket(
   }, []);
 
   const connect = useCallback(() => {
-    const currentToken = useStore.getState().token;
+    const { token: currentToken, setTerminalConnected, setTerminalError } = useStore.getState();
     if (!currentToken) return;
 
     if (authFailedRef.current) return;
@@ -51,12 +49,11 @@ export function useTerminalWebSocket(
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
     }
 
-    const terminal = terminalRef.current;
-    const cols = terminal?.cols || 80;
-    const rows = terminal?.rows || 24;
+    intentionalCloseRef.current = false;
 
     // Token is sent via first-message auth, not in the URL
-    const wsUrl = `${WS_BASE}?cols=${cols}&rows=${rows}&sessionId=${encodeURIComponent(sessionId)}`;
+    // cols/rows are synced via resize message after connection
+    const wsUrl = `${WS_BASE}?sessionId=${encodeURIComponent(sessionId)}`;
     console.log(`[WS:${sessionId}] Connecting...`);
     const ws = new WebSocket(wsUrl);
 
@@ -69,9 +66,7 @@ export function useTerminalWebSocket(
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
 
-      // Sync actual terminal dimensions after connection.
-      // The initial URL params may have used defaults (80x24) because
-      // the terminal wasn't created/fit yet when connect() was called.
+      // Sync actual terminal dimensions after connection
       setTimeout(() => {
         const term = terminalRef.current;
         if (term && ws.readyState === WebSocket.OPEN) {
@@ -88,13 +83,17 @@ export function useTerminalWebSocket(
 
     ws.onclose = (event) => {
       console.log(`[WS:${sessionId}] Disconnected, code:`, event.code);
-      setTerminalConnected(sessionId, false);
+      const { setTerminalConnected: setConn, setTerminalError: setErr, setToken: setTk } = useStore.getState();
+      setConn(sessionId, false);
       cleanup();
+
+      // Don't reconnect if we intentionally closed
+      if (intentionalCloseRef.current) return;
 
       if (event.code === 4001) {
         authFailedRef.current = true;
-        setTerminalError(sessionId, 'Authentication failed');
-        setToken(null);
+        setErr(sessionId, 'Authentication failed');
+        setTk(null);
         localStorage.removeItem('cli-online-token');
         return;
       }
@@ -128,13 +127,13 @@ export function useTerminalWebSocket(
             terminal?.write(msg.data);
             break;
           case 'connected':
-            setTerminalResumed(sessionId, msg.resumed);
+            useStore.getState().setTerminalResumed(sessionId, msg.resumed);
             break;
           case 'error':
-            setTerminalError(sessionId, msg.error);
+            useStore.getState().setTerminalError(sessionId, msg.error);
             break;
           case 'scrollback-content':
-            onScrollbackContent?.(msg.data);
+            onScrollbackRef.current?.(msg.data);
             break;
           case 'pong':
             break;
@@ -145,7 +144,7 @@ export function useTerminalWebSocket(
     };
 
     wsRef.current = ws;
-  }, [terminalRef, sessionId, setTerminalConnected, setTerminalResumed, setTerminalError, setToken, cleanup, onScrollbackContent]);
+  }, [sessionId, terminalRef, cleanup]);
 
   const sendInput = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -174,6 +173,7 @@ export function useTerminalWebSocket(
     }
 
     return () => {
+      intentionalCloseRef.current = true;
       cleanup();
       if (wsRef.current) {
         wsRef.current.close();

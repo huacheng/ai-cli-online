@@ -27,7 +27,7 @@ const TERMINAL_THEME = {
   brightWhite: '#c0caf5',
 };
 
-const FONT_FAMILY = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace";
+const FONT_FAMILY = "'Maple Mono CN', 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace";
 
 interface TerminalViewProps {
   sessionId: string;

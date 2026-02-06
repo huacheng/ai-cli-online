@@ -52,8 +52,8 @@ export function setupWebSocket(
   const compareToken = tokenCompare || ((a: string, b: string) => a === b);
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
-    const cols = Math.max(1, parseInt(url.searchParams.get('cols') || '80', 10));
-    const rows = Math.max(1, parseInt(url.searchParams.get('rows') || '24', 10));
+    let cols = 80;
+    let rows = 24;
     const rawSessionId = url.searchParams.get('sessionId') || undefined;
     const sessionId = rawSessionId && isValidSessionId(rawSessionId) ? rawSessionId : undefined;
 
