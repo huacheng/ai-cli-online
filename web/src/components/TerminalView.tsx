@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
+
+export interface TerminalViewHandle {
+  sendInput: (data: string) => void;
+}
 
 const TERMINAL_THEME = {
   background: '#1a1b26',
@@ -34,7 +38,8 @@ interface TerminalViewProps {
   sessionId: string;
 }
 
-export function TerminalView({ sessionId }: TerminalViewProps) {
+export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
+  function TerminalView({ sessionId }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -51,6 +56,8 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     sessionId,
     handleScrollbackContent,
   );
+
+  useImperativeHandle(ref, () => ({ sendInput }), [sendInput]);
 
   // Use refs for callbacks to decouple effect lifecycle from callback identity.
   // This prevents terminal destruction/recreation if callbacks change reference.
@@ -208,7 +215,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
       )}
     </div>
   );
-}
+});
 
 /** Read-only xterm.js instance for viewing scrollback with full ANSI color */
 function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void }) {

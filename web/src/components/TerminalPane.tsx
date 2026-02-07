@@ -1,16 +1,20 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
+import { MarkdownEditor } from './MarkdownEditor';
 import { uploadFiles } from '../api/files';
 import type { TerminalInstance } from '../types';
+import type { TerminalViewHandle } from './TerminalView';
 
 interface TerminalPaneProps {
   terminal: TerminalInstance;
   canClose: boolean;
 }
 
-// Buttons now use .pane-btn CSS class from index.css
+const EDITOR_MIN_HEIGHT = 100;
+const EDITOR_MAX_HEIGHT = 500;
+const EDITOR_DEFAULT_HEIGHT = 200;
 
 export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
@@ -19,9 +23,12 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const token = useStore((s) => s.token);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const terminalViewRef = useRef<TerminalViewHandle>(null);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorHeight, setEditorHeight] = useState(EDITOR_DEFAULT_HEIGHT);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -38,10 +45,41 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
     } finally {
       setUploading(false);
       setUploadProgress(0);
-      // Reset input so the same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  // Send editor text to terminal PTY as a single string (strip newlines, append Enter)
+  const handleEditorSend = useCallback((text: string) => {
+    if (terminalViewRef.current) {
+      terminalViewRef.current.sendInput(text.replace(/\r?\n/g, ' ') + '\r');
+    }
+  }, []);
+
+  // Drag resize for editor panel
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = editorHeight;
+
+    document.body.classList.add('resizing-panes-v');
+
+    const onMouseMove = (ev: MouseEvent) => {
+      // Dragging up = increasing editor height (startY - ev.clientY > 0)
+      const delta = startY - ev.clientY;
+      const newHeight = Math.min(EDITOR_MAX_HEIGHT, Math.max(EDITOR_MIN_HEIGHT, startHeight + delta));
+      setEditorHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      document.body.classList.remove('resizing-panes-v');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [editorHeight]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
@@ -102,6 +140,15 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
           >
             {'\u2193'}
           </button>
+          {/* Markdown editor toggle */}
+          <button
+            className={`pane-btn${editorOpen ? ' pane-btn--active' : ''}`}
+            onClick={() => setEditorOpen((v) => !v)}
+            title="Toggle Markdown editor"
+            aria-label="Toggle Markdown editor"
+          >
+            Md
+          </button>
           <button
             className="pane-btn"
             onClick={() => splitTerminal(terminal.id, 'horizontal')}
@@ -132,8 +179,8 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
       </div>
 
       {/* Terminal + FileBrowser overlay */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <TerminalView sessionId={terminal.id} />
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: '80px' }}>
+        <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
         {fileBrowserOpen && (
           <FileBrowser
             sessionId={terminal.id}
@@ -141,6 +188,22 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
           />
         )}
       </div>
+
+      {/* Resize divider + Markdown editor panel */}
+      {editorOpen && (
+        <>
+          <div
+            className="md-editor-divider"
+            onMouseDown={handleDividerMouseDown}
+          />
+          <div style={{ height: editorHeight, flexShrink: 0, overflow: 'hidden' }}>
+            <MarkdownEditor
+              onSend={handleEditorSend}
+              onClose={() => setEditorOpen(false)}
+            />
+          </div>
+        </>
+      )}
 
       {/* Error bar */}
       {terminal.error && (
@@ -158,4 +221,3 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
     </div>
   );
 }
-

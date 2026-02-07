@@ -208,3 +208,42 @@ button:focus-visible {
   color: #f7768e !important;
   background: rgba(247, 118, 142, 0.1);
 }
+
+/* ── Markdown Editor ── */
+.md-editor-textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 8px 12px;
+  font-family: 'Maple Mono CN', 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #a9b1d6;
+  background-color: #1a1b26;
+  tab-size: 2;
+}
+
+.md-editor-textarea::placeholder {
+  color: #414868;
+  font-style: italic;
+}
+
+/* ── Editor resize divider ── */
+.md-editor-divider {
+  height: 4px;
+  background: #292e42;
+  cursor: row-resize;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.md-editor-divider:hover {
+  background: #7aa2f7;
+}
+
+/* ── Pane button active state for Md toggle ── */
+.pane-btn--active {
+  color: #7aa2f7;
+}
