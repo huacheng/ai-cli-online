@@ -302,18 +302,23 @@ async function main() {
     }
   });
 
-  // Get latest plan file from ~/.claude/plans/
+  // Get latest plan file from ~/.claude/plans/ (scoped to terminal CWD project)
   app.get('/api/sessions/:sessionId/plan/latest', async (req, res) => {
-    if (!checkAuth(req, res)) return;
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
     const since = parseFloat(req.query.since as string) || 0;
     try {
+      // Get terminal CWD for project-scoped plan lookup
+      let cwd: string | undefined;
+      try { cwd = await getCwd(sessionName); } catch { /* tmux unavailable */ }
+
       if (since > 0) {
-        const result = await getLatestPlanIfChanged(since);
+        const result = await getLatestPlanIfChanged(since, cwd);
         if (result === 'unchanged') { res.status(304).end(); return; }
         res.json({ plan: result });
         return;
       }
-      const result = await getLatestPlanFile();
+      const result = await getLatestPlanFile(cwd);
       res.json({ plan: result });
     } catch {
       res.json({ plan: null });

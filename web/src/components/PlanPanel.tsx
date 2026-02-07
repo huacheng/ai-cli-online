@@ -17,8 +17,6 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   const [planContent, setPlanContent] = useState('');
   const [planName, setPlanName] = useState('');
   const planMtimeRef = useRef(0);
-  // Record the time when panel opened — only show plan files written after this
-  const openedAtRef = useRef(Date.now());
 
   // Save-as filename
   const [saveFilename, setSaveFilename] = useState(() => {
@@ -46,8 +44,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         if (cancelled) return;
         if (!cmd || !cmd.toLowerCase().includes('claude')) return; // skip if no claude
 
-        // Use openedAt as floor: only show plan files written after panel opened
-        const since = planMtimeRef.current || openedAtRef.current;
+        const since = planMtimeRef.current;
         const plan = await fetchLatestPlan(token, sessionId, since);
         if (cancelled) return;
         if (plan) {
