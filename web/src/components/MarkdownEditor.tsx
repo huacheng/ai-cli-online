@@ -1,13 +1,45 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { fetchDraft, saveDraft } from '../api/drafts';
 
 interface MarkdownEditorProps {
   onSend: (text: string) => void;
   onClose: () => void;
+  sessionId: string;
+  token: string;
 }
 
-export function MarkdownEditor({ onSend, onClose }: MarkdownEditorProps) {
+export function MarkdownEditor({ onSend, onClose, sessionId, token }: MarkdownEditorProps) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // Track whether initial load is done to avoid saving the loaded content back immediately
+  const loadedRef = useRef(false);
+
+  // Load draft on mount
+  useEffect(() => {
+    let cancelled = false;
+    fetchDraft(token, sessionId).then((draft) => {
+      if (!cancelled && draft) {
+        setContent(draft);
+      }
+      loadedRef.current = true;
+    }).catch(() => {
+      loadedRef.current = true;
+    });
+    return () => { cancelled = true; };
+  }, [token, sessionId]);
+
+  // Auto-save with 500ms debounce
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      saveDraft(token, sessionId, content).catch(() => {});
+    }, 500);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [content, token, sessionId]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -18,7 +50,9 @@ export function MarkdownEditor({ onSend, onClose }: MarkdownEditorProps) {
     if (!text) return;
     onSend(text);
     setContent('');
-  }, [content, onSend]);
+    // Clear server draft after send
+    saveDraft(token, sessionId, '').catch(() => {});
+  }, [content, onSend, token, sessionId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

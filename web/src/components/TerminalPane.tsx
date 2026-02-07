@@ -49,10 +49,11 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
     }
   };
 
-  // Send editor text to terminal PTY as a single string (strip newlines, append Enter)
+  // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing Enter)
   const handleEditorSend = useCallback((text: string) => {
     if (terminalViewRef.current) {
-      terminalViewRef.current.sendInput(text.replace(/\r?\n/g, ' ') + '\r');
+      const merged = text.replace(/\r?\n/g, ' ');
+      terminalViewRef.current.sendInput(merged.endsWith('\r') ? merged : merged + '\r');
     }
   }, []);
 
@@ -200,6 +201,8 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             <MarkdownEditor
               onSend={handleEditorSend}
               onClose={() => setEditorOpen(false)}
+              sessionId={terminal.id}
+              token={token || ''}
             />
           </div>
         </>

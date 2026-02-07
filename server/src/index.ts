@@ -14,6 +14,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd } from './tmux.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
+import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
 
 /** Constant-time string comparison using HMAC to prevent timing side-channel attacks.
  *  HMAC digests are always 32 bytes, so comparison is constant-time regardless of input lengths. */
@@ -78,6 +79,9 @@ async function main() {
     message: { error: 'Too many requests' },
   }));
 
+  // JSON body parser for draft API
+  app.use(express.json({ limit: '256kb' }));
+
   // CORS (only add headers when CORS_ORIGIN is explicitly configured)
   if (CORS_ORIGIN) {
     app.use((_req, res, next) => {
@@ -140,6 +144,7 @@ async function main() {
     const token = extractToken(req) || 'default';
     const sessionName = buildSessionName(token, req.params.sessionId);
     await killSession(sessionName);
+    deleteDraft(sessionName);
     res.json({ ok: true });
   });
 
@@ -268,6 +273,29 @@ async function main() {
     }
   });
 
+  // --- Draft API ---
+
+  // Get draft for a session
+  app.get('/api/sessions/:sessionId/draft', (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    const content = getDraft(sessionName);
+    res.json({ content });
+  });
+
+  // Save (upsert) draft for a session
+  app.put('/api/sessions/:sessionId/draft', (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    const { content } = req.body as { content?: string };
+    if (typeof content !== 'string') {
+      res.status(400).json({ error: 'content must be a string' });
+      return;
+    }
+    saveDraftDb(sessionName, content);
+    res.json({ ok: true });
+  });
+
   // Serve static files from web/dist in production
   const webDistPath = join(__dirname, '../../web/dist');
   if (existsSync(webDistPath)) {
@@ -339,7 +367,10 @@ async function main() {
   // Periodic cleanup of stale tmux sessions
   if (SESSION_TTL_HOURS > 0) {
     const CLEANUP_INTERVAL = 60 * 60 * 1000; // every hour
-    setInterval(() => cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e)), CLEANUP_INTERVAL);
+    setInterval(() => {
+      cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e));
+      try { cleanupOldDrafts(7); } catch (e) { console.error('[cleanup:drafts]', e); }
+    }, CLEANUP_INTERVAL);
     console.log(`Session TTL: ${SESSION_TTL_HOURS}h (cleanup every hour)`);
   }
 
@@ -351,6 +382,7 @@ async function main() {
       client.close(1001, 'Server shutting down');
     });
     server.close(() => {
+      try { closeDb(); } catch { /* ignore */ }
       console.log('[shutdown] Server closed');
       process.exit(0);
     });
