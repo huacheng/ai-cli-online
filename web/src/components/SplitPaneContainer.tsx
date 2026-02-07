@@ -8,7 +8,7 @@ const MIN_PANE_PERCENT = 10;
 
 export function SplitPaneContainer() {
   const layout = useStore((s) => s.layout);
-  const terminals = useStore((s) => s.terminals);
+  const terminalCount = useStore((s) => s.terminalIds.length);
   const addTerminal = useStore((s) => s.addTerminal);
 
   if (!layout) {
@@ -38,7 +38,7 @@ export function SplitPaneContainer() {
     );
   }
 
-  const canClose = terminals.length > 1;
+  const canClose = terminalCount > 1;
 
   return (
     <div style={{ height: '100%', width: '100%', overflow: 'hidden' }}>
@@ -55,7 +55,8 @@ function LayoutRenderer({ node, canClose }: { node: LayoutNode; canClose: boolea
 }
 
 function LeafRenderer({ terminalId, canClose }: { terminalId: string; canClose: boolean }) {
-  const terminal = useStore((s) => s.terminals.find((t) => t.id === terminalId));
+  // O(1) lookup; only re-renders when THIS terminal's state changes
+  const terminal = useStore((s) => s.terminalsMap[terminalId]);
   if (!terminal) return null;
   return <TerminalPane terminal={terminal} canClose={canClose} />;
 }

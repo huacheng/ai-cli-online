@@ -165,3 +165,4 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
     </div>
   );
 }
+

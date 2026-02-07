@@ -11,6 +11,22 @@ const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
 const PING_INTERVAL = 30000;
 
+/** Binary protocol type prefixes (must match server) */
+const BIN_TYPE_OUTPUT = 0x01;
+const BIN_TYPE_INPUT = 0x02;
+const BIN_TYPE_SCROLLBACK = 0x03;
+const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
+
+/** Encode a string as binary with 1-byte type prefix */
+function encodeBinaryMessage(typePrefix: number, data: string): ArrayBuffer {
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(data);
+  const buf = new Uint8Array(1 + payload.length);
+  buf[0] = typePrefix;
+  buf.set(payload, 1);
+  return buf.buffer;
+}
+
 export function useTerminalWebSocket(
   terminalRef: React.RefObject<Terminal | null>,
   sessionId: string,
@@ -23,6 +39,7 @@ export function useTerminalWebSocket(
   const authFailedRef = useRef(false);
   const onScrollbackRef = useRef(onScrollbackContent);
   const intentionalCloseRef = useRef(false);
+  const pingSentAtRef = useRef<number>(0);
 
   // Keep callback ref in sync
   onScrollbackRef.current = onScrollbackContent;
@@ -57,25 +74,26 @@ export function useTerminalWebSocket(
     console.log(`[WS:${sessionId}] Connecting...`);
     const ws = new WebSocket(wsUrl);
 
+    // Use arraybuffer for binary protocol support
+    ws.binaryType = 'arraybuffer';
+
     ws.onopen = () => {
       console.log(`[WS:${sessionId}] Connected, sending auth...`);
-      // Send auth as first message
+      // Send auth as first message (JSON - control message)
       ws.send(JSON.stringify({ type: 'auth', token: currentToken }));
 
       setTerminalConnected(sessionId, true);
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
 
-      // Sync actual terminal dimensions after connection
-      setTimeout(() => {
-        const term = terminalRef.current;
-        if (term && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        }
-      }, 300);
-
+      // Ping immediately to get initial latency, then at interval
+      if (ws.readyState === WebSocket.OPEN) {
+        pingSentAtRef.current = performance.now();
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
       pingTimerRef.current = window.setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
+          pingSentAtRef.current = performance.now();
           ws.send(JSON.stringify({ type: 'ping' }));
         }
       }, PING_INTERVAL);
@@ -116,27 +134,57 @@ export function useTerminalWebSocket(
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
         const terminal = terminalRef.current;
 
+        // Binary hot-path: [1-byte type prefix][raw payload]
+        if (event.data instanceof ArrayBuffer) {
+          const view = new Uint8Array(event.data);
+          if (view.length < 1) return;
+          const typePrefix = view[0];
+          const payload = view.subarray(1);
+
+          switch (typePrefix) {
+            case BIN_TYPE_OUTPUT:
+              // Write raw Uint8Array directly to xterm (zero-copy, no string decode)
+              terminal?.write(payload);
+              break;
+            case BIN_TYPE_SCROLLBACK:
+              terminal?.write(payload);
+              break;
+            case BIN_TYPE_SCROLLBACK_CONTENT: {
+              const decoder = new TextDecoder();
+              onScrollbackRef.current?.(decoder.decode(payload));
+              break;
+            }
+          }
+          return;
+        }
+
+        // JSON control messages (low-frequency)
+        const msg = JSON.parse(event.data);
+
         switch (msg.type) {
-          case 'output':
-            terminal?.write(msg.data);
-            break;
-          case 'scrollback':
-            terminal?.write(msg.data);
-            break;
           case 'connected':
             useStore.getState().setTerminalResumed(sessionId, msg.resumed);
+            // Send resize immediately now that session is ready (no 300ms delay)
+            {
+              const term = terminalRef.current;
+              if (term && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+              }
+            }
             break;
           case 'error':
             useStore.getState().setTerminalError(sessionId, msg.error);
             break;
-          case 'scrollback-content':
-            onScrollbackRef.current?.(msg.data);
+          case 'pong': {
+            if (pingSentAtRef.current > 0) {
+              const rtt = Math.round(performance.now() - pingSentAtRef.current);
+              useStore.getState().setLatency(rtt);
+              pingSentAtRef.current = 0;
+            }
             break;
-          case 'pong':
-            break;
+          }
         }
       } catch {
         // Ignore parse errors
@@ -148,7 +196,8 @@ export function useTerminalWebSocket(
 
   const sendInput = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'input', data }));
+      // Binary protocol for input hot path (eliminates JSON overhead per keystroke)
+      wsRef.current.send(encodeBinaryMessage(BIN_TYPE_INPUT, data));
     }
   }, []);
 

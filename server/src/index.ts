@@ -277,8 +277,17 @@ async function main() {
     }
   }
 
-  // WebSocket server
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
+  // WebSocket server with compression and increased payload limit
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: 1024 * 1024, // 1MB (supports large paste operations)
+    perMessageDeflate: {
+      zlibDeflateOptions: { level: 1 }, // Fastest compression to avoid CPU bottleneck
+      threshold: 128, // Only compress messages > 128 bytes
+      concurrencyLimit: 10,
+    },
+  });
   setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR, safeTokenCompare, MAX_CONNECTIONS);
 
   const protocol = useHttps ? 'https' : 'http';

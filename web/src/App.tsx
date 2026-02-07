@@ -19,7 +19,7 @@ function getInitialToken(): string | null {
 }
 
 function App() {
-  const { token, setToken, terminals, addTerminal, toggleSidebar } = useStore();
+  const { token, setToken, terminalIds, addTerminal, toggleSidebar } = useStore();
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -31,7 +31,7 @@ function App() {
 
   // Auto-create first terminal after login
   useEffect(() => {
-    if (token && terminals.length === 0) {
+    if (token && terminalIds.length === 0) {
       addTerminal();
     }
   }, [token]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -55,7 +55,7 @@ function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#7aa2f7' }}>CLI-Online</span>
           <span style={{ fontSize: '12px', color: '#565f89' }}>
-            {terminals.length} terminal{terminals.length !== 1 ? 's' : ''}
+            {terminalIds.length} terminal{terminalIds.length !== 1 ? 's' : ''}
           </span>
           <button
             onClick={() => addTerminal('horizontal')}
@@ -91,6 +91,7 @@ function App() {
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <NetworkIndicator />
           <button
             onClick={toggleSidebar}
             style={{
@@ -132,6 +133,54 @@ function App() {
         <SessionSidebar />
       </div>
     </div>
+  );
+}
+
+/** Global network quality indicator in header */
+function NetworkIndicator() {
+  const latency = useStore((s) => s.latency);
+
+  if (latency === null) {
+    return (
+      <span style={{ fontSize: '10px', color: '#414868' }} title="Measuring latency...">
+        --ms
+      </span>
+    );
+  }
+
+  let color: string;
+  let bars: number;
+  if (latency < 50) {
+    color = '#9ece6a'; bars = 4;
+  } else if (latency < 150) {
+    color = '#e0af68'; bars = 3;
+  } else if (latency < 300) {
+    color = '#ff9e64'; bars = 2;
+  } else {
+    color = '#f7768e'; bars = 1;
+  }
+
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'end', gap: '1px' }}
+      title={`Latency: ${latency}ms`}
+    >
+      {[1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          style={{
+            display: 'inline-block',
+            width: '2px',
+            height: `${3 + i * 2}px`,
+            backgroundColor: i <= bars ? color : '#292e42',
+            borderRadius: '1px',
+          }}
+        />
+      ))}
+      <span style={{ fontSize: '10px', color, marginLeft: '3px' }}>
+        {latency}ms
+      </span>
+    </span>
   );
 }
 

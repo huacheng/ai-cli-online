@@ -58,14 +58,12 @@ export async function createSession(
     '-y', String(rows),
   ], { cwd });
 
-  // Configure tmux for web terminal usage (per-session, not global)
-  try {
-    await execFile('tmux', ['set-option', '-t', name, 'history-limit', '50000']);
-    await execFile('tmux', ['set-option', '-t', name, 'status', 'off']);
-    await execFile('tmux', ['set-option', '-t', name, 'mouse', 'off']);
-  } catch {
-    // Ignore if already set or server quirks
-  }
+  // Configure tmux for web terminal usage (parallel for faster session creation)
+  await Promise.all([
+    execFile('tmux', ['set-option', '-t', name, 'history-limit', '50000']).catch(() => {}),
+    execFile('tmux', ['set-option', '-t', name, 'status', 'off']).catch(() => {}),
+    execFile('tmux', ['set-option', '-t', name, 'mouse', 'off']).catch(() => {}),
+  ]);
 
   console.log(`[tmux] Created session: ${name} (${cols}x${rows}) in ${cwd}`);
 }

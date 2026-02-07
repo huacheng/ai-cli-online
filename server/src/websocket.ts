@@ -1,4 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
+import type { IncomingMessage } from 'http';
+import type { Socket } from 'net';
 import {
   buildSessionName,
   isValidSessionId,
@@ -10,6 +12,16 @@ import {
 } from './tmux.js';
 import { PtySession } from './pty.js';
 import type { ClientMessage, ServerMessage } from './types.js';
+
+/**
+ * Binary protocol for hot-path messages (output/input/scrollback).
+ * Format: [1-byte type prefix][raw UTF-8 payload]
+ * JSON is kept for low-frequency control messages.
+ */
+const BIN_TYPE_OUTPUT = 0x01;
+const BIN_TYPE_INPUT = 0x02;
+const BIN_TYPE_SCROLLBACK = 0x03;
+const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
 
 /** Track active connections per session name to prevent duplicates */
 const activeConnections = new Map<string, WebSocket>();
@@ -36,9 +48,21 @@ export function getActiveSessionNames(): Set<string> {
   return names;
 }
 
+/** Send a JSON control message (low-frequency: connected, error, pong) */
 function send(ws: WebSocket, msg: ServerMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
+  }
+}
+
+/** Send binary data with a 1-byte type prefix (high-frequency hot path) */
+function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
+  if (ws.readyState === WebSocket.OPEN) {
+    const payload = Buffer.from(data, 'utf-8');
+    const buf = Buffer.allocUnsafe(1 + payload.length);
+    buf[0] = typePrefix;
+    payload.copy(buf, 1);
+    ws.send(buf);
   }
 }
 
@@ -50,7 +74,13 @@ export function setupWebSocket(
   maxConnections = 10,
 ): void {
   const compareToken = tokenCompare || ((a: string, b: string) => a === b);
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', (ws, req: IncomingMessage) => {
+    // Disable Nagle algorithm for low-latency terminal I/O (eliminates up to 40ms delay per keystroke)
+    const socket = req.socket as Socket;
+    if (socket && typeof socket.setNoDelay === 'function') {
+      socket.setNoDelay(true);
+    }
+
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     let cols = 80;
     let rows = 24;
@@ -108,11 +138,11 @@ export function setupWebSocket(
         await resizeSession(sessionName, cols, rows);
       }
 
-      // Send scrollback for resumed sessions
+      // Send scrollback for resumed sessions (binary for performance)
       if (resumed) {
         const scrollback = await captureScrollback(sessionName);
         if (scrollback) {
-          send(ws, { type: 'scrollback', data: scrollback });
+          sendBinary(ws, BIN_TYPE_SCROLLBACK, scrollback);
         }
       }
 
@@ -129,7 +159,7 @@ export function setupWebSocket(
       }
 
       ptySession.onData((data) => {
-        send(ws, { type: 'output', data });
+        sendBinary(ws, BIN_TYPE_OUTPUT, data);
       });
 
       ptySession.onExit((code, signal) => {
@@ -145,8 +175,23 @@ export function setupWebSocket(
       initSession('default');
     }
 
-    ws.on('message', async (raw) => {
+    ws.on('message', async (raw, isBinary) => {
       try {
+        // Binary hot-path: [1-byte type][payload]
+        if (isBinary && Buffer.isBuffer(raw) && raw.length >= 1) {
+          if (!authenticated) {
+            ws.close(4001, 'Auth required');
+            return;
+          }
+          const typePrefix = raw[0];
+          if (typePrefix === BIN_TYPE_INPUT) {
+            const data = raw.subarray(1).toString('utf-8');
+            ptySession?.write(data);
+          }
+          return;
+        }
+
+        // JSON control messages
         const msg: ClientMessage = JSON.parse(raw.toString());
 
         // Handle auth message (must be first message when auth is enabled)
@@ -171,6 +216,7 @@ export function setupWebSocket(
 
         switch (msg.type) {
           case 'input':
+            // Legacy JSON input support (fallback)
             ptySession?.write(msg.data);
             break;
           case 'resize': {
@@ -185,7 +231,9 @@ export function setupWebSocket(
             break;
           case 'capture-scrollback': {
             const content = await captureScrollback(sessionName);
-            send(ws, { type: 'scrollback-content', data: content });
+            // Normalize newlines server-side to avoid client main-thread regex on large strings
+            const normalized = content.replace(/\n/g, '\r\n');
+            sendBinary(ws, BIN_TYPE_SCROLLBACK_CONTENT, normalized);
             break;
           }
         }

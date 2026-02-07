@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
 
 const TERMINAL_THEME = {
@@ -69,6 +70,17 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 
     terminal.open(containerRef.current);
 
+    // Load WebGL renderer for 3-10x rendering throughput (with canvas fallback)
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose();
+      });
+      terminal.loadAddon(webglAddon);
+    } catch {
+      // WebGL not available, fall back to default canvas renderer
+    }
+
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
@@ -102,25 +114,32 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
       sendInput(data);
     });
 
-    // ResizeObserver for auto-fit (throttled to avoid resize storms)
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    // ResizeObserver for auto-fit (rAF-aligned for smooth resizing)
+    let rafId: number | null = null;
+    let resizeNetworkTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      if (resizeTimer) return;
-      resizeTimer = setTimeout(() => {
-        resizeTimer = null;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
         try {
           fitAddon.fit();
-          sendResize(terminal.cols, terminal.rows);
+          // Debounce network resize to avoid flooding server during drag
+          if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
+          resizeNetworkTimer = setTimeout(() => {
+            resizeNetworkTimer = null;
+            sendResize(terminal.cols, terminal.rows);
+          }, 100);
         } catch {
           // Ignore fit errors during transitions
         }
-      }, 150);
+      });
     });
     resizeObserver.observe(containerRef.current);
 
     return () => {
       clearInterval(retryInterval);
-      if (resizeTimer) clearTimeout(resizeTimer);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
       resizeObserver.disconnect();
       terminal.dispose();
       terminalRef.current = null;
@@ -136,6 +155,9 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
           width: '100%',
           height: '100%',
           backgroundColor: '#1a1b26',
+          contain: 'strict',
+          willChange: 'transform',
+          isolation: 'isolate',
         }}
       />
       {/* Scrollback toggle button */}
@@ -201,8 +223,8 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
 
     requestAnimationFrame(() => {
       try { fitAddon.fit(); } catch { /* ignore */ }
-      const normalized = data.replace(/\r?\n/g, '\r\n');
-      terminal.write(normalized, () => {
+      // Newlines are already normalized server-side to \r\n
+      terminal.write(data, () => {
         terminal.scrollToBottom();
       });
     });

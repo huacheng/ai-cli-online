@@ -13,7 +13,7 @@ function SessionItem({ sessionId, active, createdAt }: {
   createdAt: number;
 }) {
   const {
-    terminals,
+    terminalsMap,
     addTerminal,
     killServerSession,
     sessionNames,
@@ -24,7 +24,7 @@ function SessionItem({ sessionId, active, createdAt }: {
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isOpen = terminals.some((t) => t.id === sessionId);
+  const isOpen = !!terminalsMap[sessionId];
   const displayName = sessionNames[sessionId] || sessionId;
 
   const handleClick = () => {
@@ -163,7 +163,7 @@ export function SessionSidebar() {
     fetchSessions,
   } = useStore();
 
-  const terminalCount = useStore((s) => s.terminals.length);
+  const terminalCount = useStore((s) => s.terminalIds.length);
 
   // Poll sessions when sidebar is open
   useEffect(() => {

@@ -99,7 +99,10 @@ interface AppState {
   token: string | null;
   setToken: (token: string | null) => void;
 
-  terminals: TerminalInstance[];
+  /** Terminal instances indexed by ID for O(1) lookup and isolated re-renders */
+  terminalsMap: Record<string, TerminalInstance>;
+  /** Ordered list of terminal IDs (preserves insertion order) */
+  terminalIds: string[];
   nextId: number;
   nextSplitId: number;
   layout: LayoutNode | null;
@@ -113,6 +116,10 @@ interface AppState {
   setTerminalError: (id: string, error: string | null) => void;
 
   setSplitSizes: (splitId: string, sizes: number[]) => void;
+
+  /** Global network latency (ms), measured via any active WebSocket ping/pong */
+  latency: number | null;
+  setLatency: (latency: number | null) => void;
 
   // Sidebar
   sidebarOpen: boolean;
@@ -132,19 +139,20 @@ export const useStore = create<AppState>((set, get) => ({
     } else {
       localStorage.removeItem('cli-online-token');
     }
-    set({ token, terminals: [], nextId: 1, nextSplitId: 1, layout: null });
+    set({ token, terminalsMap: {}, terminalIds: [], nextId: 1, nextSplitId: 1, layout: null });
   },
 
-  terminals: [],
+  terminalsMap: {},
+  terminalIds: [],
   nextId: 1,
   nextSplitId: 1,
   layout: null,
 
   addTerminal: (direction, customSessionId) => {
-    const { nextId, nextSplitId, terminals, layout } = get();
+    const { nextId, nextSplitId, terminalsMap, terminalIds, layout } = get();
 
     // If restoring a session that's already open, skip
-    if (customSessionId && terminals.some((t) => t.id === customSessionId)) {
+    if (customSessionId && terminalsMap[customSessionId]) {
       return customSessionId;
     }
 
@@ -164,10 +172,8 @@ export const useStore = create<AppState>((set, get) => ({
     let newNextSplitId = nextSplitId;
 
     if (!layout) {
-      // No layout yet -> single leaf
       newLayout = newLeaf;
     } else if (layout.type === 'leaf') {
-      // Root is a leaf -> wrap in split
       const dir = direction || 'horizontal';
       newLayout = {
         id: `s${newNextSplitId}`,
@@ -178,7 +184,6 @@ export const useStore = create<AppState>((set, get) => ({
       };
       newNextSplitId++;
     } else if (layout.direction === (direction || 'horizontal')) {
-      // Root is same direction split -> append child
       const count = layout.children.length + 1;
       newLayout = {
         ...layout,
@@ -186,7 +191,6 @@ export const useStore = create<AppState>((set, get) => ({
         sizes: equalSizes(count),
       };
     } else {
-      // Root is different direction -> wrap in new split
       const dir = direction || 'horizontal';
       newLayout = {
         id: `s${newNextSplitId}`,
@@ -199,7 +203,8 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     set({
-      terminals: [...terminals, newTerminal],
+      terminalsMap: { ...terminalsMap, [id]: newTerminal },
+      terminalIds: [...terminalIds, id],
       nextId: customSessionId ? newNextId : newNextId + 1,
       nextSplitId: newNextSplitId,
       layout: newLayout,
@@ -208,7 +213,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   splitTerminal: (terminalId, direction) => {
-    const { nextId, nextSplitId, terminals, layout } = get();
+    const { nextId, nextSplitId, terminalsMap, terminalIds, layout } = get();
     if (!layout) return '';
 
     const id = `t${nextId}`;
@@ -219,7 +224,8 @@ export const useStore = create<AppState>((set, get) => ({
     const newLayout = splitLeafInTree(layout, terminalId, direction, newLeaf, splitId);
 
     set({
-      terminals: [...terminals, newTerminal],
+      terminalsMap: { ...terminalsMap, [id]: newTerminal },
+      terminalIds: [...terminalIds, id],
       nextId: nextId + 1,
       nextSplitId: nextSplitId + 1,
       layout: newLayout,
@@ -228,34 +234,34 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   removeTerminal: (id) => {
-    const { terminals, layout } = get();
-    const newTerminals = terminals.filter((t) => t.id !== id);
+    const { terminalsMap, terminalIds, layout } = get();
+    const { [id]: _removed, ...rest } = terminalsMap;
     const newLayout = layout ? removeLeafFromTree(layout, id) : null;
-    set({ terminals: newTerminals, layout: newLayout });
+    set({ terminalsMap: rest, terminalIds: terminalIds.filter((tid) => tid !== id), layout: newLayout });
   },
 
   setTerminalConnected: (id, connected) => {
-    set((state) => ({
-      terminals: state.terminals.map((t) =>
-        t.id === id ? { ...t, connected } : t,
-      ),
-    }));
+    set((state) => {
+      const existing = state.terminalsMap[id];
+      if (!existing || existing.connected === connected) return state;
+      return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, connected } } };
+    });
   },
 
   setTerminalResumed: (id, resumed) => {
-    set((state) => ({
-      terminals: state.terminals.map((t) =>
-        t.id === id ? { ...t, sessionResumed: resumed } : t,
-      ),
-    }));
+    set((state) => {
+      const existing = state.terminalsMap[id];
+      if (!existing || existing.sessionResumed === resumed) return state;
+      return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, sessionResumed: resumed } } };
+    });
   },
 
   setTerminalError: (id, error) => {
-    set((state) => ({
-      terminals: state.terminals.map((t) =>
-        t.id === id ? { ...t, error } : t,
-      ),
-    }));
+    set((state) => {
+      const existing = state.terminalsMap[id];
+      if (!existing || existing.error === error) return state;
+      return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, error } } };
+    });
   },
 
   setSplitSizes: (splitId, sizes) => {
@@ -263,6 +269,9 @@ export const useStore = create<AppState>((set, get) => ({
     if (!layout) return;
     set({ layout: updateSplitSizes(layout, splitId, sizes) });
   },
+
+  latency: null,
+  setLatency: (latency) => set({ latency }),
 
   // Sidebar
   sidebarOpen: false,
@@ -295,9 +304,7 @@ export const useStore = create<AppState>((set, get) => ({
     } catch {
       // ignore
     }
-    // Remove from local terminals if open
     get().removeTerminal(sessionId);
-    // Refresh list
     get().fetchSessions();
   },
 
