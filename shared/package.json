@@ -1,6 +1,6 @@
 {
   "name": "cli-online-shared",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Shared types for CLI-Online",
   "type": "module",
   "main": "dist/types.js",
