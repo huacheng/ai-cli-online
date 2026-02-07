@@ -5,9 +5,12 @@ import type { Terminal } from '@xterm/xterm';
 // Auto-detect WebSocket URL based on page protocol (works for both dev proxy and production)
 const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
-const RECONNECT_MIN = 1000;
-const RECONNECT_MAX = 30000;
-const PING_INTERVAL = 30000;
+const RECONNECT_MIN = 500;
+const RECONNECT_MAX = 15000;
+const PING_INTERVAL = 15000;
+const PONG_TIMEOUT = 5000;
+const CONNECT_TIMEOUT = 10000;
+const INPUT_BATCH_MS = 5;
 
 /** Binary protocol type prefixes (must match server) */
 const BIN_TYPE_OUTPUT = 0x01;
@@ -34,10 +37,19 @@ export function useTerminalWebSocket(
   const reconnectDelayRef = useRef(RECONNECT_MIN);
   const reconnectTimerRef = useRef<number | null>(null);
   const pingTimerRef = useRef<number | null>(null);
+  const pongTimeoutRef = useRef<number | null>(null);
+  const connectTimeoutRef = useRef<number | null>(null);
   const authFailedRef = useRef(false);
   const onScrollbackRef = useRef(onScrollbackContent);
   const intentionalCloseRef = useRef(false);
   const pingSentAtRef = useRef<number>(0);
+
+  // Input batching: accumulate keystrokes within INPUT_BATCH_MS and send as one frame
+  const inputBatchRef = useRef<string>('');
+  const inputBatchTimerRef = useRef<number | null>(null);
+
+  // Input buffer: queue input during disconnection, flush on reconnect
+  const inputBufferRef = useRef<string>('');
 
   // Keep callback ref in sync
   onScrollbackRef.current = onScrollbackContent;
@@ -47,9 +59,21 @@ export function useTerminalWebSocket(
       clearInterval(pingTimerRef.current);
       pingTimerRef.current = null;
     }
+    if (pongTimeoutRef.current) {
+      clearTimeout(pongTimeoutRef.current);
+      pongTimeoutRef.current = null;
+    }
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+    if (inputBatchTimerRef.current) {
+      clearTimeout(inputBatchTimerRef.current);
+      inputBatchTimerRef.current = null;
     }
   }, []);
 
@@ -75,7 +99,21 @@ export function useTerminalWebSocket(
     // Use arraybuffer for binary protocol support
     ws.binaryType = 'arraybuffer';
 
+    // Connection timeout: abort if WebSocket doesn't open within CONNECT_TIMEOUT
+    connectTimeoutRef.current = window.setTimeout(() => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        console.log(`[WS:${sessionId}] Connection timeout (${CONNECT_TIMEOUT}ms), aborting...`);
+        ws.close();
+      }
+    }, CONNECT_TIMEOUT);
+
     ws.onopen = () => {
+      // Clear connection timeout
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
+
       console.log(`[WS:${sessionId}] Connected, sending auth...`);
       // Send auth as first message (JSON - control message)
       ws.send(JSON.stringify({ type: 'auth', token: currentToken }));
@@ -84,17 +122,31 @@ export function useTerminalWebSocket(
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
 
-      // Ping immediately to get initial latency, then at interval
-      if (ws.readyState === WebSocket.OPEN) {
-        pingSentAtRef.current = performance.now();
-        ws.send(JSON.stringify({ type: 'ping' }));
+      // Flush any input buffered during disconnection
+      if (inputBufferRef.current) {
+        ws.send(encodeBinaryMessage(BIN_TYPE_INPUT, inputBufferRef.current));
+        inputBufferRef.current = '';
       }
-      pingTimerRef.current = window.setInterval(() => {
+
+      // Ping with pong timeout for stale connection detection
+      const sendPing = () => {
         if (ws.readyState === WebSocket.OPEN) {
           pingSentAtRef.current = performance.now();
           ws.send(JSON.stringify({ type: 'ping' }));
+          // If no pong within PONG_TIMEOUT, consider connection dead
+          pongTimeoutRef.current = window.setTimeout(() => {
+            if (pingSentAtRef.current > 0) {
+              console.log(`[WS:${sessionId}] Pong timeout (${PONG_TIMEOUT}ms), reconnecting...`);
+              pingSentAtRef.current = 0;
+              ws.close();
+            }
+          }, PONG_TIMEOUT);
         }
-      }, PING_INTERVAL);
+      };
+
+      // Ping immediately, then at interval
+      sendPing();
+      pingTimerRef.current = window.setInterval(sendPing, PING_INTERVAL);
     };
 
     ws.onclose = (event) => {
@@ -176,6 +228,11 @@ export function useTerminalWebSocket(
             useStore.getState().setTerminalError(sessionId, msg.error);
             break;
           case 'pong': {
+            // Clear pong timeout — connection is alive
+            if (pongTimeoutRef.current) {
+              clearTimeout(pongTimeoutRef.current);
+              pongTimeoutRef.current = null;
+            }
             if (pingSentAtRef.current > 0) {
               const rtt = Math.round(performance.now() - pingSentAtRef.current);
               // Only update global latency from the primary (first) terminal to avoid flicker
@@ -197,9 +254,23 @@ export function useTerminalWebSocket(
   }, [sessionId, terminalRef, cleanup]);
 
   const sendInput = useCallback((data: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      // Binary protocol for input hot path (eliminates JSON overhead per keystroke)
-      wsRef.current.send(encodeBinaryMessage(BIN_TYPE_INPUT, data));
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Buffer input during disconnection — flush on reconnect
+      inputBufferRef.current += data;
+      return;
+    }
+    // Batch keystrokes within INPUT_BATCH_MS window to reduce frame count on high-latency links
+    inputBatchRef.current += data;
+    if (!inputBatchTimerRef.current) {
+      inputBatchTimerRef.current = window.setTimeout(() => {
+        const batch = inputBatchRef.current;
+        inputBatchRef.current = '';
+        inputBatchTimerRef.current = null;
+        if (batch && ws.readyState === WebSocket.OPEN) {
+          ws.send(encodeBinaryMessage(BIN_TYPE_INPUT, batch));
+        }
+      }, INPUT_BATCH_MS);
     }
   }, []);
 

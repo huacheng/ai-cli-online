@@ -89,6 +89,32 @@ function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
   }
 }
 
+/** Server-side keepalive: ping all clients every 30s, terminate if no pong within 10s */
+function startKeepAlive(wss: WebSocketServer): void {
+  const KEEPALIVE_INTERVAL = 30_000;
+  const PONG_GRACE = 10_000;
+
+  setInterval(() => {
+    for (const ws of wss.clients) {
+      if ((ws as any)._isAlive === false) {
+        // No pong received since last ping — terminate
+        console.log('[WS] Keepalive: terminating unresponsive connection');
+        ws.terminate();
+        continue;
+      }
+      (ws as any)._isAlive = false;
+      ws.ping();
+    }
+  }, KEEPALIVE_INTERVAL);
+
+  wss.on('connection', (ws) => {
+    (ws as any)._isAlive = true;
+    ws.on('pong', () => {
+      (ws as any)._isAlive = true;
+    });
+  });
+}
+
 export function setupWebSocket(
   wss: WebSocketServer,
   authToken: string,
@@ -96,6 +122,9 @@ export function setupWebSocket(
   tokenCompare?: (a: string, b: string) => boolean,
   maxConnections = 10,
 ): void {
+  // Start server-side keepalive to detect dead connections
+  startKeepAlive(wss);
+
   // Require timing-safe comparator when auth is enabled; plain === is never acceptable
   const compareToken = tokenCompare || ((a: string, b: string) => {
     const key = 'cli-online-token-compare';
