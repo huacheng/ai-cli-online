@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Socket } from 'net';
+import { createHmac, timingSafeEqual } from 'crypto';
 import {
   buildSessionName,
   isValidSessionId,
@@ -73,7 +74,13 @@ export function setupWebSocket(
   tokenCompare?: (a: string, b: string) => boolean,
   maxConnections = 10,
 ): void {
-  const compareToken = tokenCompare || ((a: string, b: string) => a === b);
+  // Require timing-safe comparator when auth is enabled; plain === is never acceptable
+  const compareToken = tokenCompare || ((a: string, b: string) => {
+    const key = 'cli-online-ws-token-compare';
+    const ha = createHmac('sha256', key).update(a).digest();
+    const hb = createHmac('sha256', key).update(b).digest();
+    return timingSafeEqual(ha, hb);
+  });
   wss.on('connection', (ws, req: IncomingMessage) => {
     // Disable Nagle algorithm for low-latency terminal I/O (eliminates up to 40ms delay per keystroke)
     const socket = req.socket as Socket;
@@ -98,6 +105,7 @@ export function setupWebSocket(
     let authenticated = !authToken; // skip auth if no token configured
     let sessionName = '';
     let ptySession: PtySession | null = null;
+    let sessionInitializing = false; // guard against concurrent initSession calls
     const AUTH_TIMEOUT = 5000;
 
     const authTimer = authToken
@@ -110,6 +118,8 @@ export function setupWebSocket(
       : null;
 
     async function initSession(token: string) {
+      if (sessionInitializing || ptySession) return; // prevent double init
+      sessionInitializing = true;
       sessionName = buildSessionName(token, sessionId);
 
       // Connection limit per token
@@ -168,6 +178,8 @@ export function setupWebSocket(
           ws.close(1000, 'PTY exited');
         }
       });
+
+      sessionInitializing = false;
     }
 
     // If no auth required, init immediately with default token

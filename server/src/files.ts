@@ -51,8 +51,12 @@ export async function listFiles(dirPath: string): Promise<FileEntry[]> {
 export async function validatePath(requested: string, baseCwd: string): Promise<string | null> {
   try {
     const resolved = resolve(baseCwd, requested);
-    // Verify the path actually exists by resolving symlinks
     const real = await realpath(resolved);
+    // Containment check: ensure resolved path is within baseCwd
+    const realBase = await realpath(baseCwd);
+    if (real !== realBase && !real.startsWith(realBase + '/')) {
+      return null;
+    }
     return real;
   } catch {
     return null;

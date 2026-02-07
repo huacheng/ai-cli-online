@@ -52,6 +52,13 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
     handleScrollbackContent,
   );
 
+  // Use refs for callbacks to decouple effect lifecycle from callback identity.
+  // This prevents terminal destruction/recreation if callbacks change reference.
+  const sendInputRef = useRef(sendInput);
+  const sendResizeRef = useRef(sendResize);
+  sendInputRef.current = sendInput;
+  sendResizeRef.current = sendResize;
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -90,7 +97,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
         const el = containerRef.current;
         if (el && el.clientWidth > 0 && el.clientHeight > 0) {
           fitAddon.fit();
-          sendResize(terminal.cols, terminal.rows);
+          sendResizeRef.current(terminal.cols, terminal.rows);
           return true;
         }
       } catch {
@@ -111,7 +118,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 
     // Forward user input to WebSocket
     terminal.onData((data) => {
-      sendInput(data);
+      sendInputRef.current(data);
     });
 
     // ResizeObserver for auto-fit (rAF-aligned for smooth resizing)
@@ -127,7 +134,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
           if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
           resizeNetworkTimer = setTimeout(() => {
             resizeNetworkTimer = null;
-            sendResize(terminal.cols, terminal.rows);
+            sendResizeRef.current(terminal.cols, terminal.rows);
           }, 100);
         } catch {
           // Ignore fit errors during transitions
@@ -145,7 +152,7 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sendInput, sendResize]);
+  }, [sessionId]); // stable dep: only recreate terminal when session changes
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>

@@ -10,15 +10,18 @@ import { existsSync, readFileSync, createReadStream } from 'fs';
 import { copyFile, unlink, stat, mkdir } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
-import { timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd } from './tmux.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
 
-/** Constant-time string comparison to prevent timing side-channel attacks */
+/** Constant-time string comparison using HMAC to prevent timing side-channel attacks.
+ *  HMAC digests are always 32 bytes, so comparison is constant-time regardless of input lengths. */
 function safeTokenCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const key = 'cli-online-token-compare';
+  const hmacA = createHmac('sha256', key).update(a).digest();
+  const hmacB = createHmac('sha256', key).update(b).digest();
+  return timingSafeEqual(hmacA, hmacB);
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,13 +85,13 @@ async function main() {
     next();
   });
 
-  // Auth check helper — reads Authorization header first, falls back to query param
+  // Auth check helper — reads Authorization header only (no query param to avoid token in logs)
   function extractToken(req: express.Request): string | undefined {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return authHeader.slice(7);
     }
-    return req.query.token as string | undefined;
+    return undefined;
   }
 
   function checkAuth(req: express.Request, res: express.Response): boolean {
@@ -200,11 +203,17 @@ async function main() {
       }
       const results: { name: string; size: number }[] = [];
       for (const file of uploadedFiles) {
-        const destPath = join(cwd, file.originalname);
+        // Sanitize filename: strip path components to prevent directory traversal
+        const safeName = basename(file.originalname);
+        if (!safeName || safeName === '.' || safeName === '..') {
+          await unlink(file.path).catch(() => {});
+          continue;
+        }
+        const destPath = join(cwd, safeName);
         // Use copyFile + unlink instead of rename to handle cross-device moves
         await copyFile(file.path, destPath);
         await unlink(file.path).catch(() => {});
-        results.push({ name: file.originalname, size: file.size });
+        results.push({ name: safeName, size: file.size });
       }
       res.json({ uploaded: results });
     } catch (err) {

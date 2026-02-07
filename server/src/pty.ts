@@ -74,6 +74,9 @@ export class PtySession {
       this.alive = false;
       this.proc.kill();
     }
+    // Clear listener arrays to release closure references for GC
+    this.dataListeners = [];
+    this.exitListeners = [];
   }
 
   isAlive(): boolean {
