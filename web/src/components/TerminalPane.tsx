@@ -88,6 +88,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             disabled={uploading}
             style={uploading ? { color: '#e0af68' } : undefined}
             title={uploading ? `Uploading ${uploadProgress}%` : 'Upload files'}
+            aria-label="Upload files"
           >
             {uploading ? `${uploadProgress}%` : '\u2191'}
           </button>
@@ -97,6 +98,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             onClick={() => setFileBrowserOpen((v) => !v)}
             style={fileBrowserOpen ? { color: '#7aa2f7' } : undefined}
             title="Browse files"
+            aria-label="Browse files"
           >
             {'\u2193'}
           </button>
@@ -104,6 +106,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             className="pane-btn"
             onClick={() => splitTerminal(terminal.id, 'horizontal')}
             title="Split horizontal (left/right)"
+            aria-label="Split horizontal"
           >
             |
           </button>
@@ -111,6 +114,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
             className="pane-btn"
             onClick={() => splitTerminal(terminal.id, 'vertical')}
             title="Split vertical (top/bottom)"
+            aria-label="Split vertical"
           >
             ─
           </button>
@@ -119,6 +123,7 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
               className="pane-btn pane-btn--danger"
               onClick={() => removeTerminal(terminal.id)}
               title="Close terminal"
+              aria-label="Close terminal"
             >
               ×
             </button>

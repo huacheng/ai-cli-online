@@ -32,6 +32,14 @@ const authFailures = new Map<string, { count: number; resetAt: number }>();
 const AUTH_FAIL_MAX = 5;
 const AUTH_FAIL_WINDOW_MS = 60_000;
 
+// Periodically prune expired entries to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of authFailures) {
+    if (now > entry.resetAt) authFailures.delete(ip);
+  }
+}, 5 * 60_000);
+
 function isAuthRateLimited(ip: string): boolean {
   const now = Date.now();
   const entry = authFailures.get(ip);
@@ -89,10 +97,9 @@ function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
   }
 }
 
-/** Server-side keepalive: ping all clients every 30s, terminate if no pong within 10s */
+/** Server-side keepalive: ping all clients every 30s, terminate if no pong */
 function startKeepAlive(wss: WebSocketServer): void {
   const KEEPALIVE_INTERVAL = 30_000;
-  const PONG_GRACE = 10_000;
 
   setInterval(() => {
     for (const ws of wss.clients) {

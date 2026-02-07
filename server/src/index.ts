@@ -271,11 +271,18 @@ async function main() {
   // Serve static files from web/dist in production
   const webDistPath = join(__dirname, '../../web/dist');
   if (existsSync(webDistPath)) {
-    app.use(express.static(webDistPath));
+    // Vite generates content-hashed filenames — safe to cache indefinitely
+    app.use(express.static(webDistPath, {
+      maxAge: '1y',
+      immutable: true,
+      index: false,
+    }));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
         return next();
       }
+      // index.html must not be cached (references hashed assets)
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(join(webDistPath, 'index.html'));
     });
     console.log('Serving static files from:', webDistPath);

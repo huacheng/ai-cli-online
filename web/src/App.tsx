@@ -10,7 +10,11 @@ function getInitialToken(): string | null {
 }
 
 function App() {
-  const { token, setToken, terminalIds, addTerminal, toggleSidebar } = useStore();
+  const token = useStore((s) => s.token);
+  const setToken = useStore((s) => s.setToken);
+  const terminalIds = useStore((s) => s.terminalIds);
+  const addTerminal = useStore((s) => s.addTerminal);
+  const toggleSidebar = useStore((s) => s.toggleSidebar);
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -66,6 +70,7 @@ function App() {
             className="header-btn"
             onClick={() => addTerminal('horizontal')}
             title="Add terminal (horizontal split)"
+            aria-label="Split horizontal"
           >
             |
           </button>
@@ -73,6 +78,7 @@ function App() {
             className="header-btn"
             onClick={() => addTerminal('vertical')}
             title="Add terminal (vertical split)"
+            aria-label="Split vertical"
           >
             ─
           </button>
@@ -83,6 +89,7 @@ function App() {
             className="header-btn"
             onClick={toggleSidebar}
             title="Toggle session sidebar"
+            aria-label="Toggle sidebar"
           >
             ☰
           </button>

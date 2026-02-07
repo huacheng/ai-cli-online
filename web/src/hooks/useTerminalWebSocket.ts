@@ -11,12 +11,16 @@ const PING_INTERVAL = 15000;
 const PONG_TIMEOUT = 5000;
 const CONNECT_TIMEOUT = 10000;
 const INPUT_BATCH_MS = 5;
+const MAX_INPUT_BUFFER = 64 * 1024;
 
 /** Binary protocol type prefixes (must match server) */
 const BIN_TYPE_OUTPUT = 0x01;
 const BIN_TYPE_INPUT = 0x02;
 const BIN_TYPE_SCROLLBACK = 0x03;
 const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
+
+/** Shared TextDecoder instance (avoids per-message allocation) */
+const textDecoder = new TextDecoder();
 
 /** Encode a string as binary with 1-byte type prefix */
 function encodeBinaryMessage(typePrefix: number, data: string): ArrayBuffer {
@@ -170,6 +174,11 @@ export function useTerminalWebSocket(
         return;
       }
 
+      if (event.code === 4005) {
+        setErr(sessionId, 'Connection limit reached');
+        return; // Don't reconnect — would just hit the limit again
+      }
+
       const delay = reconnectDelayRef.current;
       reconnectDelayRef.current = Math.min(delay * 2, RECONNECT_MAX);
       console.log(`[WS:${sessionId}] Reconnecting in ${delay}ms...`);
@@ -202,8 +211,7 @@ export function useTerminalWebSocket(
               terminal?.write(payload);
               break;
             case BIN_TYPE_SCROLLBACK_CONTENT: {
-              const decoder = new TextDecoder();
-              onScrollbackRef.current?.(decoder.decode(payload));
+              onScrollbackRef.current?.(textDecoder.decode(payload));
               break;
             }
           }
@@ -256,8 +264,10 @@ export function useTerminalWebSocket(
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // Buffer input during disconnection — flush on reconnect
-      inputBufferRef.current += data;
+      // Buffer input during disconnection — flush on reconnect (capped to prevent unbounded growth)
+      if (inputBufferRef.current.length < MAX_INPUT_BUFFER) {
+        inputBufferRef.current += data;
+      }
       return;
     }
     // Batch keystrokes within INPUT_BATCH_MS window to reduce frame count on high-latency links

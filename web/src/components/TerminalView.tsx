@@ -73,7 +73,9 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
-    terminal.loadAddon(new WebLinksAddon());
+    terminal.loadAddon(new WebLinksAddon((_event, uri) => {
+      window.open(uri, '_blank', 'noopener,noreferrer');
+    }));
 
     terminal.open(containerRef.current);
 

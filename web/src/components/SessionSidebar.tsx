@@ -140,12 +140,10 @@ function SessionItem({ sessionId, active, createdAt }: {
 }
 
 export function SessionSidebar() {
-  const {
-    sidebarOpen,
-    toggleSidebar,
-    serverSessions,
-    fetchSessions,
-  } = useStore();
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const serverSessions = useStore((s) => s.serverSessions);
+  const fetchSessions = useStore((s) => s.fetchSessions);
 
   const terminalCount = useStore((s) => s.terminalIds.length);
 

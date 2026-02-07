@@ -33,19 +33,21 @@ function loadLayout(): PersistedLayout | null {
   }
 }
 
+let saveLayoutTimer: ReturnType<typeof setTimeout> | null = null;
 function saveLayout(state: PersistedLayout): void {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify(state));
+}
+/** Debounced saveLayout for high-frequency calls (e.g., drag-resize) */
+function saveLayoutDebounced(state: PersistedLayout): void {
+  if (saveLayoutTimer) clearTimeout(saveLayoutTimer);
+  saveLayoutTimer = setTimeout(() => {
+    saveLayoutTimer = null;
+    saveLayout(state);
+  }, 500);
 }
 
 // API base URL — always relative (Vite proxy handles dev mode)
 const API_BASE = '';
-
-// Helper: equal sizes for N children
-function equalSizes(count: number): number[] {
-  if (count === 0) return [];
-  const size = 100 / count;
-  return Array.from({ length: count }, () => size);
-}
 
 // Helper: remove a leaf from the tree, collapsing single-child splits
 function removeLeafFromTree(node: LayoutNode, terminalId: string): LayoutNode | null {
@@ -225,10 +227,14 @@ export const useStore = create<AppState>((set, get) => ({
       newNextSplitId++;
     } else if (layout.direction === (direction || 'horizontal')) {
       const count = layout.children.length + 1;
+      // Proportionally shrink existing panes to preserve user-customized ratios
+      const share = 100 / count;
+      const scale = (100 - share) / 100;
+      const newSizes = [...layout.sizes.map(s => s * scale), share];
       newLayout = {
         ...layout,
         children: [...layout.children, newLeaf],
-        sizes: equalSizes(count),
+        sizes: newSizes,
       };
     } else {
       const dir = direction || 'horizontal';
@@ -314,9 +320,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setSplitSizes: (splitId, sizes) => {
-    const { layout } = get();
+    const { layout, terminalIds, nextId, nextSplitId } = get();
     if (!layout) return;
-    set({ layout: updateSplitSizes(layout, splitId, sizes) });
+    const newLayout = updateSplitSizes(layout, splitId, sizes);
+    set({ layout: newLayout });
+    saveLayoutDebounced({ terminalIds, layout: newLayout, nextId, nextSplitId });
   },
 
   latency: null,
