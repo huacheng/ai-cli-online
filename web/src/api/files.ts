@@ -8,16 +8,6 @@ export interface FilesResponse {
   files: FileEntry[];
 }
 
-export async function fetchCwd(token: string, sessionId: string): Promise<string> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/cwd`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) throw new Error('Failed to get cwd');
-  const data = await res.json();
-  return data.cwd;
-}
-
 export async function fetchFiles(token: string, sessionId: string, path?: string): Promise<FilesResponse> {
   const params = path ? `?path=${encodeURIComponent(path)}` : '';
   const res = await fetch(

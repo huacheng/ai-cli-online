@@ -117,6 +117,8 @@ function App() {
   );
 }
 
+const SIGNAL_BARS = [1, 2, 3, 4] as const;
+
 /** Global network quality indicator in header */
 function NetworkIndicator() {
   const latency = useStore((s) => s.latency);
@@ -153,7 +155,7 @@ function NetworkIndicator() {
       }}
       title={`Latency: ${latency}ms`}
     >
-      {[1, 2, 3, 4].map((i) => (
+      {SIGNAL_BARS.map((i) => (
         <span
           key={i}
           style={{

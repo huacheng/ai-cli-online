@@ -61,7 +61,7 @@ const LeafRenderer = memo(function LeafRenderer({ terminalId, canClose }: { term
   return <TerminalPane terminal={terminal} canClose={canClose} />;
 });
 
-function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean }) {
+const SplitRenderer = memo(function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean }) {
   const setSplitSizes = useStore((s) => s.setSplitSizes);
   const containerRef = useRef<HTMLDivElement>(null);
   const isHorizontal = node.direction === 'horizontal';
@@ -82,23 +82,29 @@ function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean 
       ? (container?.clientWidth || 1)
       : (container?.clientHeight || 1);
 
+    let dragRafId: number | null = null;
     const onMouseMove = (ev: MouseEvent) => {
-      const currentPos = isHorizontal ? ev.clientX : ev.clientY;
-      const delta = currentPos - startPos;
-      const deltaPercent = (delta / containerSize) * 100;
+      if (dragRafId) return;
+      dragRafId = requestAnimationFrame(() => {
+        dragRafId = null;
+        const currentPos = isHorizontal ? ev.clientX : ev.clientY;
+        const delta = currentPos - startPos;
+        const deltaPercent = (delta / containerSize) * 100;
 
-      const newLeft = startSizes[index] + deltaPercent;
-      const newRight = startSizes[index + 1] - deltaPercent;
+        const newLeft = startSizes[index] + deltaPercent;
+        const newRight = startSizes[index + 1] - deltaPercent;
 
-      if (newLeft >= MIN_PANE_PERCENT && newRight >= MIN_PANE_PERCENT) {
-        const newSizes = [...startSizes];
-        newSizes[index] = newLeft;
-        newSizes[index + 1] = newRight;
-        setSplitSizes(node.id, newSizes);
-      }
+        if (newLeft >= MIN_PANE_PERCENT && newRight >= MIN_PANE_PERCENT) {
+          const newSizes = [...startSizes];
+          newSizes[index] = newLeft;
+          newSizes[index + 1] = newRight;
+          setSplitSizes(node.id, newSizes);
+        }
+      });
     };
 
     const onMouseUp = () => {
+      if (dragRafId) cancelAnimationFrame(dragRafId);
       document.body.classList.remove(bodyClass);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
@@ -163,4 +169,4 @@ function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean 
       {elements}
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { memo, useRef, useState, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
@@ -15,7 +15,7 @@ interface TerminalPaneProps {
 
 const PLAN_MIN_HEIGHT = 100;
 
-export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
+export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const customName = useStore((s) => s.sessionNames[terminal.id]);
@@ -50,12 +50,13 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   };
 
   // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing \r for Enter)
+  const sendTimerRef = useRef<number>();
   const handleEditorSend = useCallback((text: string) => {
     if (terminalViewRef.current) {
       const merged = text.replace(/\r?\n/g, ' ').trimEnd();
       // PTY raw mode: \r = Enter (carriage return), send text then \r separately to ensure Enter fires
       terminalViewRef.current.sendInput(merged);
-      setTimeout(() => terminalViewRef.current?.sendInput('\r'), 50);
+      sendTimerRef.current = window.setTimeout(() => terminalViewRef.current?.sendInput('\r'), 50);
     }
   }, []);
 
@@ -70,6 +71,11 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
       // ignore — best effort
     }
   }, [token, terminal.id]);
+
+  // Clean up editor send timer on unmount
+  useEffect(() => {
+    return () => { if (sendTimerRef.current) clearTimeout(sendTimerRef.current); };
+  }, []);
 
   // Toggle plan panel + auto-start claude
   const handlePlanToggle = useCallback(() => {
@@ -250,4 +256,4 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
       )}
     </div>
   );
-}
+});

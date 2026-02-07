@@ -181,6 +181,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         onClick={() => {
           if (scrollbackVisible) {
             setScrollbackVisible(false);
+            setScrollbackData('');
           } else {
             requestScrollback();
           }
@@ -210,7 +211,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       {scrollbackVisible && (
         <ScrollbackViewer
           data={scrollbackData}
-          onClose={() => setScrollbackVisible(false)}
+          onClose={() => { setScrollbackVisible(false); setScrollbackData(''); }}
         />
       )}
     </div>
@@ -248,8 +249,13 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       });
     });
 
+    let sbRafId: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      try { fitAddon.fit(); } catch { /* ignore */ }
+      if (sbRafId) return;
+      sbRafId = requestAnimationFrame(() => {
+        sbRafId = null;
+        try { fitAddon.fit(); } catch { /* ignore */ }
+      });
     });
     resizeObserver.observe(viewerRef.current);
 
@@ -259,6 +265,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
+      if (sbRafId) cancelAnimationFrame(sbRafId);
       document.removeEventListener('keydown', onKeyDown);
       resizeObserver.disconnect();
       terminal.dispose();

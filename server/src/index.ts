@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
 import { getLatestPlanFile, getLatestPlanIfChanged } from './plans.js';
-import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
+import { listFiles, validatePath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
@@ -147,7 +147,7 @@ async function main() {
 
   const upload = multer({
     dest: UPLOAD_TMP_DIR,
-    limits: { fileSize: 100 * 1024 * 1024, files: 10 },
+    limits: { fileSize: MAX_UPLOAD_SIZE, files: 10 },
   });
 
   /** Helper: resolve session from request params + auth */
@@ -369,7 +369,7 @@ async function main() {
   const hasSSL = existsSync(CERT_PATH) && existsSync(KEY_PATH);
   const useHttps = HTTPS_ENABLED && hasSSL;
 
-  let server;
+  let server: ReturnType<typeof createHttpServer>;
   if (useHttps) {
     server = createHttpsServer(
       { cert: readFileSync(CERT_PATH), key: readFileSync(KEY_PATH) },

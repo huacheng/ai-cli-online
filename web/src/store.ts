@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { TerminalInstance, LayoutNode, SplitDirection, ServerSession } from './types';
+import { API_BASE, authHeaders } from './api/client';
 
 const SESSION_NAMES_KEY = 'cli-online-session-names';
 const LAYOUT_KEY = 'cli-online-layout';
@@ -13,7 +14,7 @@ function loadSessionNames(): Record<string, string> {
 }
 
 function saveSessionNames(names: Record<string, string>): void {
-  localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+  try { localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names)); } catch { /* storage full */ }
 }
 
 interface PersistedLayout {
@@ -35,7 +36,7 @@ function loadLayout(): PersistedLayout | null {
 
 let saveLayoutTimer: ReturnType<typeof setTimeout> | null = null;
 function saveLayout(state: PersistedLayout): void {
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify(state));
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(state)); } catch { /* storage full */ }
 }
 /** Debounced saveLayout for high-frequency calls (e.g., drag-resize) */
 function saveLayoutDebounced(state: PersistedLayout): void {
@@ -45,9 +46,6 @@ function saveLayoutDebounced(state: PersistedLayout): void {
     saveLayout(state);
   }, 500);
 }
-
-// API base URL — always relative (Vite proxy handles dev mode)
-const API_BASE = '';
 
 // Helper: remove a leaf from the tree, collapsing single-child splits
 function removeLeafFromTree(node: LayoutNode, terminalId: string): LayoutNode | null {
@@ -159,7 +157,7 @@ export const useStore = create<AppState>((set, get) => ({
   token: null,
   setToken: (token) => {
     if (token) {
-      localStorage.setItem('cli-online-token', token);
+      try { localStorage.setItem('cli-online-token', token); } catch { /* storage full */ }
       // Restore persisted layout if available
       const saved = loadLayout();
       if (saved && saved.terminalIds.length > 0) {
@@ -340,7 +338,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/sessions`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: authHeaders(token),
       });
       if (!res.ok) return;
       const data: ServerSession[] = await res.json();
@@ -356,7 +354,7 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: authHeaders(token),
       });
     } catch {
       // ignore

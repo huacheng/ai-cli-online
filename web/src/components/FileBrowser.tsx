@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
 import { fetchFiles, downloadFile } from '../api/files';
 import type { FileEntry } from '../api/files';
@@ -36,13 +36,16 @@ export function FileBrowser({ sessionId, onClose }: FileBrowserProps) {
     loadFiles();
   }, [loadFiles]);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, []);
 
   const handleNavigate = (dirName: string) => {
     const newPath = cwd + '/' + dirName;

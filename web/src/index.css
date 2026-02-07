@@ -199,16 +199,6 @@ button:focus-visible {
   box-shadow: 0 4px 12px rgba(122, 162, 247, 0.3);
 }
 
-/* ── Session sidebar item ── */
-.sidebar-item {
-  transition: background-color 0.15s ease;
-}
-
-.sidebar-delete:hover {
-  color: #f7768e !important;
-  background: rgba(247, 118, 142, 0.1);
-}
-
 /* ── Markdown Editor ── */
 .md-editor-textarea {
   flex: 1;

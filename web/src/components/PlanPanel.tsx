@@ -105,13 +105,19 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
 
     document.body.classList.add('resizing-panes-h');
 
+    let dragRafId: number | null = null;
     const onMouseMove = (ev: MouseEvent) => {
-      const relX = ev.clientX - rect.left;
-      const pct = Math.min(80, Math.max(20, (relX / containerWidth) * 100));
-      setLeftWidthPercent(pct);
+      if (dragRafId) return;
+      dragRafId = requestAnimationFrame(() => {
+        dragRafId = null;
+        const relX = ev.clientX - rect.left;
+        const pct = Math.min(80, Math.max(20, (relX / containerWidth) * 100));
+        setLeftWidthPercent(pct);
+      });
     };
 
     const onMouseUp = () => {
+      if (dragRafId) cancelAnimationFrame(dragRafId);
       document.body.classList.remove('resizing-panes-h');
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);

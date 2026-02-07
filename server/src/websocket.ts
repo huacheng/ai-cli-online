@@ -1,7 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Socket } from 'net';
-import { safeTokenCompare } from './auth.js';
 import {
   buildSessionName,
   isValidSessionId,
@@ -132,14 +131,13 @@ export function setupWebSocket(
   wss: WebSocketServer,
   authToken: string,
   defaultCwd: string,
-  tokenCompare?: (a: string, b: string) => boolean,
+  tokenCompare: (a: string, b: string) => boolean,
   maxConnections = 10,
 ): void {
   // Start server-side keepalive to detect dead connections
   startKeepAlive(wss);
 
-  // Require timing-safe comparator when auth is enabled; plain === is never acceptable
-  const compareToken = tokenCompare || safeTokenCompare;
+  const compareToken = tokenCompare;
   wss.on('connection', (ws, req: IncomingMessage) => {
     // Disable Nagle algorithm for low-latency terminal I/O (eliminates up to 40ms delay per keystroke)
     const socket = req.socket as Socket;
@@ -157,8 +155,8 @@ export function setupWebSocket(
     }
 
     const url = new URL(req.url || '', `http://${req.headers.host}`);
-    let cols = 80;
-    let rows = 24;
+    const cols = 80;
+    const rows = 24;
     const rawSessionId = url.searchParams.get('sessionId') || undefined;
     const sessionId = rawSessionId && isValidSessionId(rawSessionId) ? rawSessionId : undefined;
 
