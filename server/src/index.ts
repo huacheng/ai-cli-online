@@ -10,21 +10,12 @@ import { existsSync, readFileSync, createReadStream } from 'fs';
 import { copyFile, unlink, stat, mkdir, writeFile } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
-import { createHmac, timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
 import { getLatestPlanFile, getLatestPlanIfChanged } from './plans.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
-
-/** Constant-time string comparison using HMAC to prevent timing side-channel attacks.
- *  HMAC digests are always 32 bytes, so comparison is constant-time regardless of input lengths. */
-function safeTokenCompare(a: string, b: string): boolean {
-  const key = 'cli-online-token-compare';
-  const hmacA = createHmac('sha256', key).update(a).digest();
-  const hmacB = createHmac('sha256', key).update(b).digest();
-  return timingSafeEqual(hmacA, hmacB);
-}
+import { safeTokenCompare } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

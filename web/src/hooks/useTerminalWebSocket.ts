@@ -19,13 +19,13 @@ const BIN_TYPE_INPUT = 0x02;
 const BIN_TYPE_SCROLLBACK = 0x03;
 const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
 
-/** Shared TextDecoder instance (avoids per-message allocation) */
+/** Shared TextDecoder/TextEncoder instances (avoids per-message allocation) */
 const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 /** Encode a string as binary with 1-byte type prefix */
 function encodeBinaryMessage(typePrefix: number, data: string): ArrayBuffer {
-  const encoder = new TextEncoder();
-  const payload = encoder.encode(data);
+  const payload = textEncoder.encode(data);
   const buf = new Uint8Array(1 + payload.length);
   buf[0] = typePrefix;
   buf.set(payload, 1);

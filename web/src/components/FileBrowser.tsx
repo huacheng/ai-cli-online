@@ -2,17 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { useStore } from '../store';
 import { fetchFiles, downloadFile } from '../api/files';
 import type { FileEntry } from '../api/files';
+import { formatSize } from '../utils';
 
 interface FileBrowserProps {
   sessionId: string;
   onClose: () => void;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 export function FileBrowser({ sessionId, onClose }: FileBrowserProps) {

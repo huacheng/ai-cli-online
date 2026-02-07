@@ -1,16 +1,11 @@
 import type { FileEntry } from 'cli-online-shared';
+import { API_BASE, authHeaders } from './client';
 
 export type { FileEntry };
-
-const API_BASE = '';
 
 export interface FilesResponse {
   cwd: string;
   files: FileEntry[];
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}` };
 }
 
 export async function fetchCwd(token: string, sessionId: string): Promise<string> {

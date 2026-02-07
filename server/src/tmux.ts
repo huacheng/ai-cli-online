@@ -36,7 +36,7 @@ export function buildSessionName(token: string, sessionId?: string): string {
 /** Check if a tmux session exists */
 export async function hasSession(name: string): Promise<boolean> {
   try {
-    await execFile('tmux', ['has-session', '-t', name], { stdio: 'ignore' } as any);
+    await execFile('tmux', ['has-session', '-t', name]);
     return true;
   } catch {
     return false;

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import { TerminalPane } from './TerminalPane';
 import type { LayoutNode, SplitNode } from '../types';
@@ -47,19 +47,19 @@ export function SplitPaneContainer() {
   );
 }
 
-function LayoutRenderer({ node, canClose }: { node: LayoutNode; canClose: boolean }) {
+const LayoutRenderer = memo(function LayoutRenderer({ node, canClose }: { node: LayoutNode; canClose: boolean }) {
   if (node.type === 'leaf') {
     return <LeafRenderer terminalId={node.terminalId} canClose={canClose} />;
   }
   return <SplitRenderer node={node} canClose={canClose} />;
-}
+});
 
-function LeafRenderer({ terminalId, canClose }: { terminalId: string; canClose: boolean }) {
+const LeafRenderer = memo(function LeafRenderer({ terminalId, canClose }: { terminalId: string; canClose: boolean }) {
   // O(1) lookup; only re-renders when THIS terminal's state changes
   const terminal = useStore((s) => s.terminalsMap[terminalId]);
   if (!terminal) return null;
   return <TerminalPane terminal={terminal} canClose={canClose} />;
-}
+});
 
 function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean }) {
   const setSplitSizes = useStore((s) => s.setSplitSizes);

@@ -10,21 +10,25 @@ export const MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 /** List files in a directory, directories first, then alphabetical */
 export async function listFiles(dirPath: string): Promise<FileEntry[]> {
   const entries = await readdir(dirPath, { withFileTypes: true });
-  const results: FileEntry[] = [];
 
-  for (const entry of entries) {
-    try {
+  // Parallel stat for all entries (much faster on large directories)
+  const settled = await Promise.allSettled(
+    entries.map(async (entry) => {
       const fullPath = join(dirPath, entry.name);
       const s = await stat(fullPath);
-      results.push({
+      return {
         name: entry.name,
-        type: entry.isDirectory() ? 'directory' : 'file',
+        type: (entry.isDirectory() ? 'directory' : 'file') as FileEntry['type'],
         size: s.size,
         modifiedAt: s.mtime.toISOString(),
-      });
-    } catch {
-      // Skip entries we can't stat (broken symlinks, permission errors)
-    }
+      };
+    }),
+  );
+
+  const results: FileEntry[] = [];
+  for (const result of settled) {
+    // Skip entries we can't stat (broken symlinks, permission errors)
+    if (result.status === 'fulfilled') results.push(result.value);
   }
 
   // Directories first, then alphabetical

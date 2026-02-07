@@ -1,8 +1,4 @@
-const API_BASE = '';
-
-function authHeaders(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}` };
-}
+import { API_BASE, authHeaders } from './client';
 
 export async function fetchDraft(token: string, sessionId: string): Promise<string> {
   const res = await fetch(

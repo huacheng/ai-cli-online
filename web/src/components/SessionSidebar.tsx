@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-
-function formatTime(unix: number): string {
-  const d = new Date(unix * 1000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import { formatTime } from '../utils';
 
 function SessionItem({ sessionId, active, createdAt }: {
   sessionId: string;
@@ -147,12 +142,27 @@ export function SessionSidebar() {
 
   const terminalCount = useStore((s) => s.terminalIds.length);
 
-  // Poll sessions when sidebar is open
+  // Poll sessions when sidebar is open and page is visible
   useEffect(() => {
     if (!sidebarOpen) return;
     fetchSessions();
-    const interval = setInterval(fetchSessions, 5000);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval> | null = setInterval(fetchSessions, 5000);
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (interval) { clearInterval(interval); interval = null; }
+      } else {
+        fetchSessions();
+        if (!interval) interval = setInterval(fetchSessions, 5000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [sidebarOpen, fetchSessions]);
 
   // Refresh when terminals are added/removed (small delay for tmux session creation)

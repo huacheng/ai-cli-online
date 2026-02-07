@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Socket } from 'net';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { safeTokenCompare } from './auth.js';
 import {
   buildSessionName,
   isValidSessionId,
@@ -13,6 +13,11 @@ import {
 } from './tmux.js';
 import { PtySession } from './pty.js';
 import type { ClientMessage, ServerMessage } from './types.js';
+
+/** WebSocket with keepalive flag for server-side ping/pong tracking */
+interface AliveWebSocket extends WebSocket {
+  _isAlive: boolean;
+}
 
 /**
  * Binary protocol for hot-path messages (output/input/scrollback).
@@ -103,21 +108,22 @@ function startKeepAlive(wss: WebSocketServer): void {
 
   setInterval(() => {
     for (const ws of wss.clients) {
-      if ((ws as any)._isAlive === false) {
+      const alive = ws as AliveWebSocket;
+      if (alive._isAlive === false) {
         // No pong received since last ping — terminate
         console.log('[WS] Keepalive: terminating unresponsive connection');
-        ws.terminate();
+        alive.terminate();
         continue;
       }
-      (ws as any)._isAlive = false;
-      ws.ping();
+      alive._isAlive = false;
+      alive.ping();
     }
   }, KEEPALIVE_INTERVAL);
 
   wss.on('connection', (ws) => {
-    (ws as any)._isAlive = true;
+    (ws as AliveWebSocket)._isAlive = true;
     ws.on('pong', () => {
-      (ws as any)._isAlive = true;
+      (ws as AliveWebSocket)._isAlive = true;
     });
   });
 }
@@ -133,12 +139,7 @@ export function setupWebSocket(
   startKeepAlive(wss);
 
   // Require timing-safe comparator when auth is enabled; plain === is never acceptable
-  const compareToken = tokenCompare || ((a: string, b: string) => {
-    const key = 'cli-online-token-compare';
-    const ha = createHmac('sha256', key).update(a).digest();
-    const hb = createHmac('sha256', key).update(b).digest();
-    return timingSafeEqual(ha, hb);
-  });
+  const compareToken = tokenCompare || safeTokenCompare;
   wss.on('connection', (ws, req: IncomingMessage) => {
     // Disable Nagle algorithm for low-latency terminal I/O (eliminates up to 40ms delay per keystroke)
     const socket = req.socket as Socket;
