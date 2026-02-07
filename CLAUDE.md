@@ -7,41 +7,45 @@ CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端�
 ## 架构
 
 ```
-浏览器 (xterm.js) ←WebSocket raw I/O→ Express (node-pty) ←→ tmux session → shell/claude
+浏览器 (xterm.js + WebGL) ←WebSocket binary/JSON→ Express (node-pty) ←→ tmux session → shell/claude
 ```
 
-- **前端**: React + Zustand + xterm.js
+- **前端**: React + Zustand + xterm.js (WebGL 渲染)
 - **后端**: Node.js + Express + node-pty + WebSocket
 - **会话管理**: tmux (持久化终端会话)
 - **布局系统**: 递归树形结构 (LeafNode / SplitNode)
+- **传输协议**: 二进制帧 (热路径) + JSON (控制消息)
 
 ## 目录结构
 
 ```
 cli-online/
+├── shared/           # 共享类型定义 (ClientMessage, ServerMessage)
+│   └── src/types.ts
 ├── server/           # 后端服务 (TypeScript)
 │   └── src/
 │       ├── index.ts      # 主入口，HTTP + WebSocket + REST API + 静态文件服务
-│       ├── websocket.ts  # WebSocket ↔ PTY 双向 relay
+│       ├── websocket.ts  # WebSocket ↔ PTY 双向 relay (二进制协议 + JSON 控制)
 │       ├── tmux.ts       # tmux 会话管理 (创建/attach/capture/resize/kill/getCwd)
 │       ├── files.ts      # 文件操作 (listFiles/validatePath)
 │       ├── pty.ts        # node-pty 封装
-│       └── types.ts      # 共享类型定义
+│       └── types.ts      # 类型 re-export
 ├── web/              # 前端应用 (React + Vite)
 │   └── src/
-│       ├── App.tsx           # 主应用组件 (Login / Terminal)
-│       ├── store.ts          # Zustand 状态管理 (树形布局逻辑)
+│       ├── App.tsx           # 主应用组件 (Login / Terminal / NetworkIndicator)
+│       ├── store.ts          # Zustand 状态管理 (terminalsMap + 树形布局)
 │       ├── types.ts          # 类型定义 (LayoutNode, TerminalInstance)
 │       ├── index.css         # 全局样式 + xterm.css + resize 光标
 │       ├── hooks/
-│       │   └── useTerminalWebSocket.ts  # WebSocket + 自动重连 (per terminal)
+│       │   └── useTerminalWebSocket.ts  # WebSocket 二进制协议 + 自动重连 + RTT 测量
 │       ├── api/
 │       │   └── files.ts             # 文件传输 API 客户端 (上传/下载/列表)
 │       └── components/
 │           ├── LoginForm.tsx          # Token 认证表单
-│           ├── TerminalView.tsx       # xterm.js 终端视图
+│           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + CSS 层隔离)
 │           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割/关闭按钮)
 │           ├── FileBrowser.tsx        # 文件浏览器覆盖层 (目录导航 + 下载)
+│           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名)
 │           └── SplitPaneContainer.tsx # 递归布局渲染 (水平/垂直分割)
 ├── start.sh          # 生产启动脚本 (构建 + 启动)
 └── package.json      # Monorepo 配置
@@ -108,29 +112,77 @@ interface SplitNode {
 - 关闭面板 → 父 split 只剩一个子节点时自动折叠
 - 分隔条拖拽调整尺寸（flex-grow 比例分配）
 
+## 状态管理
+
+Zustand store 使用 `terminalsMap` (Record) + `terminalIds` (有序数组) 替代数组：
+
+```typescript
+terminalsMap: Record<string, TerminalInstance>;  // O(1) 查找
+terminalIds: string[];                            // 保持插入顺序
+latency: number | null;                           // 全局网络延迟 (ms)
+```
+
+- `setTerminalConnected/Resumed/Error` 仅更新目标终端对象，不触发其他面板重渲染
+- 全局 `latency` 由任意活跃 WebSocket 的 ping/pong RTT 更新
+
 ## WebSocket 协议
 
-### 客户端 → 服务端
+### 二进制帧 (热路径，高频)
+
+格式: `[1 字节类型前缀][原始 UTF-8 载荷]`
+
+| 前缀 | 方向 | 说明 |
+|------|------|------|
+| `0x01` | S→C | PTY 输出 (原始 ANSI) |
+| `0x02` | C→S | 用户键入 |
+| `0x03` | S→C | 重连时的 scrollback 历史 |
+| `0x04` | S→C | capture-pane 滚动历史 (ANSI + 已归一化 `\r\n`) |
+
+客户端 `ws.binaryType = 'arraybuffer'`，xterm.js 直接 `write(Uint8Array)` 零拷贝渲染。
+
+### JSON 消息 (控制路径，低频)
+
+#### 客户端 → 服务端
 
 | type | payload | 说明 |
 |------|---------|------|
-| `input` | `{ data: string }` | 原始键入数据 |
+| `auth` | `{ token: string }` | 首条消息认证 |
+| `input` | `{ data: string }` | 键入数据 (Legacy JSON 回退) |
 | `resize` | `{ cols, rows }` | 终端尺寸变更 |
-| `ping` | - | 心跳检测 |
+| `ping` | - | 心跳 + RTT 测量 |
 | `capture-scrollback` | - | 请求 capture-pane 滚动历史 |
 
-### 服务端 → 客户端
+#### 服务端 → 客户端
 
 | type | payload | 说明 |
 |------|---------|------|
-| `output` | `{ data: string }` | PTY 输出 (原始 ANSI) |
-| `scrollback` | `{ data: string }` | 重连时的历史输出 (最多 10000 行) |
-| `scrollback-content` | `{ data: string }` | capture-pane 滚动历史 (带 ANSI 颜色) |
 | `connected` | `{ resumed: boolean }` | 连接状态 |
 | `error` | `{ error: string }` | 错误信息 |
-| `pong` | `{ timestamp }` | 心跳响应 |
+| `pong` | `{ timestamp }` | 心跳响应 (客户端据此算 RTT) |
 
-连接时通过 query string 传参: `?token=X&cols=80&rows=24&sessionId=t1`
+连接时通过 query string 传参: `?sessionId=t1`，认证通过首条 `auth` 消息完成。
+
+## 性能优化
+
+### 传输层
+- **二进制协议**: output/input/scrollback 使用 1 字节前缀二进制帧，消除 JSON 序列化开销
+- **TCP Nagle 禁用**: `socket.setNoDelay(true)` 消除最多 40ms 按键延迟
+- **WebSocket 压缩**: `perMessageDeflate` (level 1, threshold 128B)，带宽减少 50-70%
+- **maxPayload 1MB**: 支持大粘贴操作
+
+### 渲染层
+- **WebGL 渲染器**: `@xterm/addon-webgl` 渲染吞吐量提升 3-10x (自动回退 canvas)
+- **CSS 层隔离**: `contain: strict` + `will-change: transform` + `isolation: isolate`
+- **rAF resize**: ResizeObserver 用 `requestAnimationFrame` 对齐渲染帧，网络 resize 100ms debounce
+
+### 连接优化
+- **即时 resize**: 收到 `connected` 后立即发送尺寸，无盲等延迟
+- **服务端换行归一化**: scrollback 的 `\n → \r\n` 在服务端完成，避免客户端主线程阻塞
+- **tmux 配置并行化**: `Promise.all` 同时设置 history-limit/status/mouse
+
+### 网络状态指示器
+- 全局 ping/pong RTT 测量，header 显示信号条 + 延迟毫秒数
+- 颜色阈值: 绿(<50ms) 黄(<150ms) 橙(<300ms) 红(>=300ms)
 
 ## 文件传输 REST API
 
@@ -163,13 +215,13 @@ interface SplitNode {
 
 - 点击终端右上角 `↑` 按钮 → 发送 `capture-scrollback` 请求
 - 服务端执行 `tmux capture-pane -p -e -S -10000`，`-e` 保留 ANSI 颜色转义码
-- 前端用只读 xterm.js 实例 (`disableStdin: true`, `scrollback: 50000`) 渲染返回内容
-- 渲染前将 `\n` 转为 `\r\n`（xterm.js 需要 CR+LF 才能正确换行回到第 0 列）
+- 服务端将 `\n` 归一化为 `\r\n` 后通过二进制帧发送
+- 前端用只读 xterm.js 实例 (`disableStdin: true`, `scrollback: 50000`) 渲染
 - ESC 键或点击 `✕` 关闭覆盖层
 
 ## tmux 配置
 
-创建 session 时自动设置以下全局选项：
+创建 session 时并行设置以下选项 (Promise.all)：
 
 | 选项 | 值 | 说明 |
 |------|-----|------|
@@ -191,4 +243,6 @@ interface SplitNode {
 - [x] 水平 + 垂直分割布局
 - [x] 终端滚动回看 (capture-pane + xterm.js 只读查看器，带 ANSI 颜色)
 - [x] 文件上传下载 (multer 上传到 CWD + FileBrowser 浏览/下载)
+- [x] 性能优化 (WebGL 渲染 + 二进制协议 + Nagle 禁用 + 压缩)
+- [x] 全局网络状态指示器 (RTT 延迟 + 信号条)
 - [ ] 成果文档导出

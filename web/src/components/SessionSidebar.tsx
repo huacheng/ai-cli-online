@@ -133,20 +133,9 @@ function SessionItem({ sessionId, active, createdAt }: {
 
       {/* Delete button */}
       <button
+        className="pane-btn pane-btn--danger"
         onClick={handleDelete}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#565f89',
-          cursor: 'pointer',
-          fontSize: '14px',
-          padding: '2px 4px',
-          borderRadius: '3px',
-          lineHeight: 1,
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = '#f7768e'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
+        style={{ flexShrink: 0 }}
         title="Delete session"
       >
         ×

@@ -53,38 +53,34 @@ function App() {
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#7aa2f7' }}>CLI-Online</span>
-          <span style={{ fontSize: '12px', color: '#565f89' }}>
+          <span style={{
+            fontSize: '15px',
+            fontWeight: 'bold',
+            color: '#7aa2f7',
+            letterSpacing: '0.5px',
+          }}>
+            CLI-Online
+          </span>
+          <span style={{
+            fontSize: '11px',
+            color: '#565f89',
+            backgroundColor: '#1a1b26',
+            padding: '1px 8px',
+            borderRadius: '10px',
+            border: '1px solid #292e42',
+          }}>
             {terminalIds.length} terminal{terminalIds.length !== 1 ? 's' : ''}
           </span>
           <button
+            className="header-btn"
             onClick={() => addTerminal('horizontal')}
-            style={{
-              background: 'none',
-              border: '1px solid #292e42',
-              color: '#7aa2f7',
-              padding: '1px 8px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              lineHeight: '1.4',
-            }}
             title="Add terminal (horizontal split)"
           >
             |
           </button>
           <button
+            className="header-btn"
             onClick={() => addTerminal('vertical')}
-            style={{
-              background: 'none',
-              border: '1px solid #292e42',
-              color: '#7aa2f7',
-              padding: '1px 8px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              lineHeight: '1.4',
-            }}
             title="Add terminal (vertical split)"
           >
             ─
@@ -93,32 +89,15 @@ function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <NetworkIndicator />
           <button
+            className="header-btn"
             onClick={toggleSidebar}
-            style={{
-              background: 'none',
-              border: '1px solid #292e42',
-              color: '#7aa2f7',
-              padding: '1px 8px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              lineHeight: '1.4',
-            }}
             title="Toggle session sidebar"
           >
             ☰
           </button>
           <button
+            className="header-btn header-btn--muted"
             onClick={() => setToken(null)}
-            style={{
-              background: 'none',
-              border: '1px solid #292e42',
-              color: '#565f89',
-              padding: '2px 10px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-            }}
           >
             Logout
           </button>
@@ -162,7 +141,14 @@ function NetworkIndicator() {
 
   return (
     <span
-      style={{ display: 'inline-flex', alignItems: 'end', gap: '1px' }}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'end',
+        gap: '1.5px',
+        padding: '2px 8px',
+        borderRadius: '10px',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+      }}
       title={`Latency: ${latency}ms`}
     >
       {[1, 2, 3, 4].map((i) => (
@@ -170,14 +156,15 @@ function NetworkIndicator() {
           key={i}
           style={{
             display: 'inline-block',
-            width: '2px',
+            width: '2.5px',
             height: `${3 + i * 2}px`,
             backgroundColor: i <= bars ? color : '#292e42',
             borderRadius: '1px',
+            transition: 'background-color 0.3s ease',
           }}
         />
       ))}
-      <span style={{ fontSize: '10px', color, marginLeft: '3px' }}>
+      <span style={{ fontSize: '10px', color, marginLeft: '4px', fontWeight: 500 }}>
         {latency}ms
       </span>
     </span>

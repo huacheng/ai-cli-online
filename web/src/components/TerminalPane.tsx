@@ -10,15 +10,7 @@ interface TerminalPaneProps {
   canClose: boolean;
 }
 
-const paneButtonStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: '#565f89',
-  cursor: 'pointer',
-  fontSize: '14px',
-  lineHeight: '1',
-  padding: '0 2px',
-};
+// Buttons now use .pane-btn CSS class from index.css
 
 export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
@@ -91,45 +83,41 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
           />
           {/* Upload button */}
           <button
+            className="pane-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            style={{
-              ...paneButtonStyle,
-              color: uploading ? '#e0af68' : '#565f89',
-            }}
+            style={uploading ? { color: '#e0af68' } : undefined}
             title={uploading ? `Uploading ${uploadProgress}%` : 'Upload files'}
           >
             {uploading ? `${uploadProgress}%` : '\u2191'}
           </button>
           {/* Download / File Browser button */}
           <button
+            className="pane-btn"
             onClick={() => setFileBrowserOpen((v) => !v)}
-            style={{
-              ...paneButtonStyle,
-              color: fileBrowserOpen ? '#7aa2f7' : '#565f89',
-            }}
+            style={fileBrowserOpen ? { color: '#7aa2f7' } : undefined}
             title="Browse files"
           >
             {'\u2193'}
           </button>
           <button
+            className="pane-btn"
             onClick={() => splitTerminal(terminal.id, 'horizontal')}
-            style={paneButtonStyle}
             title="Split horizontal (left/right)"
           >
             |
           </button>
           <button
+            className="pane-btn"
             onClick={() => splitTerminal(terminal.id, 'vertical')}
-            style={paneButtonStyle}
             title="Split vertical (top/bottom)"
           >
             ─
           </button>
           {canClose && (
             <button
+              className="pane-btn pane-btn--danger"
               onClick={() => removeTerminal(terminal.id)}
-              style={paneButtonStyle}
               title="Close terminal"
             >
               ×

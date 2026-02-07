@@ -74,3 +74,137 @@ body.resizing-panes-v * {
   cursor: row-resize !important;
   user-select: none !important;
 }
+
+/* ── Global button styling ── */
+button {
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+button:hover {
+  filter: brightness(1.2);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #292e42;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #414868;
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(122, 162, 247, 0.3);
+  color: #c0caf5;
+}
+
+/* ── Focus ring ── */
+input:focus-visible,
+button:focus-visible {
+  outline: 1px solid #7aa2f7;
+  outline-offset: 1px;
+}
+
+/* ── Header button base ── */
+.header-btn {
+  background: none;
+  border: 1px solid #292e42;
+  color: #7aa2f7;
+  padding: 2px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  transition: all 0.15s ease;
+}
+
+.header-btn:hover {
+  background: rgba(122, 162, 247, 0.1);
+  border-color: #7aa2f7;
+}
+
+.header-btn--muted {
+  color: #565f89;
+  font-size: 12px;
+}
+
+.header-btn--muted:hover {
+  color: #a9b1d6;
+  border-color: #565f89;
+  background: rgba(86, 95, 137, 0.1);
+}
+
+/* ── Pane title bar button ── */
+.pane-btn {
+  background: none;
+  border: none;
+  color: #565f89;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.pane-btn:hover {
+  color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.1);
+}
+
+.pane-btn--danger:hover {
+  color: #f7768e;
+  background: rgba(247, 118, 142, 0.1);
+}
+
+/* ── Login form input focus ── */
+.login-input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-input:focus {
+  border-color: #7aa2f7 !important;
+  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.15);
+}
+
+/* ── Login card ── */
+.login-card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(122, 162, 247, 0.08);
+  transition: box-shadow 0.3s ease;
+}
+
+/* ── Login submit button ── */
+.login-submit {
+  transition: all 0.2s ease;
+}
+
+.login-submit:not(:disabled):hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(122, 162, 247, 0.3);
+}
+
+/* ── Session sidebar item ── */
+.sidebar-item {
+  transition: background-color 0.15s ease;
+}
+
+.sidebar-delete:hover {
+  color: #f7768e !important;
+  background: rgba(247, 118, 142, 0.1);
+}
