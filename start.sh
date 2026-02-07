@@ -33,6 +33,7 @@ cd "$PROJECT_DIR"
 npm run build 2>&1
 echo "[构建] 完成"
 
-# 4. 启动服务
+# 4. 启动服务（从 server/ 目录启动，确保 dotenv 能读取 server/.env）
 echo "[启动] 启动服务 (端口: $PORT)..."
-exec npm start
+cd "$PROJECT_DIR/server"
+exec node dist/index.js
