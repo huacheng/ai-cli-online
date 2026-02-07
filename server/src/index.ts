@@ -7,12 +7,13 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config } from 'dotenv';
 import { existsSync, readFileSync, createReadStream } from 'fs';
-import { copyFile, unlink, stat, mkdir } from 'fs/promises';
+import { copyFile, unlink, stat, mkdir, writeFile } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
-import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd } from './tmux.js';
+import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
+import { getLatestPlanFile, getLatestPlanIfChanged } from './plans.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
 
@@ -294,6 +295,63 @@ async function main() {
     }
     saveDraftDb(sessionName, content);
     res.json({ ok: true });
+  });
+
+  // --- Plan APIs ---
+
+  // Get current pane command (to detect if claude is running)
+  app.get('/api/sessions/:sessionId/pane-command', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const command = await getPaneCommand(sessionName);
+      res.json({ command });
+    } catch {
+      res.json({ command: '' });
+    }
+  });
+
+  // Get latest plan file from ~/.claude/plans/
+  app.get('/api/sessions/:sessionId/plan/latest', async (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const since = parseFloat(req.query.since as string) || 0;
+    try {
+      if (since > 0) {
+        const result = await getLatestPlanIfChanged(since);
+        if (result === 'unchanged') { res.status(304).end(); return; }
+        res.json({ plan: result });
+        return;
+      }
+      const result = await getLatestPlanFile();
+      res.json({ plan: result });
+    } catch {
+      res.json({ plan: null });
+    }
+  });
+
+  // Save plan file content to session CWD (Save As)
+  app.post('/api/sessions/:sessionId/plan/save-file', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    const { filename, content } = req.body as { filename?: string; content?: string };
+    if (typeof content !== 'string') {
+      res.status(400).json({ error: 'content required' });
+      return;
+    }
+    const safeName = basename(filename || 'plan.md');
+    if (!safeName || safeName === '.' || safeName === '..') {
+      res.status(400).json({ error: 'Invalid filename' });
+      return;
+    }
+    try {
+      const cwd = await getCwd(sessionName);
+      const destPath = join(cwd, safeName);
+      await writeFile(destPath, content, 'utf-8');
+      res.json({ ok: true, path: destPath });
+    } catch (err) {
+      console.error('[plan:save-file] Failed:', err);
+      res.status(500).json({ error: 'Failed to save file' });
+    }
   });
 
   // Serve static files from web/dist in production

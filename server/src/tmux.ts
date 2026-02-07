@@ -181,6 +181,18 @@ export async function getCwd(sessionName: string): Promise<string> {
   return stdout.trim();
 }
 
+/** 获取 tmux pane 当前运行的命令名称 */
+export async function getPaneCommand(sessionName: string): Promise<string> {
+  try {
+    const { stdout } = await execFile('tmux', [
+      'display-message', '-p', '-t', sessionName, '#{pane_current_command}',
+    ], { encoding: 'utf-8' });
+    return stdout.trim();
+  } catch {
+    return '';
+  }
+}
+
 /** Check if tmux is available on the system (sync — startup only) */
 export function isTmuxAvailable(): boolean {
   try {

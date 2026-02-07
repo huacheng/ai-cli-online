@@ -2,8 +2,9 @@ import { useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
-import { MarkdownEditor } from './MarkdownEditor';
+import { PlanPanel } from './PlanPanel';
 import { uploadFiles } from '../api/files';
+import { fetchPaneCommand } from '../api/plans';
 import type { TerminalInstance } from '../types';
 import type { TerminalViewHandle } from './TerminalView';
 
@@ -12,9 +13,7 @@ interface TerminalPaneProps {
   canClose: boolean;
 }
 
-const EDITOR_MIN_HEIGHT = 100;
-const EDITOR_MAX_HEIGHT = 500;
-const EDITOR_DEFAULT_HEIGHT = 200;
+const PLAN_MIN_HEIGHT = 100;
 
 export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
@@ -27,8 +26,9 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorHeight, setEditorHeight] = useState(EDITOR_DEFAULT_HEIGHT);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planHeightPercent, setPlanHeightPercent] = useState(50);
+  const outerRef = useRef<HTMLDivElement>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -49,27 +49,54 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
     }
   };
 
-  // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing Enter)
+  // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing \r for Enter)
   const handleEditorSend = useCallback((text: string) => {
     if (terminalViewRef.current) {
-      const merged = text.replace(/\r?\n/g, ' ');
-      terminalViewRef.current.sendInput(merged.endsWith('\r') ? merged : merged + '\r');
+      const merged = text.replace(/\r?\n/g, ' ').trimEnd();
+      // PTY raw mode: \r = Enter (carriage return), send text then \r separately to ensure Enter fires
+      terminalViewRef.current.sendInput(merged);
+      setTimeout(() => terminalViewRef.current?.sendInput('\r'), 50);
     }
   }, []);
 
-  // Drag resize for editor panel
+  // Check if claude is running, if not start it
+  const checkAndStartClaude = useCallback(async () => {
+    if (!token) return;
+    try {
+      const cmd = await fetchPaneCommand(token, terminal.id);
+      if (cmd && cmd.toLowerCase().includes('claude')) return; // already running
+      terminalViewRef.current?.sendInput('claude\r');
+    } catch {
+      // ignore — best effort
+    }
+  }, [token, terminal.id]);
+
+  // Toggle plan panel + auto-start claude
+  const handlePlanToggle = useCallback(() => {
+    setPlanOpen((prev) => {
+      if (!prev) {
+        // Opening: check and start claude
+        checkAndStartClaude();
+      }
+      return !prev;
+    });
+  }, [checkAndStartClaude]);
+
+  // Drag resize for plan panel (vertical divider)
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    const startY = e.clientY;
-    const startHeight = editorHeight;
+    const container = outerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const containerHeight = rect.height;
 
     document.body.classList.add('resizing-panes-v');
 
     const onMouseMove = (ev: MouseEvent) => {
-      // Dragging up = increasing editor height (startY - ev.clientY > 0)
-      const delta = startY - ev.clientY;
-      const newHeight = Math.min(EDITOR_MAX_HEIGHT, Math.max(EDITOR_MIN_HEIGHT, startHeight + delta));
-      setEditorHeight(newHeight);
+      const terminalPct = ((ev.clientY - rect.top) / containerHeight) * 100;
+      // Plan panel is bottom part; clamp terminal between 20% and 80%
+      const clamped = Math.min(80, Math.max(20, terminalPct));
+      setPlanHeightPercent(100 - clamped);
     };
 
     const onMouseUp = () => {
@@ -80,10 +107,10 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [editorHeight]);
+  }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
+    <div ref={outerRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
       {/* Title bar */}
       <div style={{
         display: 'flex',
@@ -141,14 +168,14 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
           >
             {'\u2193'}
           </button>
-          {/* Markdown editor toggle */}
+          {/* Plan panel toggle */}
           <button
-            className={`pane-btn${editorOpen ? ' pane-btn--active' : ''}`}
-            onClick={() => setEditorOpen((v) => !v)}
-            title="Toggle Markdown editor"
-            aria-label="Toggle Markdown editor"
+            className={`pane-btn${planOpen ? ' pane-btn--active' : ''}`}
+            onClick={handlePlanToggle}
+            title="Toggle Plan panel"
+            aria-label="Toggle Plan panel"
           >
-            Md
+            Plan
           </button>
           <button
             className="pane-btn"
@@ -190,17 +217,17 @@ export function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
         )}
       </div>
 
-      {/* Resize divider + Markdown editor panel */}
-      {editorOpen && (
+      {/* Resize divider + Plan panel */}
+      {planOpen && (
         <>
           <div
             className="md-editor-divider"
             onMouseDown={handleDividerMouseDown}
           />
-          <div style={{ height: editorHeight, flexShrink: 0, overflow: 'hidden' }}>
-            <MarkdownEditor
+          <div style={{ height: `${planHeightPercent}%`, minHeight: PLAN_MIN_HEIGHT, flexShrink: 0, overflow: 'hidden' }}>
+            <PlanPanel
               onSend={handleEditorSend}
-              onClose={() => setEditorOpen(false)}
+              onClose={() => setPlanOpen(false)}
               sessionId={terminal.id}
               token={token || ''}
             />
