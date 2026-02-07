@@ -12,13 +12,11 @@ function SessionItem({ sessionId, active, createdAt }: {
   active: boolean;
   createdAt: number;
 }) {
-  const {
-    terminalsMap,
-    addTerminal,
-    killServerSession,
-    sessionNames,
-    renameSession,
-  } = useStore();
+  const terminalsMap = useStore((s) => s.terminalsMap);
+  const addTerminal = useStore((s) => s.addTerminal);
+  const killServerSession = useStore((s) => s.killServerSession);
+  const sessionNames = useStore((s) => s.sessionNames);
+  const renameSession = useStore((s) => s.renameSession);
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');

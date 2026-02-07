@@ -106,6 +106,8 @@ export function setupWebSocket(
     let sessionName = '';
     let ptySession: PtySession | null = null;
     let sessionInitializing = false; // guard against concurrent initSession calls
+    let lastScrollbackTime = 0; // throttle capture-scrollback requests
+    const SCROLLBACK_THROTTLE_MS = 2000;
     const AUTH_TIMEOUT = 5000;
 
     const authTimer = authToken
@@ -242,6 +244,10 @@ export function setupWebSocket(
             send(ws, { type: 'pong', timestamp: Date.now() });
             break;
           case 'capture-scrollback': {
+            // Throttle to prevent abuse (subprocess spawning is expensive)
+            const now = Date.now();
+            if (now - lastScrollbackTime < SCROLLBACK_THROTTLE_MS) break;
+            lastScrollbackTime = now;
             const content = await captureScrollback(sessionName);
             // Normalize newlines server-side to avoid client main-thread regex on large strings
             const normalized = content.replace(/\n/g, '\r\n');

@@ -305,7 +305,8 @@ export const useStore = create<AppState>((set, get) => ({
       // ignore
     }
     get().removeTerminal(sessionId);
-    get().fetchSessions();
+    // Small delay to let tmux finish killing the session before refreshing the list
+    setTimeout(() => get().fetchSessions(), 500);
   },
 
   sessionNames: loadSessionNames(),
