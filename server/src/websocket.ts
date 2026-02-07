@@ -27,6 +27,28 @@ const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
 /** Track active connections per session name to prevent duplicates */
 const activeConnections = new Map<string, WebSocket>();
 
+/** Rate-limit failed WebSocket auth attempts per IP */
+const authFailures = new Map<string, { count: number; resetAt: number }>();
+const AUTH_FAIL_MAX = 5;
+const AUTH_FAIL_WINDOW_MS = 60_000;
+
+function isAuthRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = authFailures.get(ip);
+  if (!entry || now > entry.resetAt) return false;
+  return entry.count >= AUTH_FAIL_MAX;
+}
+
+function recordAuthFailure(ip: string): void {
+  const now = Date.now();
+  const entry = authFailures.get(ip);
+  if (!entry || now > entry.resetAt) {
+    authFailures.set(ip, { count: 1, resetAt: now + AUTH_FAIL_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
 /** Count active connections for a given token prefix */
 function countConnectionsForToken(tokenPrefix: string): number {
   let count = 0;
@@ -76,7 +98,7 @@ export function setupWebSocket(
 ): void {
   // Require timing-safe comparator when auth is enabled; plain === is never acceptable
   const compareToken = tokenCompare || ((a: string, b: string) => {
-    const key = 'cli-online-ws-token-compare';
+    const key = 'cli-online-token-compare';
     const ha = createHmac('sha256', key).update(a).digest();
     const hb = createHmac('sha256', key).update(b).digest();
     return timingSafeEqual(ha, hb);
@@ -86,6 +108,15 @@ export function setupWebSocket(
     const socket = req.socket as Socket;
     if (socket && typeof socket.setNoDelay === 'function') {
       socket.setNoDelay(true);
+    }
+
+    const clientIp = req.socket.remoteAddress || 'unknown';
+
+    // Reject connections from IPs with too many recent auth failures
+    if (authToken && isAuthRateLimited(clientIp)) {
+      console.log(`[WS] Auth rate-limited IP: ${clientIp}`);
+      ws.close(4001, 'Too many auth failures');
+      return;
     }
 
     const url = new URL(req.url || '', `http://${req.headers.host}`);
@@ -122,66 +153,71 @@ export function setupWebSocket(
     async function initSession(token: string) {
       if (sessionInitializing || ptySession) return; // prevent double init
       sessionInitializing = true;
-      sessionName = buildSessionName(token, sessionId);
-
-      // Connection limit per token
-      const tokenPrefix = tokenToSessionName(token) + '-';
-      if (countConnectionsForToken(tokenPrefix) >= maxConnections) {
-        console.log(`[WS] Connection limit (${maxConnections}) reached for token`);
-        ws.close(4005, 'Too many connections');
-        return;
-      }
-
-      console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
-
-      // Kick duplicate connection for same session
-      const existing = activeConnections.get(sessionName);
-      if (existing && existing.readyState === WebSocket.OPEN) {
-        console.log(`[WS] Kicking existing connection for session: ${sessionName}`);
-        existing.close(4002, 'Replaced by new connection');
-      }
-      activeConnections.set(sessionName, ws);
-
-      // Check or create tmux session
-      const resumed = await hasSession(sessionName);
-      if (!resumed) {
-        await createSession(sessionName, cols, rows, defaultCwd);
-      } else {
-        await resizeSession(sessionName, cols, rows);
-      }
-
-      // Send scrollback for resumed sessions (binary for performance)
-      if (resumed) {
-        const scrollback = await captureScrollback(sessionName);
-        if (scrollback) {
-          sendBinary(ws, BIN_TYPE_SCROLLBACK, scrollback);
-        }
-      }
-
-      send(ws, { type: 'connected', resumed });
-
-      // Attach PTY to tmux session
       try {
-        ptySession = new PtySession(sessionName, cols, rows);
-      } catch (err) {
-        console.error(`[WS] Failed to attach PTY to session ${sessionName}:`, err);
-        send(ws, { type: 'error', error: 'Failed to attach to terminal session' });
-        ws.close(4003, 'PTY attach failed');
-        return;
-      }
+        sessionName = buildSessionName(token, sessionId);
 
-      ptySession.onData((data) => {
-        sendBinary(ws, BIN_TYPE_OUTPUT, data);
-      });
-
-      ptySession.onExit((code, signal) => {
-        console.log(`[WS] PTY exited for session ${sessionName}, code: ${code}, signal: ${signal}`);
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close(1000, 'PTY exited');
+        // Connection limit per token
+        const tokenPrefix = tokenToSessionName(token) + '-';
+        if (countConnectionsForToken(tokenPrefix) >= maxConnections) {
+          console.log(`[WS] Connection limit (${maxConnections}) reached for token`);
+          ws.close(4005, 'Too many connections');
+          return;
         }
-      });
 
-      sessionInitializing = false;
+        console.log(`[WS] Client connected, session: ${sessionName}, size: ${cols}x${rows}`);
+
+        // Kick duplicate connection for same session
+        const existing = activeConnections.get(sessionName);
+        if (existing && existing.readyState === WebSocket.OPEN) {
+          console.log(`[WS] Kicking existing connection for session: ${sessionName}`);
+          existing.close(4002, 'Replaced by new connection');
+        }
+        activeConnections.set(sessionName, ws);
+
+        // Check or create tmux session
+        const resumed = await hasSession(sessionName);
+        if (!resumed) {
+          await createSession(sessionName, cols, rows, defaultCwd);
+        } else {
+          await resizeSession(sessionName, cols, rows);
+        }
+
+        // Send scrollback for resumed sessions (binary for performance)
+        if (resumed) {
+          const scrollback = await captureScrollback(sessionName);
+          if (scrollback) {
+            sendBinary(ws, BIN_TYPE_SCROLLBACK, scrollback);
+          }
+        }
+
+        send(ws, { type: 'connected', resumed });
+
+        // Attach PTY to tmux session
+        try {
+          ptySession = new PtySession(sessionName, cols, rows);
+        } catch (err) {
+          console.error(`[WS] Failed to attach PTY to session ${sessionName}:`, err);
+          send(ws, { type: 'error', error: 'Failed to attach to terminal session' });
+          ws.close(4003, 'PTY attach failed');
+          return;
+        }
+
+        ptySession.onData((data) => {
+          sendBinary(ws, BIN_TYPE_OUTPUT, data);
+        });
+
+        ptySession.onExit((code, signal) => {
+          console.log(`[WS] PTY exited for session ${sessionName}, code: ${code}, signal: ${signal}`);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close(1000, 'PTY exited');
+          }
+        });
+      } catch (err) {
+        console.error(`[WS] initSession failed for ${sessionName}:`, err);
+        ws.close(4003, 'Session init failed');
+      } finally {
+        sessionInitializing = false;
+      }
     }
 
     // If no auth required, init immediately with default token
@@ -213,7 +249,8 @@ export function setupWebSocket(
           if (authenticated) return; // already authenticated, ignore
           if (authTimer) clearTimeout(authTimer);
           if (!msg.token || !compareToken(msg.token, authToken)) {
-            console.log('[WS] Unauthorized — invalid token in auth message');
+            recordAuthFailure(clientIp);
+            console.log(`[WS] Unauthorized — invalid token from ${clientIp}`);
             ws.close(4001, 'Unauthorized');
             return;
           }

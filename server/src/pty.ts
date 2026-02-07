@@ -72,7 +72,11 @@ export class PtySession {
   kill(): void {
     if (this.alive) {
       this.alive = false;
-      this.proc.kill();
+      try {
+        this.proc.kill();
+      } catch (err) {
+        console.error('[PTY] kill() error (process may have already exited):', err);
+      }
     }
     // Clear listener arrays to release closure references for GC
     this.dataListeners = [];

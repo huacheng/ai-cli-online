@@ -1,15 +1,11 @@
 import { readdir, stat, realpath } from 'fs/promises';
 import { join, resolve } from 'path';
+import type { FileEntry } from './types.js';
+
+export type { FileEntry };
 
 export const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 export const MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
-
-export interface FileEntry {
-  name: string;
-  type: 'file' | 'directory';
-  size: number;
-  modifiedAt: string;
-}
 
 /** List files in a directory, directories first, then alphabetical */
 export async function listFiles(dirPath: string): Promise<FileEntry[]> {
@@ -37,7 +33,8 @@ export async function listFiles(dirPath: string): Promise<FileEntry[]> {
     return a.name.localeCompare(b.name);
   });
 
-  return results;
+  // Cap at 1000 entries to prevent excessive memory/bandwidth usage on huge directories
+  return results.slice(0, 1000);
 }
 
 /**

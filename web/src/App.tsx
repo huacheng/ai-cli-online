@@ -4,17 +4,8 @@ import { LoginForm } from './components/LoginForm';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
 import { SessionSidebar } from './components/SessionSidebar';
 
-// Read token from URL params or localStorage
+// Read token from localStorage only (URL-based token removed for security — avoids log/history leak)
 function getInitialToken(): string | null {
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get('token');
-  if (urlToken) {
-    localStorage.setItem('cli-online-token', urlToken);
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.delete('token');
-    window.history.replaceState({}, '', newUrl.toString());
-    return urlToken;
-  }
   return localStorage.getItem('cli-online-token');
 }
 
@@ -97,7 +88,11 @@ function App() {
           </button>
           <button
             className="header-btn header-btn--muted"
-            onClick={() => setToken(null)}
+            onClick={() => {
+              if (window.confirm('Logout will close all terminals. Continue?')) {
+                setToken(null);
+              }
+            }}
           >
             Logout
           </button>

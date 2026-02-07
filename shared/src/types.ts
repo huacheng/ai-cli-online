@@ -1,3 +1,11 @@
+// Shared file entry type (used by server file listing and web file browser)
+export interface FileEntry {
+  name: string;
+  type: 'file' | 'directory';
+  size: number;
+  modifiedAt: string;
+}
+
 // Client → Server messages
 export type ClientMessage =
   | { type: 'auth'; token: string }

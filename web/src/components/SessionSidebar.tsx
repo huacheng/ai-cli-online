@@ -12,18 +12,15 @@ function SessionItem({ sessionId, active, createdAt }: {
   active: boolean;
   createdAt: number;
 }) {
-  const terminalsMap = useStore((s) => s.terminalsMap);
+  const isOpen = useStore((s) => !!s.terminalsMap[sessionId]);
   const addTerminal = useStore((s) => s.addTerminal);
   const killServerSession = useStore((s) => s.killServerSession);
-  const sessionNames = useStore((s) => s.sessionNames);
+  const displayName = useStore((s) => s.sessionNames[sessionId] || sessionId);
   const renameSession = useStore((s) => s.renameSession);
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const isOpen = !!terminalsMap[sessionId];
-  const displayName = sessionNames[sessionId] || sessionId;
 
   const handleClick = () => {
     if (isOpen) return;
@@ -32,7 +29,7 @@ function SessionItem({ sessionId, active, createdAt }: {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setEditValue(sessionNames[sessionId] || '');
+    setEditValue(displayName !== sessionId ? displayName : '');
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   };

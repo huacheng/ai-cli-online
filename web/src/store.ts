@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { TerminalInstance, LayoutNode, SplitDirection, ServerSession } from './types';
 
 const SESSION_NAMES_KEY = 'cli-online-session-names';
+const LAYOUT_KEY = 'cli-online-layout';
 
 function loadSessionNames(): Record<string, string> {
   try {
@@ -13,6 +14,27 @@ function loadSessionNames(): Record<string, string> {
 
 function saveSessionNames(names: Record<string, string>): void {
   localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+}
+
+interface PersistedLayout {
+  terminalIds: string[];
+  layout: LayoutNode | null;
+  nextId: number;
+  nextSplitId: number;
+}
+
+function loadLayout(): PersistedLayout | null {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveLayout(state: PersistedLayout): void {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify(state));
 }
 
 // API base URL — always relative (Vite proxy handles dev mode)
@@ -136,8 +158,26 @@ export const useStore = create<AppState>((set, get) => ({
   setToken: (token) => {
     if (token) {
       localStorage.setItem('cli-online-token', token);
+      // Restore persisted layout if available
+      const saved = loadLayout();
+      if (saved && saved.terminalIds.length > 0) {
+        const terminalsMap: Record<string, TerminalInstance> = {};
+        for (const id of saved.terminalIds) {
+          terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null };
+        }
+        set({
+          token,
+          terminalsMap,
+          terminalIds: saved.terminalIds,
+          nextId: saved.nextId,
+          nextSplitId: saved.nextSplitId,
+          layout: saved.layout,
+        });
+        return;
+      }
     } else {
       localStorage.removeItem('cli-online-token');
+      localStorage.removeItem(LAYOUT_KEY);
     }
     set({ token, terminalsMap: {}, terminalIds: [], nextId: 1, nextSplitId: 1, layout: null });
   },
@@ -202,13 +242,16 @@ export const useStore = create<AppState>((set, get) => ({
       newNextSplitId++;
     }
 
+    const newTerminalIds = [...terminalIds, id];
+    const finalNextId = customSessionId ? newNextId : newNextId + 1;
     set({
       terminalsMap: { ...terminalsMap, [id]: newTerminal },
-      terminalIds: [...terminalIds, id],
-      nextId: customSessionId ? newNextId : newNextId + 1,
+      terminalIds: newTerminalIds,
+      nextId: finalNextId,
       nextSplitId: newNextSplitId,
       layout: newLayout,
     });
+    saveLayout({ terminalIds: newTerminalIds, layout: newLayout, nextId: finalNextId, nextSplitId: newNextSplitId });
     return id;
   },
 
@@ -223,21 +266,27 @@ export const useStore = create<AppState>((set, get) => ({
 
     const newLayout = splitLeafInTree(layout, terminalId, direction, newLeaf, splitId);
 
+    const newTerminalIds = [...terminalIds, id];
+    const newNextId = nextId + 1;
+    const newNextSplitId = nextSplitId + 1;
     set({
       terminalsMap: { ...terminalsMap, [id]: newTerminal },
-      terminalIds: [...terminalIds, id],
-      nextId: nextId + 1,
-      nextSplitId: nextSplitId + 1,
+      terminalIds: newTerminalIds,
+      nextId: newNextId,
+      nextSplitId: newNextSplitId,
       layout: newLayout,
     });
+    saveLayout({ terminalIds: newTerminalIds, layout: newLayout, nextId: newNextId, nextSplitId: newNextSplitId });
     return id;
   },
 
   removeTerminal: (id) => {
-    const { terminalsMap, terminalIds, layout } = get();
+    const { terminalsMap, terminalIds, layout, nextId, nextSplitId } = get();
     const { [id]: _removed, ...rest } = terminalsMap;
     const newLayout = layout ? removeLeafFromTree(layout, id) : null;
-    set({ terminalsMap: rest, terminalIds: terminalIds.filter((tid) => tid !== id), layout: newLayout });
+    const newTerminalIds = terminalIds.filter((tid) => tid !== id);
+    set({ terminalsMap: rest, terminalIds: newTerminalIds, layout: newLayout });
+    saveLayout({ terminalIds: newTerminalIds, layout: newLayout, nextId, nextSplitId });
   },
 
   setTerminalConnected: (id, connected) => {

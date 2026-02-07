@@ -34,6 +34,7 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 const DEFAULT_WORKING_DIR = process.env.DEFAULT_WORKING_DIR || process.env.HOME || '/home/ubuntu';
 const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || ''; // empty = no CORS headers (same-origin only)
+const TRUST_PROXY = process.env.TRUST_PROXY || ''; // set to '1' when behind a reverse proxy
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
 const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
 
@@ -50,7 +51,10 @@ async function main() {
   console.log('tmux is available');
 
   const app = express();
-  app.set('trust proxy', 1); // trust first proxy (nginx)
+  // Only trust proxy headers when explicitly configured (prevents IP spoofing without proxy)
+  if (TRUST_PROXY) {
+    app.set('trust proxy', parseInt(TRUST_PROXY, 10) || TRUST_PROXY);
+  }
 
   // Security headers
   app.use(helmet({
@@ -142,7 +146,7 @@ async function main() {
   // --- File transfer APIs ---
 
   const UPLOAD_TMP_DIR = '/tmp/cli-online-uploads';
-  await mkdir(UPLOAD_TMP_DIR, { recursive: true });
+  await mkdir(UPLOAD_TMP_DIR, { recursive: true, mode: 0o700 });
 
   const upload = multer({
     dest: UPLOAD_TMP_DIR,
@@ -220,6 +224,13 @@ async function main() {
       res.json({ uploaded: results });
     } catch (err) {
       console.error('[upload] Failed:', err);
+      // Clean up multer temp files on error to prevent disk leak
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (files) {
+        for (const f of files) {
+          await unlink(f.path).catch(() => {});
+        }
+      }
       res.status(500).json({ error: 'Upload failed' });
     }
   });
@@ -321,7 +332,7 @@ async function main() {
   // Periodic cleanup of stale tmux sessions
   if (SESSION_TTL_HOURS > 0) {
     const CLEANUP_INTERVAL = 60 * 60 * 1000; // every hour
-    setInterval(() => cleanupStaleSessions(SESSION_TTL_HOURS), CLEANUP_INTERVAL);
+    setInterval(() => cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e)), CLEANUP_INTERVAL);
     console.log(`Session TTL: ${SESSION_TTL_HOURS}h (cleanup every hour)`);
   }
 

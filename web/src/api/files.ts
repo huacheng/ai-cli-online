@@ -1,11 +1,8 @@
-const API_BASE = '';
+import type { FileEntry } from 'cli-online-shared';
 
-export interface FileEntry {
-  name: string;
-  type: 'file' | 'directory';
-  size: number;
-  modifiedAt: string;
-}
+export type { FileEntry };
+
+const API_BASE = '';
 
 export interface FilesResponse {
   cwd: string;
