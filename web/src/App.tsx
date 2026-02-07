@@ -50,7 +50,7 @@ function App() {
             color: '#7aa2f7',
             letterSpacing: '0.5px',
           }}>
-            CLI-Online
+            AI-Cli Online
           </span>
           <span style={{
             fontSize: '11px',

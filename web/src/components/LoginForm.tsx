@@ -55,7 +55,7 @@ export function LoginForm() {
             marginBottom: '6px',
             letterSpacing: '0.5px',
           }}>
-            CLI-Online
+            AI-Cli Online
           </h1>
           <p style={{ color: '#565f89', fontSize: '13px' }}>Terminal in your browser</p>
         </div>
