@@ -152,11 +152,15 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
 
     for (const line of stdout.trim().split('\n')) {
       if (!line) continue;
-      const parts = line.split(':');
-      if (parts.length < 3) continue;
-      const attached = parseInt(parts[parts.length - 1], 10);
-      const created = parseInt(parts[parts.length - 2], 10);
-      const name = parts.slice(0, parts.length - 2).join(':');
+      // Use lastIndexOf to safely parse (consistent with listSessions)
+      const lastColon = line.lastIndexOf(':');
+      if (lastColon === -1) continue;
+      const attached = parseInt(line.slice(lastColon + 1), 10);
+      const rest = line.slice(0, lastColon);
+      const secondLastColon = rest.lastIndexOf(':');
+      if (secondLastColon === -1) continue;
+      const created = parseInt(rest.slice(secondLastColon + 1), 10);
+      const name = rest.slice(0, secondLastColon);
       if (!name.startsWith('cli-online-')) continue;
       if (attached > 0) continue;
       if (created < cutoff) {

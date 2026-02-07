@@ -33,7 +33,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 const DEFAULT_WORKING_DIR = process.env.DEFAULT_WORKING_DIR || process.env.HOME || '/home/ubuntu';
 const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || ''; // empty = no CORS headers (same-origin only)
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
 const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
 
@@ -74,16 +74,18 @@ async function main() {
     message: { error: 'Too many requests' },
   }));
 
-  // CORS
-  app.use((_req, res, next) => {
-    res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    if (_req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
+  // CORS (only add headers when CORS_ORIGIN is explicitly configured)
+  if (CORS_ORIGIN) {
+    app.use((_req, res, next) => {
+      res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      if (_req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+      }
+      next();
+    });
+  }
 
   // Auth check helper — reads Authorization header only (no query param to avoid token in logs)
   function extractToken(req: express.Request): string | undefined {

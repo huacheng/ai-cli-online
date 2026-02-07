@@ -66,13 +66,17 @@ function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean 
   const containerRef = useRef<HTMLDivElement>(null);
   const isHorizontal = node.direction === 'horizontal';
 
+  // Use ref for sizes to avoid useCallback invalidation during active dragging
+  const sizesRef = useRef(node.sizes);
+  sizesRef.current = node.sizes;
+
   const onDividerMouseDown = useCallback((index: number, e: React.MouseEvent) => {
     e.preventDefault();
     const bodyClass = isHorizontal ? 'resizing-panes' : 'resizing-panes-v';
     document.body.classList.add(bodyClass);
 
     const startPos = isHorizontal ? e.clientX : e.clientY;
-    const startSizes = [...node.sizes];
+    const startSizes = [...sizesRef.current];
     const container = containerRef.current;
     const containerSize = isHorizontal
       ? (container?.clientWidth || 1)
@@ -102,7 +106,7 @@ function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean 
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [isHorizontal, node.id, node.sizes, setSplitSizes]);
+  }, [isHorizontal, node.id, setSplitSizes]);
 
   const elements: React.ReactNode[] = [];
 

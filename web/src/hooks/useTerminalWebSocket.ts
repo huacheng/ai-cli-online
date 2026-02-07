@@ -2,10 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import type { Terminal } from '@xterm/xterm';
 
-// Auto-detect WebSocket URL based on page protocol
-const WS_BASE = import.meta.env.DEV
-  ? 'wss://localhost:3001/ws'
-  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+// Auto-detect WebSocket URL based on page protocol (works for both dev proxy and production)
+const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
@@ -180,7 +178,11 @@ export function useTerminalWebSocket(
           case 'pong': {
             if (pingSentAtRef.current > 0) {
               const rtt = Math.round(performance.now() - pingSentAtRef.current);
-              useStore.getState().setLatency(rtt);
+              // Only update global latency from the primary (first) terminal to avoid flicker
+              const state = useStore.getState();
+              if (state.terminalIds.length === 0 || state.terminalIds[0] === sessionId) {
+                state.setLatency(rtt);
+              }
               pingSentAtRef.current = 0;
             }
             break;

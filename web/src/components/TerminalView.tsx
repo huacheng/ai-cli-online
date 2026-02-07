@@ -211,6 +211,9 @@ export function TerminalView({ sessionId }: TerminalViewProps) {
 /** Read-only xterm.js instance for viewing scrollback with full ANSI color */
 function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void }) {
   const viewerRef = useRef<HTMLDivElement>(null);
+  // Use ref for onClose to decouple effect lifecycle from callback identity
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -242,7 +245,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     resizeObserver.observe(viewerRef.current);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
 
@@ -251,7 +254,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       resizeObserver.disconnect();
       terminal.dispose();
     };
-  }, [data, onClose]);
+  }, [data]); // only recreate when scrollback data changes
 
   return (
     <div
