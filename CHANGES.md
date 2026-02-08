@@ -1,5 +1,24 @@
 # AI-CLI-Online 变更日志
 
+## v2.0.0 (2026-02-08)
+
+### BREAKING: 包名变更
+
+- 包名从 `cli-online` 更名为 `ai-cli-online`
+- 所有 workspace 包同步重命名 (`ai-cli-online-shared`, `ai-cli-online-server`, `ai-cli-online-web`)
+- bin 入口从 `cli-online` 更名为 `ai-cli-online`
+- GitHub 仓库迁移至 `huacheng/ai-cli-online`
+- localStorage key、tmux session 前缀、SQLite 数据库文件名等全部同步更新
+
+### 新功能
+
+- nginx 反向代理自动配置 — `install-service.sh` 检测 nginx 后交互式引导配置（域名、端口、SSL），自动生成站点配置、设置 WebSocket 代理和 `HTTPS_ENABLED=false`
+
+### 文档
+
+- README 重写为英文主版本 (`README.md`) + 中文版本 (`README.zh-CN.md`)
+- 新增 AI-Cli Online vs OpenClaw 18 维度功能对比表
+
 ## v1.5.0 (2026-02-08)
 
 ### 网络连接延迟优化
