@@ -82,7 +82,7 @@ export function useTerminalWebSocket(
   }, []);
 
   const connect = useCallback(() => {
-    const { token: currentToken, setTerminalConnected, setTerminalError } = useStore.getState();
+    const { token: currentToken, setTerminalError } = useStore.getState();
     if (!currentToken) return;
 
     if (authFailedRef.current) return;
@@ -111,6 +111,23 @@ export function useTerminalWebSocket(
       }
     }, CONNECT_TIMEOUT);
 
+    // Ping with pong timeout for stale connection detection
+    // Defined at connect() scope so both onopen and onmessage can access it
+    const sendPing = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        pingSentAtRef.current = performance.now();
+        ws.send(JSON.stringify({ type: 'ping' }));
+        // If no pong within PONG_TIMEOUT, consider connection dead
+        pongTimeoutRef.current = window.setTimeout(() => {
+          if (pingSentAtRef.current > 0) {
+            console.log(`[WS:${sessionId}] Pong timeout (${PONG_TIMEOUT}ms), reconnecting...`);
+            pingSentAtRef.current = 0;
+            ws.close();
+          }
+        }, PONG_TIMEOUT);
+      }
+    };
+
     ws.onopen = () => {
       // Clear connection timeout
       if (connectTimeoutRef.current) {
@@ -122,35 +139,10 @@ export function useTerminalWebSocket(
       // Send auth as first message (JSON - control message)
       ws.send(JSON.stringify({ type: 'auth', token: currentToken }));
 
-      setTerminalConnected(sessionId, true);
+      // Clear error and reset reconnect delay, but do NOT mark as connected yet —
+      // wait for server 'connected' message which confirms session is ready
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
-
-      // Flush any input buffered during disconnection
-      if (inputBufferRef.current) {
-        ws.send(encodeBinaryMessage(BIN_TYPE_INPUT, inputBufferRef.current));
-        inputBufferRef.current = '';
-      }
-
-      // Ping with pong timeout for stale connection detection
-      const sendPing = () => {
-        if (ws.readyState === WebSocket.OPEN) {
-          pingSentAtRef.current = performance.now();
-          ws.send(JSON.stringify({ type: 'ping' }));
-          // If no pong within PONG_TIMEOUT, consider connection dead
-          pongTimeoutRef.current = window.setTimeout(() => {
-            if (pingSentAtRef.current > 0) {
-              console.log(`[WS:${sessionId}] Pong timeout (${PONG_TIMEOUT}ms), reconnecting...`);
-              pingSentAtRef.current = 0;
-              ws.close();
-            }
-          }, PONG_TIMEOUT);
-        }
-      };
-
-      // Ping immediately, then at interval
-      sendPing();
-      pingTimerRef.current = window.setInterval(sendPing, PING_INTERVAL);
     };
 
     ws.onclose = (event) => {
@@ -222,16 +214,26 @@ export function useTerminalWebSocket(
         const msg = JSON.parse(event.data);
 
         switch (msg.type) {
-          case 'connected':
-            useStore.getState().setTerminalResumed(sessionId, msg.resumed);
+          case 'connected': {
+            const store = useStore.getState();
+            // NOW mark as connected — server session is ready and PTY is attached
+            store.setTerminalConnected(sessionId, true);
+            store.setTerminalResumed(sessionId, msg.resumed);
             // Send resize immediately now that session is ready (no 300ms delay)
-            {
-              const term = terminalRef.current;
-              if (term && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-              }
+            const term = terminalRef.current;
+            if (term && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
             }
+            // Flush any input buffered during disconnection — session is ready to receive
+            if (inputBufferRef.current) {
+              ws.send(encodeBinaryMessage(BIN_TYPE_INPUT, inputBufferRef.current));
+              inputBufferRef.current = '';
+            }
+            // Start ping/pong heartbeat after session is established
+            sendPing();
+            pingTimerRef.current = window.setInterval(sendPing, PING_INTERVAL);
             break;
+          }
           case 'error':
             useStore.getState().setTerminalError(sessionId, msg.error);
             break;

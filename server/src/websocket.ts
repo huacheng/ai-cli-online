@@ -93,10 +93,10 @@ function send(ws: WebSocket, msg: ServerMessage): void {
 /** Send binary data with a 1-byte type prefix (high-frequency hot path) */
 function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
   if (ws.readyState === WebSocket.OPEN) {
-    const payload = Buffer.from(data, 'utf-8');
-    const buf = Buffer.allocUnsafe(1 + payload.length);
+    const byteLen = Buffer.byteLength(data, 'utf-8');
+    const buf = Buffer.allocUnsafe(1 + byteLen);
     buf[0] = typePrefix;
-    payload.copy(buf, 1);
+    buf.write(data, 1, byteLen, 'utf-8');
     ws.send(buf);
   }
 }
