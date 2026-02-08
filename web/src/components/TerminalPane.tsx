@@ -16,7 +16,7 @@ interface TerminalPaneProps {
 const PLAN_MIN_HEIGHT = 100;
 
 export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
-  const removeTerminal = useStore((s) => s.removeTerminal);
+  const killServerSession = useStore((s) => s.killServerSession);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);
 
@@ -177,7 +177,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
           {canClose && (
             <button
               className="pane-btn pane-btn--danger"
-              onClick={() => removeTerminal(terminal.id)}
+              onClick={() => killServerSession(terminal.id)}
               title="Close terminal"
               aria-label="Close terminal"
             >
