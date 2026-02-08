@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { useStore } from '../store';
 
 interface MarkdownRendererProps {
   content: string;
 }
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  const fontSize = useStore((s) => s.fontSize);
+
   // Content is sanitized with DOMPurify before rendering — safe against XSS
   const html = useMemo(() => {
     if (!content) return '';
@@ -33,7 +36,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
     <div
       className="md-preview"
-      style={{ height: '100%', overflowY: 'auto', userSelect: 'text', padding: '12px 16px' }}
+      style={{ height: '100%', overflowY: 'auto', userSelect: 'text', padding: '12px 16px', fontSize: `${fontSize}px` }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { fetchDraft, saveDraft } from '../api/drafts';
+import { useStore } from '../store';
 
 const SLASH_COMMANDS = [
   // Claude Code built-in
@@ -69,6 +70,7 @@ interface MarkdownEditorProps {
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ onSend, onContentChange, sessionId, token }, ref) {
+  const fontSize = useStore((s) => s.fontSize);
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -277,7 +279,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         onKeyDown={handleKeyDown}
         placeholder="Type / for commands, Ctrl+Enter to send"
         spellCheck={false}
-        style={{ flex: 1 }}
+        style={{ flex: 1, fontSize: `${fontSize}px` }}
       />
     </div>
   );
