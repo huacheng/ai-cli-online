@@ -3,7 +3,12 @@ import { useStore } from '../store';
 import type { TabState } from '../types';
 
 export const TabBar = React.memo(() => {
-  const { tabs, activeTabId, addTab, switchTab, closeTab, renameTab } = useStore();
+  const tabs = useStore((s) => s.tabs);
+  const activeTabId = useStore((s) => s.activeTabId);
+  const addTab = useStore((s) => s.addTab);
+  const switchTab = useStore((s) => s.switchTab);
+  const closeTab = useStore((s) => s.closeTab);
+  const renameTab = useStore((s) => s.renameTab);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);

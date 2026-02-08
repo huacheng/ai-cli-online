@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import { createServer as createHttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer } from 'ws';
@@ -11,7 +12,7 @@ import { copyFile, unlink, stat, mkdir, readFile } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
-import { setupWebSocket, getActiveSessionNames } from './websocket.js';
+import { setupWebSocket, getActiveSessionNames, clearWsIntervals } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, closeDb } from './db.js';
@@ -34,6 +35,11 @@ const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
 const CERT_PATH = join(__dirname, '../certs/server.crt');
 const KEY_PATH = join(__dirname, '../certs/server.key');
 
+// Catch unhandled promise rejections to prevent silent crashes
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled promise rejection:', reason);
+});
+
 async function main() {
   // Check tmux availability
   if (!isTmuxAvailable()) {
@@ -48,6 +54,9 @@ async function main() {
   if (TRUST_PROXY) {
     app.set('trust proxy', parseInt(TRUST_PROXY, 10) || TRUST_PROXY);
   }
+
+  // Compress HTTP responses (WebSocket has its own perMessageDeflate)
+  app.use(compression());
 
   // Security headers
   app.use(helmet({
@@ -169,7 +178,8 @@ async function main() {
     try {
       const cwd = await getCwd(sessionName);
       res.json({ cwd });
-    } catch {
+    } catch (err) {
+      console.error(`[api:cwd] ${sessionName}:`, err);
       res.status(404).json({ error: 'Session not found or not running' });
     }
   });
@@ -188,7 +198,8 @@ async function main() {
       }
       const files = await listFiles(targetDir);
       res.json({ cwd: targetDir, files });
-    } catch {
+    } catch (err) {
+      console.error(`[api:files] ${sessionName}:`, err);
       res.status(404).json({ error: 'Session not found or directory not accessible' });
     }
   });
@@ -260,7 +271,8 @@ async function main() {
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(basename(resolved))}"`);
       res.setHeader('Content-Length', fileStat.size);
       createReadStream(resolved).pipe(res);
-    } catch {
+    } catch (err) {
+      console.error(`[api:download] ${sessionName}:`, err);
       res.status(404).json({ error: 'File not found' });
     }
   });
@@ -373,7 +385,8 @@ async function main() {
         size: fileStat.size,
         encoding: isPdf ? 'base64' : 'utf-8',
       });
-    } catch {
+    } catch (err) {
+      console.error(`[api:file-content] ${sessionName}:`, err);
       res.status(404).json({ error: 'File not found' });
     }
   });
@@ -447,9 +460,10 @@ async function main() {
   });
 
   // Periodic cleanup of stale tmux sessions
+  let cleanupTimer: ReturnType<typeof setInterval> | null = null;
   if (SESSION_TTL_HOURS > 0) {
     const CLEANUP_INTERVAL = 60 * 60 * 1000; // every hour
-    setInterval(() => {
+    cleanupTimer = setInterval(() => {
       cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e));
       try { cleanupOldDrafts(7); } catch (e) { console.error('[cleanup:drafts]', e); }
     }, CLEANUP_INTERVAL);
@@ -459,6 +473,9 @@ async function main() {
   // Graceful shutdown
   const shutdown = () => {
     console.log('\n[shutdown] Closing server...');
+    // Clear all intervals to allow event loop to drain
+    clearWsIntervals();
+    if (cleanupTimer) clearInterval(cleanupTimer);
     // Close all WebSocket connections
     wss.clients.forEach((client) => {
       client.close(1001, 'Server shutting down');

@@ -255,7 +255,10 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
   onCloseRef.current = onClose;
 
   const fontSize = useStore((s) => s.fontSize);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
 
+  // Create terminal only when scrollback data changes (not on font size change)
   useEffect(() => {
     if (!viewerRef.current) return;
 
@@ -267,8 +270,10 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       fontFamily: FONT_FAMILY,
       theme: TERMINAL_THEME,
     });
+    terminalRef.current = terminal;
 
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     terminal.loadAddon(fitAddon);
     terminal.open(viewerRef.current);
 
@@ -300,8 +305,18 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       document.removeEventListener('keydown', onKeyDown);
       resizeObserver.disconnect();
       terminal.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
     };
-  }, [data, fontSize]); // recreate when scrollback data or font size changes
+  }, [data]); // only recreate when scrollback data changes
+
+  // Update font size in-place without recreating the terminal
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.fontSize = fontSize;
+      try { fitAddonRef.current?.fit(); } catch { /* ignore */ }
+    }
+  }, [fontSize]);
 
   return (
     <div

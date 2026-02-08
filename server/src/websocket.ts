@@ -37,7 +37,7 @@ const AUTH_FAIL_MAX = 5;
 const AUTH_FAIL_WINDOW_MS = 60_000;
 
 // Periodically prune expired entries to prevent unbounded memory growth
-setInterval(() => {
+const authPruneInterval = setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of authFailures) {
     if (now > entry.resetAt) authFailures.delete(ip);
@@ -102,10 +102,11 @@ function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
 }
 
 /** Server-side keepalive: ping all clients every 30s, terminate if no pong */
+let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 function startKeepAlive(wss: WebSocketServer): void {
   const KEEPALIVE_INTERVAL = 30_000;
 
-  setInterval(() => {
+  keepAliveInterval = setInterval(() => {
     for (const ws of wss.clients) {
       const alive = ws as AliveWebSocket;
       if (alive._isAlive === false) {
@@ -309,7 +310,7 @@ export function setupWebSocket(
             const r = Math.max(1, Math.min(500, Math.floor(msg.rows || 24)));
             // PTY resize (sync) and tmux resize (async subprocess) are independent — run in parallel
             ptySession?.resize(c, r);
-            resizeSession(sessionName, c, r);
+            resizeSession(sessionName, c, r).catch(() => {});
             break;
           }
           case 'ping':
@@ -327,8 +328,8 @@ export function setupWebSocket(
             break;
           }
         }
-      } catch {
-        // Ignore malformed messages
+      } catch (err) {
+        console.error(`[WS] Message handling error${sessionName ? ` for ${sessionName}` : ''}:`, err);
       }
     });
 
@@ -348,4 +349,10 @@ export function setupWebSocket(
       console.error(`[WS] Error${sessionName ? ` for session ${sessionName}` : ''}:`, err);
     });
   });
+}
+
+/** Clear WebSocket module intervals for graceful shutdown */
+export function clearWsIntervals(): void {
+  clearInterval(authPruneInterval);
+  if (keepAliveInterval) clearInterval(keepAliveInterval);
 }

@@ -6,6 +6,17 @@ export default defineConfig({
   esbuild: {
     drop: process.env.NODE_ENV === 'production' ? ['console'] : [],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'terminal': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-webgl'],
+          'markdown': ['marked', 'dompurify'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

@@ -11,7 +11,13 @@ function TabItem({ tabId }: { tabId: string }) {
   const reopenTab = useStore((s) => s.reopenTab);
   const deleteTab = useStore((s) => s.deleteTab);
   const renameTab = useStore((s) => s.renameTab);
-  const terminalsMap = useStore((s) => s.terminalsMap);
+  const terminalStates = useStore((s) => {
+    if (!tab) return [];
+    return tab.terminalIds.map((id) => {
+      const t = s.terminalsMap[id];
+      return t ? { id, connected: t.connected } : { id, connected: false };
+    });
+  });
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -192,30 +198,25 @@ function TabItem({ tabId }: { tabId: string }) {
       </div>
 
       {/* Nested terminal list */}
-      {isOpen && expanded && tab.terminalIds.length > 0 && (
+      {isOpen && expanded && terminalStates.length > 0 && (
         <div style={{ paddingLeft: '28px', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
-          {tab.terminalIds.map((termId) => {
-            const term = terminalsMap[termId];
-            return (
-              <div
-                key={termId}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  color: '#565f89',
-                  borderBottom: '1px solid rgba(41, 46, 66, 0.5)',
-                }}
-                title={term ? `Connected: ${term.connected}` : 'Terminal not found'}
-              >
-                <span style={{ fontFamily: 'monospace' }}>{termId}</span>
-                {term && (
-                  <span style={{ marginLeft: '8px', color: term.connected ? '#9ece6a' : '#f7768e' }}>
-                    {term.connected ? '●' : '○'}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+          {terminalStates.map((term) => (
+            <div
+              key={term.id}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                color: '#565f89',
+                borderBottom: '1px solid rgba(41, 46, 66, 0.5)',
+              }}
+              title={`Connected: ${term.connected}`}
+            >
+              <span style={{ fontFamily: 'monospace' }}>{term.id}</span>
+              <span style={{ marginLeft: '8px', color: term.connected ? '#9ece6a' : '#f7768e' }}>
+                {term.connected ? '●' : '○'}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

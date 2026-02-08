@@ -4,6 +4,7 @@ import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
 import { fetchFileContent } from '../api/docs';
+import { useHorizontalResize } from '../hooks/useHorizontalResize';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -38,8 +39,10 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   // UI state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [leftWidthPercent, setLeftWidthPercent] = useState(50);
   const [copied, setCopied] = useState(false);
+
+  // Horizontal resize (extracted hook)
+  const { leftWidthPercent, containerRef, onDividerMouseDown } = useHorizontalResize(50);
 
   // Editor ref + content tracking
   const editorRef = useRef<MarkdownEditorHandle>(null);
@@ -123,39 +126,6 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
       setTimeout(() => setCopied(false), 1500);
     }).catch(() => {});
   }, [docPath]);
-
-  // Horizontal divider drag
-  const containerRef = useRef<HTMLDivElement>(null);
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const containerWidth = rect.width;
-
-    document.body.classList.add('resizing-panes-h');
-
-    let dragRafId: number | null = null;
-    const onMouseMove = (ev: MouseEvent) => {
-      if (dragRafId) return;
-      dragRafId = requestAnimationFrame(() => {
-        dragRafId = null;
-        const relX = ev.clientX - rect.left;
-        const pct = Math.min(80, Math.max(20, (relX / containerWidth) * 100));
-        setLeftWidthPercent(pct);
-      });
-    };
-
-    const onMouseUp = () => {
-      if (dragRafId) cancelAnimationFrame(dragRafId);
-      document.body.classList.remove('resizing-panes-h');
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, []);
 
   // Close expanded view on ESC
   useEffect(() => {
@@ -356,7 +326,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         </div>
 
         {/* Horizontal divider */}
-        <div className="plan-divider-h" onMouseDown={handleDividerMouseDown} />
+        <div className="plan-divider-h" onMouseDown={onDividerMouseDown} />
 
         {/* Right: Editor */}
         <div className="plan-editor-wrap">

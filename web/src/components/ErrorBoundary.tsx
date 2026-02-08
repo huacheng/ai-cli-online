@@ -3,6 +3,8 @@ import type { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
+  /** Compact inline fallback for per-pane usage (vs full-page for app root) */
+  inline?: boolean;
 }
 
 interface State {
@@ -23,6 +25,41 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.inline) {
+        return (
+          <div style={{
+            height: '100%',
+            backgroundColor: '#1a1b26',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            gap: '8px',
+            color: '#c0caf5',
+            fontFamily: 'monospace',
+            padding: '16px',
+          }}>
+            <div style={{ fontSize: '14px', color: '#f7768e' }}>Pane crashed</div>
+            <div style={{ fontSize: '12px', color: '#565f89', textAlign: 'center' }}>
+              {this.state.error?.message || 'An unexpected error occurred'}
+            </div>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              style={{
+                background: '#292e42',
+                border: '1px solid #414868',
+                color: '#c0caf5',
+                padding: '4px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        );
+      }
       return (
         <div style={{
           minHeight: '100vh',

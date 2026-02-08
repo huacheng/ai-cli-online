@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import { TerminalPane } from './TerminalPane';
+import { ErrorBoundary } from './ErrorBoundary';
 import type { LayoutNode, SplitNode } from '../types';
 
 const DIVIDER_SIZE = 4;
@@ -58,7 +59,11 @@ const LeafRenderer = memo(function LeafRenderer({ terminalId, canClose }: { term
   // O(1) lookup; only re-renders when THIS terminal's state changes
   const terminal = useStore((s) => s.terminalsMap[terminalId]);
   if (!terminal) return null;
-  return <TerminalPane terminal={terminal} canClose={canClose} />;
+  return (
+    <ErrorBoundary inline>
+      <TerminalPane terminal={terminal} canClose={canClose} />
+    </ErrorBoundary>
+  );
 });
 
 const SplitRenderer = memo(function SplitRenderer({ node, canClose }: { node: SplitNode; canClose: boolean }) {

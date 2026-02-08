@@ -141,6 +141,7 @@ function persistTabs(state: PersistableFields): void {
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let fontSizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Debounced persistTabs for high-frequency calls (e.g., drag-resize) */
 function persistTabsDebounced(state: PersistableFields): void {
@@ -840,10 +841,15 @@ export const useStore = create<AppState>((set, get) => ({
   setFontSize: (size) => {
     const clamped = Math.max(10, Math.min(24, size));
     set({ fontSize: clamped });
-    const token = get().token;
-    if (token) {
-      saveFontSize(token, clamped);
-    }
+    // Debounce the API call to avoid rapid-fire requests when clicking A+/A- repeatedly
+    if (fontSizeTimer) clearTimeout(fontSizeTimer);
+    fontSizeTimer = setTimeout(() => {
+      fontSizeTimer = null;
+      const token = get().token;
+      if (token) {
+        saveFontSize(token, clamped);
+      }
+    }, 500);
   },
 
   // --- Network ----------------------------------------------------------------
