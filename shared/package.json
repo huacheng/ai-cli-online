@@ -1,6 +1,6 @@
 {
   "name": "ai-cli-online-shared",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Shared types for CLI-Online",
   "type": "module",
   "main": "dist/types.js",

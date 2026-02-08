@@ -1,5 +1,27 @@
 # AI-CLI-Online 变更日志
 
+## v2.1.2 (2026-02-08)
+
+### 性能优化
+
+- Vite manualChunks 拆分 vendor bundle，主包 720KB → 71KB (减少 90%)
+- TabBar / SessionSidebar 改用细粒度 Zustand selector，消除不必要重渲染
+- saveFontSize 添加 debounce，ScrollbackViewer 字号变更原地更新
+- 添加 compression 中间件压缩 HTTP 响应
+
+### 稳定性
+
+- 添加 `process.on('unhandledRejection')` 防止服务端静默崩溃
+- 每个终端面板包裹 ErrorBoundary，单面板崩溃不影响全局
+- `resizeSession` 添加 `.catch()` 防止未处理 rejection
+- shutdown 时清理所有 setInterval 句柄，支持优雅关闭
+- 静默 catch 块添加日志输出 (5 处)
+
+### 代码质量
+
+- 抽取 `useFileBrowser` hook + `FileListShared` 组件，消除 FileBrowser/DocumentPicker ~80% 重复代码
+- 抽取 `useHorizontalResize` hook，PlanPanel resize 逻辑可复用
+
 ## v2.1.1 (2026-02-08)
 
 ### 文档
