@@ -1,5 +1,28 @@
 # AI-CLI-Online 变更日志
 
+## v2.2.0 (2026-02-08)
+
+### 新功能
+
+- Tab 布局服务端持久化 — 复用 settings 表 (key=`tabs-layout`) 存储完整布局 JSON，换浏览器/清缓存后可从服务端恢复
+- 两阶段恢复 — 登录时先从 localStorage 快速渲染，再异步从服务端获取布局并与 tmux session 对账，自动移除已死终端
+- 页面关闭时通过 `sendBeacon` 刷出待保存布局，防止丢失
+- 文档浏览器支持所有文件类型 — 移除文件扩展名过滤，新增纯文本 fallback 渲染器
+- useFileBrowser 新增 CWD 轮询 — 终端切换目录时文档浏览器自动刷新文件列表
+
+### 修复
+
+- tmux 命令统一使用 `=` 前缀精确匹配 session 名称，避免前缀歧义导致误操作
+
+### 文档
+
+- README 中英文版同步截图和摘要格式
+
+### 发布
+
+- npm 包发布至 https://www.npmjs.com/package/ai-cli-online
+- GitHub Release 发布至 https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.0
+
 ## v2.1.3 (2026-02-08)
 
 ### 安全
