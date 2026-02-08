@@ -4,7 +4,7 @@
   "description": "AI-Cli Online - Web Terminal for Claude Code via xterm.js + tmux",
   "license": "MIT",
   "bin": {
-    "ai-cli-online": "./bin/ai-cli-online.mjs"
+    "ai-cli-online": "bin/ai-cli-online.mjs"
   },
   "engines": {
     "node": ">=18"
