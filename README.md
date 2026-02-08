@@ -4,11 +4,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-A lightweight web terminal for accessing Claude Code (or any CLI) from your browser via xterm.js + tmux. Especially suited for **unstable network environments where SSH sessions frequently drop** — tmux keeps your processes alive through disconnects, and you can reconnect instantly from any browser. Also works great locally as a **stateful terminal** that preserves sessions, layouts, and editor drafts across browser refreshes.
+A lightweight web terminal for accessing Claude Code / Codex or any CLI from your browser. Ideal for **unstable networks** where SSH drops frequently, and as a **local stateful terminal** that preserves sessions, layouts, and drafts across refreshes.
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 
 [**中文文档**](README.zh-CN.md)
+
+![screenshot](screenshot.jpg)
 
 ## Features
 
