@@ -69,96 +69,111 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      scrollback: 10000,
-      fontSize: 14,
-      fontFamily: FONT_FAMILY,
-      theme: TERMINAL_THEME,
-      allowProposedApi: true,
-    });
-
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(new WebLinksAddon((_event, uri) => {
-      window.open(uri, '_blank', 'noopener,noreferrer');
-    }));
-
-    terminal.open(containerRef.current);
-
-    // Load WebGL renderer for 3-10x rendering throughput (with canvas fallback)
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
-      });
-      terminal.loadAddon(webglAddon);
-    } catch {
-      // WebGL not available, fall back to default canvas renderer
-    }
-
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    // Fit terminal to container, retrying until container has valid dimensions
-    const doFit = () => {
-      try {
-        const el = containerRef.current;
-        if (el && el.clientWidth > 0 && el.clientHeight > 0) {
-          fitAddon.fit();
-          sendResizeRef.current(terminal.cols, terminal.rows);
-          return true;
-        }
-      } catch {
-        // Ignore fit errors during initialization
-      }
-      return false;
-    };
-
-    // Retry fit on an interval until successful or max attempts reached
-    requestAnimationFrame(() => doFit());
-    let retryCount = 0;
-    const retryInterval = setInterval(() => {
-      retryCount++;
-      if (doFit() || retryCount >= 10) {
-        clearInterval(retryInterval);
-      }
-    }, 100);
-
-    // Forward user input to WebSocket
-    terminal.onData((data) => {
-      sendInputRef.current(data);
-    });
-
-    // ResizeObserver for auto-fit (rAF-aligned for smooth resizing)
+    let disposed = false;
+    let retryIntervalId: ReturnType<typeof setInterval> | null = null;
     let rafId: number | null = null;
     let resizeNetworkTimer: ReturnType<typeof setTimeout> | null = null;
-    const resizeObserver = new ResizeObserver(() => {
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        try {
-          fitAddon.fit();
-          // Debounce network resize to avoid flooding server during drag
-          if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
-          resizeNetworkTimer = setTimeout(() => {
-            resizeNetworkTimer = null;
-            sendResizeRef.current(terminal.cols, terminal.rows);
-          }, 100);
-        } catch {
-          // Ignore fit errors during transitions
-        }
+    let resizeObserver: ResizeObserver | null = null;
+
+    // Wait for fonts before creating xterm so cell width calculation is correct
+    const init = () => {
+      if (disposed || !containerRef.current) return;
+
+      const terminal = new Terminal({
+        cursorBlink: true,
+        scrollback: 10000,
+        fontSize: 14,
+        fontFamily: FONT_FAMILY,
+        theme: TERMINAL_THEME,
+        allowProposedApi: true,
       });
-    });
-    resizeObserver.observe(containerRef.current);
+
+      const fitAddon = new FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(new WebLinksAddon((_event, uri) => {
+        window.open(uri, '_blank', 'noopener,noreferrer');
+      }));
+
+      terminal.open(containerRef.current!);
+
+      // Load WebGL renderer for 3-10x rendering throughput (with canvas fallback)
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+        });
+        terminal.loadAddon(webglAddon);
+      } catch {
+        // WebGL not available, fall back to default canvas renderer
+      }
+
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
+
+      // Fit terminal to container, retrying until container has valid dimensions
+      const doFit = () => {
+        try {
+          const el = containerRef.current;
+          if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+            fitAddon.fit();
+            sendResizeRef.current(terminal.cols, terminal.rows);
+            return true;
+          }
+        } catch {
+          // Ignore fit errors during initialization
+        }
+        return false;
+      };
+
+      // Retry fit on an interval until successful or max attempts reached
+      requestAnimationFrame(() => doFit());
+      let retryCount = 0;
+      retryIntervalId = setInterval(() => {
+        retryCount++;
+        if (doFit() || retryCount >= 10) {
+          clearInterval(retryIntervalId!);
+          retryIntervalId = null;
+        }
+      }, 100);
+
+      // Forward user input to WebSocket
+      terminal.onData((data) => {
+        sendInputRef.current(data);
+      });
+
+      // ResizeObserver for auto-fit (rAF-aligned for smooth resizing)
+      resizeObserver = new ResizeObserver(() => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          try {
+            fitAddon.fit();
+            // Debounce network resize to avoid flooding server during drag
+            if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
+            resizeNetworkTimer = setTimeout(() => {
+              resizeNetworkTimer = null;
+              sendResizeRef.current(terminal.cols, terminal.rows);
+            }, 100);
+          } catch {
+            // Ignore fit errors during transitions
+          }
+        });
+      });
+      resizeObserver.observe(containerRef.current!);
+    };
+
+    document.fonts.ready.then(init);
 
     return () => {
-      clearInterval(retryInterval);
+      disposed = true;
+      if (retryIntervalId) clearInterval(retryIntervalId);
       if (rafId) cancelAnimationFrame(rafId);
       if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
-      resizeObserver.disconnect();
-      terminal.dispose();
-      terminalRef.current = null;
+      if (resizeObserver) resizeObserver.disconnect();
+      if (terminalRef.current) {
+        terminalRef.current.dispose();
+        terminalRef.current = null;
+      }
       fitAddonRef.current = null;
     };
   }, [sessionId]); // stable dep: only recreate terminal when session changes
