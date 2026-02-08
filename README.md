@@ -19,6 +19,7 @@ A lightweight web terminal for accessing Claude Code (or any CLI) from your brow
 - **File Transfer** — upload files to CWD, browse and download via REST API
 - **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
 - **Session Management** — sidebar to restore, delete, and rename sessions
+- **Font Size Control** — adjustable terminal font size (A−/A+) with server-side persistence
 - **Network Indicator** — real-time RTT latency display with signal bars
 - **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
 - **Secure Auth** — token authentication with timing-safe comparison
@@ -86,6 +87,7 @@ HOST=0.0.0.0                     # Bind address
 AUTH_TOKEN=your-secret-token     # Auth token (required for production)
 DEFAULT_WORKING_DIR=/home/user   # Default working directory
 HTTPS_ENABLED=true               # Set to false behind nginx reverse proxy
+TRUST_PROXY=1                    # Set to 1 when behind nginx/reverse proxy
 ```
 
 See `server/.env.example` for all available options.

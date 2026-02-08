@@ -1,5 +1,19 @@
 # AI-CLI-Online 变更日志
 
+## v2.1.0 (2026-02-08)
+
+### 新功能
+
+- `80fbc8d` feat: 全局字体大小设置 — 服务端持久化 + 终端实时响应
+  - 新增 `settings` 表 (token_hash + key 复合主键) 存储用户偏好
+  - 前端 header 添加 A−/A+ 字体大小控制 (范围 10-24)
+  - 终端和滚动历史回看器实时响应字体变更
+  - 设置按 token 隔离，通过 REST API 持久化到 SQLite
+
+### 配置
+
+- `285fd20` docs: `.env.example` 添加 `TRUST_PROXY` 配置项说明
+
 ## v2.0.0 (2026-02-08)
 
 ### BREAKING: 包名变更

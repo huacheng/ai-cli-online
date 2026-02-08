@@ -19,6 +19,7 @@
 - **文件传输** — 上传文件到 CWD，浏览/下载通过 REST API
 - **滚动历史** — capture-pane 回看，保留 ANSI 颜色
 - **会话管理** — 侧边栏管理 session（恢复/删除/重命名）
+- **字体大小控制** — 可调节终端字体大小 (A−/A+)，设置服务端持久化
 - **网络指示器** — 实时 RTT 延迟显示 + 信号条
 - **自动重连** — 指数退避 + jitter 防雷群效应
 - **安全认证** — Token 认证 + timing-safe 比较
@@ -86,6 +87,7 @@ HOST=0.0.0.0                     # 绑定地址
 AUTH_TOKEN=your-secret-token     # 认证 Token（生产环境必须设置）
 DEFAULT_WORKING_DIR=/home/user   # 默认工作目录
 HTTPS_ENABLED=true               # nginx 反代时设为 false
+TRUST_PROXY=1                    # nginx 反代时设为 1
 ```
 
 完整选项参见 `server/.env.example`。

@@ -15,7 +15,7 @@ AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终�
 - **会话管理**: tmux (持久化终端会话)
 - **布局系统**: Tab 标签页 + 递归树形结构 (LeafNode / SplitNode)
 - **传输协议**: 二进制帧 (热路径) + JSON (控制消息)
-- **数据持久化**: SQLite (编辑器草稿)
+- **数据持久化**: SQLite (编辑器草稿 + 用户设置)
 
 ## 目录结构
 
@@ -47,6 +47,7 @@ ai-cli-online/
 │       │   ├── files.ts           # 文件传输 API (上传/下载/列表)
 │       │   ├── docs.ts            # 文档内容 API (fetchFileContent, 支持 304)
 │       │   ├── drafts.ts          # 编辑器草稿 API (fetchDraft/saveDraft)
+│       │   ├── settings.ts        # 用户设置 API (字体大小读写)
 │       │   └── plans.ts           # 终端命令检测 API (fetchPaneCommand)
 │       └── components/
 │           ├── LoginForm.tsx          # Token 认证表单
@@ -102,6 +103,7 @@ bash start.sh
 | AUTH_TOKEN | 认证 Token | (空，无认证) |
 | DEFAULT_WORKING_DIR | 默认工作目录 | $HOME |
 | HTTPS_ENABLED | 是否启用 HTTPS | true (需要 server/certs/) |
+| TRUST_PROXY | 反向代理信任层数 | (空，不信任) |
 
 ## 布局系统
 
@@ -221,6 +223,8 @@ latency: number | null;                           // 全局网络延迟 (ms)
 | `GET` | `/api/sessions/:sessionId/draft` | 获取编辑器草稿内容 |
 | `PUT` | `/api/sessions/:sessionId/draft` | 保存编辑器草稿内容 |
 | `GET` | `/api/sessions/:sessionId/pane-command` | 获取当前 tmux pane 正在执行的命令 |
+| `GET` | `/api/settings/font-size` | 获取用户字体大小设置 |
+| `PUT` | `/api/settings/font-size` | 保存用户字体大小设置 (10-24) |
 
 实现细节：
 - CWD 通过 `tmux display-message #{pane_current_path}` 获取，反映终端当前所在目录
@@ -286,6 +290,8 @@ latency: number | null;                           // 全局网络延迟 (ms)
 
 - 后端使用 better-sqlite3 (WAL 模式)，数据库位于 `server/data/ai-cli-online.db`
 - `drafts` 表: `session_name (PK)` + `content` + `updated_at`
+- `settings` 表: `(token_hash, key) (PK)` + `value` + `updated_at`
 - 前端通过 `GET/PUT /api/sessions/:sessionId/draft` 进行草稿读写
-- 支持跨浏览器刷新恢复编辑内容
+- 前端通过 `GET/PUT /api/settings/font-size` 读写字体大小（按 token 隔离）
+- 支持跨浏览器刷新恢复编辑内容和用户设置
 
