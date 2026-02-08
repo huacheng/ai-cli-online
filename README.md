@@ -1,29 +1,33 @@
-# CLI-Online
+# AI-Cli Online
 
-Claude Code Web Assistant - 通过 Web 界面访问 Claude Code
+Web Terminal for Claude Code — 通过浏览器使用完整的终端环境
 
 ## 功能特性
 
-- **对话式交互**: 用自然语言描述任务，Claude Code 执行
-- **工作目录导航**: 显示/切换当前工作目录
-- **会话持久化**: 服务端保存对话历史，断连后自动恢复
-- **自动重连**: 网络断开后浏览器自动重连
+- **Web 终端**: xterm.js + WebGL 渲染，完整终端体验
+- **tmux 持久化**: 断网后进程存活，重连即恢复
+- **Tab 多标签页**: 独立终端分组，刷新后自动恢复
+- **分屏布局**: 水平 / 垂直任意嵌套分割
+- **文档浏览器**: 支持 Markdown / HTML / PDF 渲染
+- **编辑器面板**: 多行编辑 + 草稿 SQLite 持久化
+- **文件传输**: 上传文件到 CWD + 浏览 / 下载
+- **滚动历史**: capture-pane 回看，保留 ANSI 颜色
+- **会话管理**: 侧边栏管理 session（恢复 / 删除 / 重命名）
+- **网络指示器**: 实时 RTT 延迟 + 信号条
+- **自动重连**: 断网后自动重连 + jitter 防雷群
+- **安全认证**: Token 认证 + timing-safe 比较
 
 ## 快速开始
 
 ### 前提条件
 
 - Node.js >= 18
-- Claude Code CLI 已安装 (`npm install -g @anthropic-ai/claude-code`)
+- tmux 已安装 (`sudo apt install tmux`)
 
 ### 安装
 
 ```bash
-# 安装依赖
 npm install
-
-# 构建前端
-cd web && npm run build && cd ..
 ```
 
 ### 运行
@@ -31,26 +35,20 @@ cd web && npm run build && cd ..
 **开发模式** (前后端分离):
 
 ```bash
-# 终端 1: 启动后端
-cd server && npm run dev
-
-# 终端 2: 启动前端
-cd web && npm run dev
+# 同时启动前后端
+npm run dev
 ```
 
-然后访问 http://localhost:3000
+前端访问 http://localhost:3000，自动代理到后端 3001 端口。
 
 **生产模式** (一体化):
 
 ```bash
-# 构建前端
-cd web && npm run build && cd ..
-
-# 启动服务
-cd server && npm start
+# 一键构建并启动
+bash start.sh
 ```
 
-然后访问 http://localhost:3001
+然后访问 https://localhost:3001（或通过 nginx 反向代理）
 
 ## 配置
 
@@ -60,42 +58,53 @@ cd server && npm start
 # 服务端口
 PORT=3001
 
-# 认证 Token (可选，生产环境建议设置)
+# 绑定地址
+HOST=0.0.0.0
+
+# 认证 Token (生产环境必须设置)
 AUTH_TOKEN=your-secret-token
 
 # 默认工作目录
 DEFAULT_WORKING_DIR=/home/ubuntu
+
+# 是否启用 HTTPS (nginx 反代时设为 false)
+HTTPS_ENABLED=true
 ```
 
 ## 项目结构
 
 ```
 cli-online/
-├── server/          # 后端服务
+├── shared/          # 共享类型定义 (ClientMessage, ServerMessage)
+├── server/          # 后端服务 (TypeScript)
 │   └── src/
-│       ├── index.ts      # 主入口
-│       ├── websocket.ts  # WebSocket 处理
-│       ├── claude.ts     # Claude Code 调用
-│       ├── storage.ts    # 数据存储
+│       ├── index.ts      # 主入口 (HTTP + WebSocket + REST API)
+│       ├── websocket.ts  # WebSocket 双向 relay (二进制 + JSON)
+│       ├── tmux.ts       # tmux 会话管理
+│       ├── files.ts      # 文件操作
+│       ├── pty.ts        # node-pty 封装
+│       ├── db.ts         # SQLite 数据库 (草稿持久化)
+│       ├── auth.ts       # 认证工具
 │       └── types.ts      # 类型定义
-├── web/             # 前端应用
+├── web/             # 前端应用 (React + Vite)
 │   └── src/
-│       ├── App.tsx       # 主组件
-│       ├── store.ts      # 状态管理
-│       ├── components/   # UI 组件
-│       └── hooks/        # React Hooks
-└── package.json     # 根配置
+│       ├── App.tsx        # 主应用组件
+│       ├── store.ts       # Zustand 状态管理
+│       ├── components/    # UI 组件
+│       ├── hooks/         # React Hooks
+│       └── api/           # API 客户端
+├── start.sh         # 生产启动脚本
+└── package.json     # Monorepo 配置
 ```
 
-## 使用示例
+## 架构
 
-1. 打开浏览器访问应用
-2. 在顶部确认/切换工作目录
-3. 在输入框描述你的任务，例如：
-   - "帮我创建一个 hello.py 文件，打印 Hello World"
-   - "列出当前目录的所有文件"
-   - "初始化一个新的 git 仓库"
-4. 等待 Claude Code 执行并查看结果
+```
+浏览器 (xterm.js + WebGL) <-WebSocket binary/JSON-> Express (node-pty) <-> tmux session -> shell
+```
+
+- **传输协议**: 二进制帧 (1 字节前缀) 用于终端 I/O，JSON 用于控制消息
+- **性能优化**: TCP Nagle 禁用、WebSocket 压缩、resize 并行化、session 初始化并行化
 
 ## License
 

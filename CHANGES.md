@@ -1,6 +1,86 @@
 # CLI-Online 变更日志
 
-## v1.1.0 (2026-02-06)
+## v1.5.0 (2026-02-08)
+
+### 网络连接延迟优化
+
+- `99b72c8` perf: resize debounce 降至 50ms + PTY/tmux resize 并行
+- `6147e35` perf: session 初始化并行化 + 重连 jitter
+- `d102046` perf: 修复连接状态时序 + 消除 sendBinary 双重 Buffer 分配
+
+## v1.4.1 (2026-02-08)
+
+### UI 修复
+
+- `f894382` fix: 将 Send 按钮移至 DocBrowser 工具栏，与 Open 按钮齐平
+
+## v1.4.0 (2026-02-08)
+
+### 文档浏览器 (DocBrowser)
+
+- `a095a7a` feat: PlanPanel 改造为通用文档浏览器 (DocBrowser)
+  - 支持 Markdown / HTML / PDF 三种格式
+  - DocumentPicker 按扩展名过滤文档文件
+  - 文件变更通过 mtime 轮询检测，支持 304 未修改优化
+
+### Bug 修复
+
+- `d11641f` fix: 终端面板关闭按钮同步销毁 tmux session
+
+## v1.3.0 (2026-02-07)
+
+### Tab 多标签页系统
+
+- `50a0b62` refactor: Plan 面板解耦 Claude 启动关联，由用户自行决定启动什么 CLI
+- `9a0243e` fix: 修复 xterm.js 字体渲染大小不一致问题
+  - TabBar 组件: 新增 / 切换 / 关闭 / 双击重命名
+  - 每个 Tab 拥有独立终端列表和布局树
+  - Tab 状态序列化到 localStorage，刷新后恢复
+
+## v1.2.1 (2026-02-07)
+
+### Plan 面板项目级关联 + 代码优化
+
+- `06205ed` fix: Plan 面板按终端 CWD 关联项目计划文件，而非全局最新
+- `6880970` refactor: plans.ts 代码流程优化 — 消除重复、提取通用查找、常量提升
+- `6bc478e` refactor: 全局代码优化 — 消除重复、提升类型安全与性能
+- `82ec340` perf: 编辑器渲染器性能优化 + 第二轮代码清理
+
+## v1.2.0 (2026-02-07)
+
+### Plan 面板 + 斜杠命令提示
+
+- `7265f23` feat: Plan 面板 — 左侧 plan 文件渲染器 + 右侧编辑器 + 斜杠命令提示
+  - MarkdownRenderer + MarkdownEditor 组件
+  - PdfRenderer 组件
+  - 编辑器支持多行编辑后合并为单行发送到终端
+- `797a2e4` feat: 编辑器草稿 SQLite 服务端持久化，支持跨刷新恢复
+  - 后端 better-sqlite3 (WAL 模式) 存储草稿
+  - drafts REST API (GET/PUT)
+- `c7bbddc` feat: 添加文本编辑器面板，支持多行编辑后合并为单行发送到终端
+
+## v1.1.1 (2026-02-07)
+
+### 审计修复
+
+- `de5caf4` fix: 第三轮全局审计修复 — 性能、健壮性、可访问性提升
+
+### 运维
+
+- `5deb1ee` ops: 添加 systemd service 配置，支持开机自启与进程管理
+
+## v1.1.0 (2026-02-07)
+
+### 安全加固 + 品牌重命名 + 网络优化
+
+- `090e4be` perf: 高延迟网络下 WebSocket 连接稳定性与输入延迟优化
+- `8af75b4` chore: 品牌名称改为 AI-Cli Online
+- `a35784b` fix: 第二轮全局审计修复 — 安全加固、可靠性、UX 增强
+- `319e759` security: 修复 P0/P1 安全漏洞与可靠性问题
+- `81ebc20` fix: start.sh 从 server/ 目录启动，确保 dotenv 读取 .env
+- `bf46a26` style: UI 美化 — 移除 Google Fonts 远程引用 + 全局样式优化
+- `fba44c1` fix: 修复 P3 建议 — selector 优化、scrollback 节流、字体与竞态
+- `d12c52c` fix: 修复 P2 改进问题 — 性能、安全姿态、解析一致性
 
 ### 文件传输
 
@@ -9,6 +89,11 @@
   - 前端 FileBrowser 覆盖层组件 (目录导航 + 文件下载)
   - TerminalPane 标题栏新增上传(↑)和文件浏览(↓)按钮
   - multer 处理 multipart 上传, copyFile+unlink 支持跨文件系统
+
+### 性能优化
+
+- `4ead1e0` perf: xterm 响应速度全面优化 + 全局网络状态指示器
+- `db84b8e` release: v1.0.4 — xterm 性能优化 + 网络状态指示器
 
 ## v1.0.0 (2026-02-06)
 
