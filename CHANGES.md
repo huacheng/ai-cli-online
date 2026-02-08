@@ -33,6 +33,11 @@
 
 - README 添加截图 + 精简描述
 
+### 发布
+
+- npm 包发布至 https://www.npmjs.com/package/ai-cli-online
+- GitHub Release 发布至 https://github.com/huacheng/ai-cli-online/releases/tag/v2.1.3
+
 ## v2.1.2 (2026-02-08)
 
 ### 性能优化
