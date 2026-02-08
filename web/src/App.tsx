@@ -63,7 +63,7 @@ function App() {
           <button
             className="header-btn"
             onClick={toggleSidebar}
-            title="Toggle session sidebar"
+            title="Toggle Tabs & Sessions Sidebar"
             aria-label="Toggle sidebar"
           >
             ☰
