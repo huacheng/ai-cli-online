@@ -7,6 +7,11 @@
 - `743c0c5` docs: README 补充适用场景说明 — 网络不稳定/SSH 断线场景 + 本地有状态终端
 - 同步更新英文版 (README.md) 和中文版 (README.zh-CN.md)
 
+### 发布
+
+- npm 包发布至 https://www.npmjs.com/package/ai-cli-online
+- GitHub Release 发布至 https://github.com/huacheng/ai-cli-online/releases/tag/v2.1.1
+
 ## v2.1.0 (2026-02-08)
 
 ### 新功能
