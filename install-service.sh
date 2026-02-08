@@ -216,17 +216,29 @@ ${NGINX_SSL_BLOCK}
     # 文件上传大小限制 (与 multer 100MB 限制匹配)
     client_max_body_size 100m;
 
-    location / {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+    # Static files served directly by nginx (fonts, JS, CSS, images)
+    # Avoids proxy buffering issues with large files like 5MB+ fonts
+    location /assets/ {
+        alias ${PROJECT_DIR}/web/dist/assets/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        gzip_static on;
     }
 
-    location /ws {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT}/ws;
+    location /fonts/ {
+        alias ${PROJECT_DIR}/web/dist/fonts/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /favicon.svg {
+        alias ${PROJECT_DIR}/web/dist/favicon.svg;
+        expires 30d;
+    }
+
+    # API, WebSocket, and HTML via Node.js proxy
+    location / {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -235,12 +247,15 @@ ${NGINX_SSL_BLOCK}
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
     }
 }
 NGINX_EOF
 
   echo "[nginx] 已写入 $NGINX_CONF"
+
+  # Ensure nginx worker (www-data) can traverse user home directory for static files
+  chmod o+x "$RUN_HOME"
+  echo "[nginx] 已设置 $RUN_HOME 可遍历权限 (chmod o+x)"
 
   # 启用站点 (symlink to sites-enabled)
   NGINX_ENABLED="/etc/nginx/sites-enabled/${SERVICE_NAME}"

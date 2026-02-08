@@ -1,5 +1,18 @@
 # AI-CLI-Online 变更日志
 
+## v2.2.1 (2026-02-08)
+
+### 修复
+
+- **tmux CWD 查询失效** — `display-message` 不支持 `=` 精确匹配前缀导致 `getCwd`/`getPaneCommand` 静默返回空字符串，改用 `list-panes -F` 替代，保留精确匹配防止 session 串线
+- **xterm 加载延迟** — 移除 `document.fonts.ready` 门控（11MB 中文字体可能需 90+ 秒），改为立即创建终端 + 字体就绪后 re-fit
+- **restoreFromServer 覆盖连接状态** — 服务端恢复时保留已建立的 WebSocket 连接状态，防止 xterm 白屏
+- **大字体 preload 警告** — 移除 5MB+ Maple Mono CN 的 preload 标签，仅保留 92KB JetBrains Mono
+
+### 改进
+
+- **install-service.sh nginx 配置** — 新增 `/assets/`、`/fonts/`、`/favicon.svg` 静态文件直接由 nginx 服务，避免 proxy buffering 截断大文件；合并 WebSocket location；自动设置 `chmod o+x` 用户目录
+
 ## v2.2.0 (2026-02-08)
 
 ### 新功能

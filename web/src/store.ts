@@ -1118,12 +1118,13 @@ async function restoreFromServer(
       return;
     }
 
-    // Build terminalsMap from reconciled tabs
+    // Build terminalsMap from reconciled tabs, preserving live connection state
+    const currentMap = getState().terminalsMap;
     const terminalsMap: Record<string, TerminalInstance> = {};
     for (const tab of reconciled.tabs) {
       if (tab.status === 'open') {
         for (const id of tab.terminalIds) {
-          terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null };
+          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null };
         }
       }
     }

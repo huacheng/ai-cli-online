@@ -175,8 +175,9 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
 
 /** 获取 tmux session 当前活动 pane 的工作目录 */
 export async function getCwd(sessionName: string): Promise<string> {
+  // Use list-panes instead of display-message: display-message ignores the = exact-match prefix
   const { stdout } = await execFile('tmux', [
-    'display-message', '-p', '-t', `=${sessionName}`, '#{pane_current_path}',
+    'list-panes', '-t', `=${sessionName}`, '-F', '#{pane_current_path}',
   ], { encoding: 'utf-8' });
   return stdout.trim();
 }
@@ -185,7 +186,7 @@ export async function getCwd(sessionName: string): Promise<string> {
 export async function getPaneCommand(sessionName: string): Promise<string> {
   try {
     const { stdout } = await execFile('tmux', [
-      'display-message', '-p', '-t', `=${sessionName}`, '#{pane_current_command}',
+      'list-panes', '-t', `=${sessionName}`, '-F', '#{pane_current_command}',
     ], { encoding: 'utf-8' });
     return stdout.trim();
   } catch {
