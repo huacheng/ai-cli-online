@@ -55,6 +55,16 @@ export function uploadFiles(
   });
 }
 
+export async function fetchCwd(token: string, sessionId: string): Promise<string> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/cwd`,
+    { headers: authHeaders(token) },
+  );
+  if (!res.ok) throw new Error('Failed to fetch cwd');
+  const data = await res.json();
+  return data.cwd;
+}
+
 export async function downloadFile(token: string, sessionId: string, filePath: string): Promise<void> {
   const res = await fetch(
     `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download?path=${encodeURIComponent(filePath)}`,

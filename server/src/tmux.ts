@@ -36,7 +36,7 @@ export function buildSessionName(token: string, sessionId?: string): string {
 /** Check if a tmux session exists */
 export async function hasSession(name: string): Promise<boolean> {
   try {
-    await execFile('tmux', ['has-session', '-t', name]);
+    await execFile('tmux', ['has-session', '-t', `=${name}`]);
     return true;
   } catch {
     return false;
@@ -60,9 +60,9 @@ export async function createSession(
 
   // Configure tmux for web terminal usage (parallel for faster session creation)
   await Promise.all([
-    execFile('tmux', ['set-option', '-t', name, 'history-limit', '50000']).catch(() => {}),
-    execFile('tmux', ['set-option', '-t', name, 'status', 'off']).catch(() => {}),
-    execFile('tmux', ['set-option', '-t', name, 'mouse', 'off']).catch(() => {}),
+    execFile('tmux', ['set-option', '-t', `=${name}`, 'history-limit', '50000']).catch(() => {}),
+    execFile('tmux', ['set-option', '-t', `=${name}`, 'status', 'off']).catch(() => {}),
+    execFile('tmux', ['set-option', '-t', `=${name}`, 'mouse', 'off']).catch(() => {}),
   ]);
 
   console.log(`[tmux] Created session: ${name} (${cols}x${rows}) in ${cwd}`);
@@ -76,7 +76,7 @@ export async function captureScrollback(name: string): Promise<string> {
   try {
     const { stdout } = await execFile('tmux', [
       'capture-pane',
-      '-t', name,
+      '-t', `=${name}`,
       '-p',
       '-e',
       '-S', '-10000',
@@ -93,7 +93,7 @@ export async function resizeSession(name: string, cols: number, rows: number): P
   try {
     await execFile('tmux', [
       'resize-window',
-      '-t', name,
+      '-t', `=${name}`,
       '-x', String(cols),
       '-y', String(rows),
     ]);
@@ -105,7 +105,7 @@ export async function resizeSession(name: string, cols: number, rows: number): P
 /** Kill a tmux session */
 export async function killSession(name: string): Promise<void> {
   try {
-    await execFile('tmux', ['kill-session', '-t', name]);
+    await execFile('tmux', ['kill-session', '-t', `=${name}`]);
     console.log(`[tmux] Killed session: ${name}`);
   } catch {
     // Session may already be gone
@@ -176,7 +176,7 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
 /** 获取 tmux session 当前活动 pane 的工作目录 */
 export async function getCwd(sessionName: string): Promise<string> {
   const { stdout } = await execFile('tmux', [
-    'display-message', '-p', '-t', sessionName, '#{pane_current_path}',
+    'display-message', '-p', '-t', `=${sessionName}`, '#{pane_current_path}',
   ], { encoding: 'utf-8' });
   return stdout.trim();
 }
@@ -185,7 +185,7 @@ export async function getCwd(sessionName: string): Promise<string> {
 export async function getPaneCommand(sessionName: string): Promise<string> {
   try {
     const { stdout } = await execFile('tmux', [
-      'display-message', '-p', '-t', sessionName, '#{pane_current_command}',
+      'display-message', '-p', '-t', `=${sessionName}`, '#{pane_current_command}',
     ], { encoding: 'utf-8' });
     return stdout.trim();
   } catch {

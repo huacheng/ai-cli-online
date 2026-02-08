@@ -344,6 +344,48 @@ async function main() {
     res.json({ ok: true });
   });
 
+  // --- Tabs layout persistence API ---
+
+  app.get('/api/settings/tabs-layout', (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const token = extractToken(req) || 'default';
+    const value = getSetting(tokenHash(token), 'tabs-layout');
+    let layout = null;
+    if (value) {
+      try { layout = JSON.parse(value); } catch { /* corrupt data */ }
+    }
+    res.json({ layout });
+  });
+
+  app.put('/api/settings/tabs-layout', (req, res) => {
+    const { layout, token: bodyToken } = req.body as { layout?: unknown; token?: string };
+    // Support both Authorization header and body token (for sendBeacon)
+    let token: string | undefined;
+    if (AUTH_TOKEN) {
+      token = extractToken(req);
+      if (!token && bodyToken) {
+        // sendBeacon path: validate token from body
+        if (!safeTokenCompare(bodyToken, AUTH_TOKEN)) {
+          res.status(401).json({ error: 'Unauthorized' });
+          return;
+        }
+        token = bodyToken;
+      }
+      if (!token) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+    } else {
+      token = extractToken(req) || bodyToken || 'default';
+    }
+    if (!layout || typeof layout !== 'object') {
+      res.status(400).json({ error: 'layout must be an object' });
+      return;
+    }
+    saveSetting(tokenHash(token), 'tabs-layout', JSON.stringify(layout));
+    res.json({ ok: true });
+  });
+
   // --- Document browser: file content API ---
 
   const MAX_DOC_SIZE = 10 * 1024 * 1024; // 10MB

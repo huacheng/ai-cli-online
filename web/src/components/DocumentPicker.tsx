@@ -1,25 +1,14 @@
-import { useCallback } from 'react';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import { FileListHeader, FileListStatus } from './FileListShared';
-import type { FileEntry } from '../api/files';
 
-const DOC_EXTENSIONS = new Set(['.md', '.html', '.htm', '.pdf']);
-
-function isDocFile(name: string): boolean {
-  const dot = name.lastIndexOf('.');
-  if (dot === -1) return false;
-  return DOC_EXTENSIONS.has(name.slice(dot).toLowerCase());
-}
-
-function docIcon(name: string): string {
+function fileIcon(name: string, type: string): string {
+  if (type === 'directory') return '\u{1F4C1}';
   const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
   if (ext === '.pdf') return '\u{1F4D5}';
   if (ext === '.html' || ext === '.htm') return '\u{1F310}';
-  return '\u{1F4DD}';
+  if (ext === '.md') return '\u{1F4DD}';
+  return '\u{1F4C4}';
 }
-
-const docFilter = (files: FileEntry[]) =>
-  files.filter((f) => f.type === 'directory' || isDocFile(f.name));
 
 interface DocumentPickerProps {
   sessionId: string;
@@ -28,9 +17,8 @@ interface DocumentPickerProps {
 }
 
 export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerProps) {
-  const filter = useCallback(docFilter, []);
   const { cwd, files, loading, error, handleNavigate, handleGoUp, handleRefresh } =
-    useFileBrowser({ sessionId, onClose, filter });
+    useFileBrowser({ sessionId, onClose });
 
   const handleSelect = (fileName: string) => {
     onSelect(cwd + '/' + fileName);
@@ -49,7 +37,7 @@ export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerP
       <FileListHeader cwd={cwd} onGoUp={handleGoUp} onRefresh={handleRefresh} onClose={onClose} />
 
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
-        <FileListStatus loading={loading} error={error} empty={files.length === 0} emptyText="No documents found" />
+        <FileListStatus loading={loading} error={error} empty={files.length === 0} emptyText="No files found" />
         {!loading && !error && files.map((file) => (
           <div
             key={file.name}
@@ -74,7 +62,7 @@ export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerP
               marginRight: 6,
               color: file.type === 'directory' ? '#7aa2f7' : '#565f89',
             }}>
-              {file.type === 'directory' ? '\ud83d\udcc1' : docIcon(file.name)}
+              {fileIcon(file.name, file.type)}
             </span>
             <span style={{
               flex: 1,

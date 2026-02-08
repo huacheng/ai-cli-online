@@ -18,6 +18,7 @@ function App() {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const fontSize = useStore((s) => s.fontSize);
   const setFontSize = useStore((s) => s.setFontSize);
+  const tabsLoading = useStore((s) => s.tabsLoading);
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -27,12 +28,12 @@ function App() {
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-create first tab after login
+  // Auto-create first tab after login (wait for server restore to finish)
   useEffect(() => {
-    if (token && tabs.filter((t) => t.status === 'open').length === 0) {
+    if (token && !tabsLoading && tabs.filter((t) => t.status === 'open').length === 0) {
       addTab('Default');
     }
-  }, [token]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, tabsLoading]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!token) {
     return <LoginForm />;

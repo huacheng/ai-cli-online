@@ -9,6 +9,7 @@ import type {
 } from './types';
 import { API_BASE, authHeaders } from './api/client';
 import { fetchFontSize, saveFontSize } from './api/settings';
+import { fetchTabsLayout, saveTabsLayout, saveTabsLayoutBeacon } from './api/tabs';
 
 // ---------------------------------------------------------------------------
 // localStorage keys
@@ -138,10 +139,29 @@ function persistTabs(state: PersistableFields): void {
   } catch {
     /* storage full */
   }
+  persistTabsToServer(data);
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let fontSizeTimer: ReturnType<typeof setTimeout> | null = null;
+let serverPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Last layout data pending for sendBeacon on page close */
+let pendingServerLayout: PersistedTabsState | null = null;
+
+/** Save tabs layout to server with 2s debounce */
+function persistTabsToServer(data: PersistedTabsState): void {
+  pendingServerLayout = data;
+  if (serverPersistTimer) clearTimeout(serverPersistTimer);
+  serverPersistTimer = setTimeout(() => {
+    serverPersistTimer = null;
+    pendingServerLayout = null;
+    const token = useStore.getState().token;
+    if (token) {
+      saveTabsLayout(token, data);
+    }
+  }, 2000);
+}
 
 /** Debounced persistTabs for high-frequency calls (e.g., drag-resize) */
 function persistTabsDebounced(state: PersistableFields): void {
@@ -239,12 +259,111 @@ function toPersistable(state: AppState): PersistableFields {
 }
 
 // ---------------------------------------------------------------------------
+// tmux reconciliation
+// ---------------------------------------------------------------------------
+
+/**
+ * Reconcile a persisted layout with live tmux sessions.
+ * Removes terminals whose tmux sessions no longer exist, collapses empty tabs.
+ * Returns null if no surviving tabs remain.
+ */
+function reconcileWithTmux(
+  saved: PersistedTabsState,
+  liveSessions: ServerSession[],
+): PersistedTabsState | null {
+  const liveIds = new Set(liveSessions.map((s) => s.sessionId));
+
+  const reconciledTabs: TabState[] = [];
+  for (const tab of saved.tabs) {
+    if (tab.status !== 'open') {
+      // Closed tabs: drop terminals that are dead, keep tab if any survive
+      const aliveIds = tab.terminalIds.filter((id) => liveIds.has(id));
+      if (aliveIds.length > 0) {
+        let layout = tab.layout;
+        for (const id of tab.terminalIds) {
+          if (!liveIds.has(id) && layout) {
+            layout = removeLeafFromTree(layout, id);
+          }
+        }
+        reconciledTabs.push({ ...tab, terminalIds: aliveIds, layout });
+      }
+      // If no alive terminals, drop the closed tab entirely
+      continue;
+    }
+
+    // Open tab: filter dead terminals
+    const aliveIds = tab.terminalIds.filter((id) => liveIds.has(id));
+    if (aliveIds.length === 0) {
+      // All terminals dead — drop tab
+      continue;
+    }
+
+    let layout = tab.layout;
+    for (const id of tab.terminalIds) {
+      if (!liveIds.has(id) && layout) {
+        layout = removeLeafFromTree(layout, id);
+      }
+    }
+    reconciledTabs.push({ ...tab, terminalIds: aliveIds, layout });
+  }
+
+  if (reconciledTabs.filter((t) => t.status === 'open').length === 0) {
+    return null;
+  }
+
+  // Fix activeTabId if it was removed
+  let activeTabId = saved.activeTabId;
+  const activeExists = reconciledTabs.find(
+    (t) => t.id === activeTabId && t.status === 'open',
+  );
+  if (!activeExists) {
+    const firstOpen = reconciledTabs.find((t) => t.status === 'open');
+    activeTabId = firstOpen?.id || '';
+  }
+
+  return {
+    ...saved,
+    activeTabId,
+    tabs: reconciledTabs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// beforeunload — flush pending layout via sendBeacon
+// ---------------------------------------------------------------------------
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    const token = useStore?.getState?.()?.token;
+    if (!token) return;
+    // If there's a pending debounced save, flush it immediately via sendBeacon
+    if (pendingServerLayout) {
+      if (serverPersistTimer) {
+        clearTimeout(serverPersistTimer);
+        serverPersistTimer = null;
+      }
+      saveTabsLayoutBeacon(token, pendingServerLayout);
+      pendingServerLayout = null;
+    } else {
+      // No pending save — send current state as a safety net
+      const state = useStore.getState();
+      if (state.tabs.length > 0) {
+        saveTabsLayoutBeacon(token, toPersistable(state) as PersistedTabsState);
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // AppState interface
 // ---------------------------------------------------------------------------
 
 interface AppState {
   token: string | null;
   setToken: (token: string | null) => void;
+
+  /** True while async server restore is in progress (prevents default tab creation) */
+  tabsLoading: boolean;
 
   /** Terminal instances indexed by ID for O(1) lookup and isolated re-renders */
   terminalsMap: Record<string, TerminalInstance>;
@@ -305,6 +424,7 @@ export const useStore = create<AppState>((set, get) => ({
   // --- Auth -------------------------------------------------------------------
 
   token: null,
+  tabsLoading: false,
 
   setToken: (token) => {
     if (token) {
@@ -316,51 +436,66 @@ export const useStore = create<AppState>((set, get) => ({
 
       // Load font size from server
       fetchFontSize(token).then((size) => {
-        // Only update if still logged in with the same token
         if (get().token === token) {
           set({ fontSize: size });
         }
       });
 
-      // Restore persisted tabs
-      const saved = loadTabs();
-      if (saved && saved.tabs.length > 0) {
-        // Build terminalsMap from all open tabs' terminals
+      // --- Phase 1: synchronous localStorage restore (fast render) ---
+      const localSaved = loadTabs();
+      if (localSaved && localSaved.tabs.length > 0) {
         const terminalsMap: Record<string, TerminalInstance> = {};
-        for (const tab of saved.tabs) {
+        for (const tab of localSaved.tabs) {
           if (tab.status === 'open') {
             for (const id of tab.terminalIds) {
               terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null };
             }
           }
         }
-
-        // Resolve active tab (must be open)
         const activeTab =
-          saved.tabs.find((t) => t.id === saved.activeTabId && t.status === 'open') ||
-          saved.tabs.find((t) => t.status === 'open');
+          localSaved.tabs.find((t) => t.id === localSaved.activeTabId && t.status === 'open') ||
+          localSaved.tabs.find((t) => t.status === 'open');
         const activeTabId = activeTab?.id || '';
 
         set({
           token,
+          tabsLoading: true,
           terminalsMap,
-          tabs: saved.tabs,
+          tabs: localSaved.tabs,
           activeTabId,
-          nextId: saved.nextId,
-          nextSplitId: saved.nextSplitId,
-          nextTabId: saved.nextTabId,
+          nextId: localSaved.nextId,
+          nextSplitId: localSaved.nextSplitId,
+          nextTabId: localSaved.nextTabId,
           terminalIds: activeTab?.terminalIds || [],
           layout: activeTab?.layout || null,
         });
-        return;
+      } else {
+        set({
+          token,
+          tabsLoading: true,
+          terminalsMap: {},
+          tabs: [],
+          activeTabId: '',
+          nextId: 1,
+          nextSplitId: 1,
+          nextTabId: 1,
+          terminalIds: [],
+          layout: null,
+        });
       }
-    } else {
-      localStorage.removeItem('ai-cli-online-token');
-      localStorage.removeItem(TABS_KEY);
+
+      // --- Phase 2: async server restore + tmux reconciliation ---
+      restoreFromServer(token, localSaved);
+      return;
     }
+
+    // Logout
+    localStorage.removeItem('ai-cli-online-token');
+    localStorage.removeItem(TABS_KEY);
 
     set({
       token,
+      tabsLoading: false,
       terminalsMap: {},
       tabs: [],
       activeTabId: '',
@@ -932,3 +1067,93 @@ export const useStore = create<AppState>((set, get) => ({
     setTimeout(() => get().fetchSessions(), 500);
   },
 }));
+
+// ---------------------------------------------------------------------------
+// Async server restore (called from setToken Phase 2)
+// ---------------------------------------------------------------------------
+
+async function restoreFromServer(
+  token: string,
+  localSaved: PersistedTabsState | null,
+): Promise<void> {
+  const { setState, getState } = useStore;
+
+  try {
+    // Fetch server layout and live tmux sessions in parallel
+    const [serverLayout, sessionsRes] = await Promise.all([
+      fetchTabsLayout(token),
+      fetch(`${API_BASE}/api/sessions`, { headers: authHeaders(token) })
+        .then((r) => (r.ok ? (r.json() as Promise<ServerSession[]>) : []))
+        .catch(() => [] as ServerSession[]),
+    ]);
+
+    // Bail if user logged out while we were fetching
+    if (getState().token !== token) return;
+
+    // Choose source: prefer server data, fallback to localStorage
+    const source = serverLayout && serverLayout.tabs?.length > 0 ? serverLayout : localSaved;
+
+    if (!source || source.tabs.length === 0) {
+      // No saved state anywhere — let App.tsx create default tab
+      setState({ tabsLoading: false });
+      return;
+    }
+
+    // Reconcile with live tmux sessions
+    const reconciled = reconcileWithTmux(source, sessionsRes);
+
+    if (!reconciled) {
+      // All sessions dead — clear state, let App.tsx create default tab
+      setState({
+        tabsLoading: false,
+        terminalsMap: {},
+        tabs: [],
+        activeTabId: '',
+        nextId: source.nextId,
+        nextSplitId: source.nextSplitId,
+        nextTabId: source.nextTabId,
+        terminalIds: [],
+        layout: null,
+      });
+      return;
+    }
+
+    // Build terminalsMap from reconciled tabs
+    const terminalsMap: Record<string, TerminalInstance> = {};
+    for (const tab of reconciled.tabs) {
+      if (tab.status === 'open') {
+        for (const id of tab.terminalIds) {
+          terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null };
+        }
+      }
+    }
+
+    const activeTab =
+      reconciled.tabs.find((t) => t.id === reconciled.activeTabId && t.status === 'open') ||
+      reconciled.tabs.find((t) => t.status === 'open');
+    const activeTabId = activeTab?.id || '';
+
+    setState({
+      tabsLoading: false,
+      terminalsMap,
+      tabs: reconciled.tabs,
+      activeTabId,
+      nextId: reconciled.nextId,
+      nextSplitId: reconciled.nextSplitId,
+      nextTabId: reconciled.nextTabId,
+      terminalIds: activeTab?.terminalIds || [],
+      layout: activeTab?.layout || null,
+    });
+
+    // Sync reconciled state back to both localStorage and server
+    persistTabs(toPersistable(getState()));
+
+    // If server had no data but localStorage did, the persistTabs call above
+    // will upload it via the debounced server save (first-time sync)
+  } catch {
+    // On any error, just stop loading — localStorage restore (Phase 1) is still active
+    if (getState().token === token) {
+      setState({ tabsLoading: false });
+    }
+  }
+}

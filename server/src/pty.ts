@@ -28,7 +28,7 @@ export class PtySession {
   private alive = true;
 
   constructor(sessionName: string, cols: number, rows: number) {
-    this.proc = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+    this.proc = pty.spawn('tmux', ['attach-session', '-t', `=${sessionName}`], {
       name: 'xterm-256color',
       cols,
       rows,

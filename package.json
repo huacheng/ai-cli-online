@@ -1,6 +1,6 @@
 {
   "name": "ai-cli-online",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "AI-Cli Online - Web Terminal for Claude Code via xterm.js + tmux",
   "license": "MIT",
   "bin": {

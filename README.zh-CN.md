@@ -4,11 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-轻量级 Web 终端，通过 xterm.js + tmux 在浏览器中访问 Claude Code（或任意 CLI）。尤其适合**网络不稳定、SSH 经常断线**的使用场景 — tmux 保证断网后进程不丢失，重新打开浏览器即可恢复。在本地同样可以作为**有状态的终端**使用，会话、布局和编辑器草稿在刷新后自动恢复。
+轻量级 Web 终端，在浏览器中访问 Claude Code / Codex 或任意 CLI。
+
+适合**网络不稳定、SSH 经常断线**的场景，也可作为**本地有状态终端**使用 — 会话、布局和草稿在刷新后自动恢复。
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 
 [**English**](README.md)
+
+![screenshot](screenshot.jpg)
 
 ## 功能特性
 

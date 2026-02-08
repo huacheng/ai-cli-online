@@ -4,7 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-A lightweight web terminal for accessing Claude Code / Codex or any CLI from your browser. Ideal for **unstable networks** where SSH drops frequently, and as a **local stateful terminal** that preserves sessions, layouts, and drafts across refreshes.
+A lightweight web terminal for accessing Claude Code / Codex or any CLI from your browser. 
+
+Ideal for **unstable networks** where SSH drops frequently, or as a **local stateful terminal** that preserves sessions, layouts, and drafts across refreshes.
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 

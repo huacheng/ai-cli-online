@@ -18,27 +18,18 @@ interface PlanPanelProps {
 
 const POLL_INTERVAL = 3000;
 
-type DocType = 'md' | 'html' | 'pdf' | null;
+type DocType = 'md' | 'html' | 'pdf' | 'text' | null;
 
 function getDocType(path: string): DocType {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
   if (ext === '.md') return 'md';
   if (ext === '.html' || ext === '.htm') return 'html';
   if (ext === '.pdf') return 'pdf';
-  return null;
+  return 'text';
 }
 
 function getFileName(path: string): string {
   return path.split('/').pop() || path;
-}
-
-const DOC_EXTENSIONS = new Set(['.md', '.html', '.htm', '.pdf']);
-
-function isDocOrDir(f: FileEntry): boolean {
-  if (f.type === 'directory') return true;
-  const dot = f.name.lastIndexOf('.');
-  if (dot === -1) return false;
-  return DOC_EXTENSIONS.has(f.name.slice(dot).toLowerCase());
 }
 
 function fileIcon(f: FileEntry): string {
@@ -46,23 +37,23 @@ function fileIcon(f: FileEntry): string {
   const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
   if (ext === '.pdf') return '\u{1F4D5}';
   if (ext === '.html' || ext === '.htm') return '\u{1F310}';
-  return '\u{1F4DD}';
+  if (ext === '.md') return '\u{1F4DD}';
+  return '\u{1F4C4}';
 }
 
-const docDirFilter = (files: FileEntry[]) => files.filter(isDocOrDir);
+const CWD_POLL_INTERVAL = 3000;
 
 /** Inline directory browser shown when no document is open */
 function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect: (path: string) => void }) {
   const noop = useCallback(() => {}, []);
-  const filter = useCallback(docDirFilter, []);
   const { cwd, files, loading, error, handleNavigate, handleGoUp, handleRefresh } =
-    useFileBrowser({ sessionId, onClose: noop, filter });
+    useFileBrowser({ sessionId, onClose: noop, pollCwd: CWD_POLL_INTERVAL });
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <FileListHeader cwd={cwd} onGoUp={handleGoUp} onRefresh={handleRefresh} onClose={noop} />
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
-        <FileListStatus loading={loading} error={error} empty={files.length === 0} emptyText="No documents found" />
+        <FileListStatus loading={loading} error={error} empty={files.length === 0} emptyText="No files found" />
         {!loading && !error && files.map((file) => (
           <div
             key={file.name}
@@ -232,7 +223,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
 
   // Render document content
   const renderDoc = (scrollRefSetter?: (el: HTMLDivElement | null) => void) => {
-    if (!docPath || !docType) {
+    if (!docPath) {
       return <InlineDocBrowser sessionId={sessionId} onSelect={openDoc} />;
     }
 
@@ -287,7 +278,26 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
       return <PdfRenderer data={docContent} scrollRef={scrollRefSetter} />;
     }
 
-    return null;
+    // text fallback for all other file types
+    return (
+      <div
+        ref={scrollRefSetter}
+        style={{ height: '100%', overflow: 'auto' }}
+      >
+        <pre style={{
+          margin: 0,
+          padding: '12px',
+          fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace',
+          fontSize: '13px',
+          color: '#a9b1d6',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+          lineHeight: 1.5,
+        }}>
+          {docContent}
+        </pre>
+      </div>
+    );
   };
 
   return (
