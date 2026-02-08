@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MarkdownEditor } from './MarkdownEditor';
-import { fetchLatestPlan, savePlanFile, fetchPaneCommand } from '../api/plans';
+import { fetchLatestPlan, savePlanFile } from '../api/plans';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -32,18 +32,13 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   // Left/right split ratio
   const [leftWidthPercent, setLeftWidthPercent] = useState(50);
 
-  // Poll for plan file updates — only when claude is running in this terminal
+  // Poll for plan file updates
   useEffect(() => {
     let cancelled = false;
 
     const poll = async () => {
       if (cancelled) return;
       try {
-        // Check if claude is running in this session's pane
-        const cmd = await fetchPaneCommand(token, sessionId);
-        if (cancelled) return;
-        if (!cmd || !cmd.toLowerCase().includes('claude')) return; // skip if no claude
-
         const since = planMtimeRef.current;
         const plan = await fetchLatestPlan(token, sessionId, since);
         if (cancelled) return;

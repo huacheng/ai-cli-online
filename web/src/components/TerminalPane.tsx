@@ -4,7 +4,7 @@ import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
 import { PlanPanel } from './PlanPanel';
 import { uploadFiles } from '../api/files';
-import { fetchPaneCommand } from '../api/plans';
+
 import type { TerminalInstance } from '../types';
 import type { TerminalViewHandle } from './TerminalView';
 
@@ -60,33 +60,10 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
     }
   }, []);
 
-  // Check if claude is running, if not start it
-  const checkAndStartClaude = useCallback(async () => {
-    if (!token) return;
-    try {
-      const cmd = await fetchPaneCommand(token, terminal.id);
-      if (cmd && cmd.toLowerCase().includes('claude')) return; // already running
-      terminalViewRef.current?.sendInput('claude\r');
-    } catch {
-      // ignore — best effort
-    }
-  }, [token, terminal.id]);
-
   // Clean up editor send timer on unmount
   useEffect(() => {
     return () => { if (sendTimerRef.current) clearTimeout(sendTimerRef.current); };
   }, []);
-
-  // Toggle plan panel + auto-start claude
-  const handlePlanToggle = useCallback(() => {
-    setPlanOpen((prev) => {
-      if (!prev) {
-        // Opening: check and start claude
-        checkAndStartClaude();
-      }
-      return !prev;
-    });
-  }, [checkAndStartClaude]);
 
   // Drag resize for plan panel (vertical divider)
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -177,7 +154,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
           {/* Plan panel toggle */}
           <button
             className={`pane-btn${planOpen ? ' pane-btn--active' : ''}`}
-            onClick={handlePlanToggle}
+            onClick={() => setPlanOpen((v) => !v)}
             title="Toggle Plan panel"
             aria-label="Toggle Plan panel"
           >
