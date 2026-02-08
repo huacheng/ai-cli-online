@@ -6,6 +6,8 @@
 
 A lightweight web terminal for accessing Claude Code (or any CLI) from your browser via xterm.js + tmux.
 
+**npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
+
 [**中文文档**](README.zh-CN.md)
 
 ## Features

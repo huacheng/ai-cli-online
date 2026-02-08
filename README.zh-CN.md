@@ -6,6 +6,8 @@
 
 轻量级 Web 终端，通过 xterm.js + tmux 在浏览器中访问 Claude Code（或任意 CLI）。
 
+**npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
+
 [**English**](README.md)
 
 ## 功能特性
