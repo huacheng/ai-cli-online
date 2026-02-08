@@ -250,6 +250,7 @@ button:focus-visible {
 }
 
 .plan-renderer {
+  position: relative;
   overflow: hidden;
   padding: 0;
   min-width: 0;

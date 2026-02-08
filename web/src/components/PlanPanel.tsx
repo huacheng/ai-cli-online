@@ -396,6 +396,14 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         {/* Left: Document renderer */}
         <div className="plan-renderer" style={{ width: `${leftWidthPercent}%`, flexShrink: 0 }}>
           {renderDoc((el) => { rendererScrollRef.current = el; })}
+          {/* Document Picker overlay (scoped to renderer area) */}
+          {pickerOpen && (
+            <DocumentPicker
+              sessionId={sessionId}
+              onSelect={openDoc}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
         </div>
 
         {/* Horizontal divider */}
@@ -411,15 +419,6 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
             token={token}
           />
         </div>
-
-        {/* Document Picker overlay */}
-        {pickerOpen && (
-          <DocumentPicker
-            sessionId={sessionId}
-            onSelect={openDoc}
-            onClose={() => setPickerOpen(false)}
-          />
-        )}
       </div>
 
       {/* Expanded overlay */}
