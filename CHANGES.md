@@ -14,6 +14,11 @@
 
 - `285fd20` docs: `.env.example` 添加 `TRUST_PROXY` 配置项说明
 
+### 发布
+
+- npm 包发布至 https://www.npmjs.com/package/ai-cli-online
+- GitHub 仓库发布至 https://github.com/huacheng/ai-cli-online
+
 ## v2.0.0 (2026-02-08)
 
 ### BREAKING: 包名变更
