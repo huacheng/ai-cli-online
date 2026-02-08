@@ -16,6 +16,8 @@ function App() {
   const tabs = useStore((s) => s.tabs);
   const addTab = useStore((s) => s.addTab);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const fontSize = useStore((s) => s.fontSize);
+  const setFontSize = useStore((s) => s.setFontSize);
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -59,6 +61,37 @@ function App() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Font size controls */}
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '2px',
+            padding: '1px 4px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(0,0,0,0.2)',
+          }}>
+            <button
+              className="header-btn"
+              onClick={() => setFontSize(fontSize - 1)}
+              disabled={fontSize <= 10}
+              title="Decrease font size"
+              style={{ fontSize: '11px', padding: '1px 5px', minWidth: 0 }}
+            >
+              A−
+            </button>
+            <span style={{ fontSize: '11px', color: '#a9b1d6', minWidth: '20px', textAlign: 'center' }}>
+              {fontSize}
+            </span>
+            <button
+              className="header-btn"
+              onClick={() => setFontSize(fontSize + 1)}
+              disabled={fontSize >= 24}
+              title="Increase font size"
+              style={{ fontSize: '11px', padding: '1px 5px', minWidth: 0 }}
+            >
+              A+
+            </button>
+          </span>
           <NetworkIndicator />
           <button
             className="header-btn"

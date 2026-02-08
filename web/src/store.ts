@@ -8,6 +8,7 @@ import type {
   PersistedTabsState,
 } from './types';
 import { API_BASE, authHeaders } from './api/client';
+import { fetchFontSize, saveFontSize } from './api/settings';
 
 // ---------------------------------------------------------------------------
 // localStorage keys
@@ -283,6 +284,10 @@ interface AppState {
   latency: number | null;
   setLatency: (latency: number | null) => void;
 
+  // Font size
+  fontSize: number;
+  setFontSize: (size: number) => void;
+
   // Sidebar
   sidebarOpen: boolean;
   toggleSidebar: () => void;
@@ -307,6 +312,14 @@ export const useStore = create<AppState>((set, get) => ({
       } catch {
         /* storage full */
       }
+
+      // Load font size from server
+      fetchFontSize(token).then((size) => {
+        // Only update if still logged in with the same token
+        if (get().token === token) {
+          set({ fontSize: size });
+        }
+      });
 
       // Restore persisted tabs
       const saved = loadTabs();
@@ -818,6 +831,19 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ layout: newLayout, tabs: newTabs });
     persistTabsDebounced(toPersistable(get()));
+  },
+
+  // --- Font size --------------------------------------------------------------
+
+  fontSize: 14,
+
+  setFontSize: (size) => {
+    const clamped = Math.max(10, Math.min(24, size));
+    set({ fontSize: clamped });
+    const token = get().token;
+    if (token) {
+      saveFontSize(token, clamped);
+    }
   },
 
   // --- Network ----------------------------------------------------------------

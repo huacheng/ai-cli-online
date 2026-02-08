@@ -22,6 +22,17 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    token_hash TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (token_hash, key)
+  )
+`);
+
+// --- Drafts statements ---
 const stmtGet = db.prepare('SELECT content FROM drafts WHERE session_name = ?');
 const stmtUpsert = db.prepare(`
   INSERT INTO drafts (session_name, content, updated_at) VALUES (?, ?, ?)
@@ -29,6 +40,24 @@ const stmtUpsert = db.prepare(`
 `);
 const stmtDelete = db.prepare('DELETE FROM drafts WHERE session_name = ?');
 const stmtCleanup = db.prepare('DELETE FROM drafts WHERE updated_at < ?');
+
+// --- Settings statements ---
+const stmtSettingGet = db.prepare('SELECT value FROM settings WHERE token_hash = ? AND key = ?');
+const stmtSettingUpsert = db.prepare(`
+  INSERT INTO settings (token_hash, key, value, updated_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(token_hash, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+`);
+
+export function getSetting(tokenHash: string, key: string): string | null {
+  const row = stmtSettingGet.get(tokenHash, key) as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+export function saveSetting(tokenHash: string, key: string, value: string): void {
+  stmtSettingUpsert.run(tokenHash, key, value, Date.now());
+}
+
+// --- Draft functions ---
 
 export function getDraft(sessionName: string): string {
   const row = stmtGet.get(sessionName) as { content: string } | undefined;

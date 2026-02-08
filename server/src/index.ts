@@ -10,10 +10,11 @@ import { existsSync, readFileSync, createReadStream } from 'fs';
 import { copyFile, unlink, stat, mkdir, readFile } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
-import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
+import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -299,6 +300,33 @@ async function main() {
     } catch {
       res.json({ command: '' });
     }
+  });
+
+  // --- Settings API ---
+
+  /** Hash token for settings storage (same prefix as tmux session names) */
+  function tokenHash(token: string): string {
+    return createHash('sha256').update(token).digest('hex').slice(0, 8);
+  }
+
+  app.get('/api/settings/font-size', (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const token = extractToken(req) || 'default';
+    const value = getSetting(tokenHash(token), 'font-size');
+    const fontSize = value !== null ? parseInt(value, 10) : 14;
+    res.json({ fontSize: isNaN(fontSize) ? 14 : fontSize });
+  });
+
+  app.put('/api/settings/font-size', (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const token = extractToken(req) || 'default';
+    const { fontSize } = req.body as { fontSize?: number };
+    if (typeof fontSize !== 'number' || fontSize < 10 || fontSize > 24) {
+      res.status(400).json({ error: 'fontSize must be a number between 10 and 24' });
+      return;
+    }
+    saveSetting(tokenHash(token), 'font-size', String(fontSize));
+    res.json({ ok: true });
   });
 
   // --- Document browser: file content API ---

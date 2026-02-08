@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
+import { useStore } from '../store';
 
 export interface TerminalViewHandle {
   sendInput: (data: string) => void;
@@ -46,6 +47,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
   const [scrollbackVisible, setScrollbackVisible] = useState(false);
   const [scrollbackData, setScrollbackData] = useState('');
 
+  const fontSize = useStore((s) => s.fontSize);
+
   const handleScrollbackContent = useCallback((data: string) => {
     setScrollbackData(data);
     setScrollbackVisible(true);
@@ -82,7 +85,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       const terminal = new Terminal({
         cursorBlink: true,
         scrollback: 10000,
-        fontSize: 14,
+        fontSize: useStore.getState().fontSize,
         fontFamily: FONT_FAMILY,
         theme: TERMINAL_THEME,
         allowProposedApi: true,
@@ -178,6 +181,17 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     };
   }, [sessionId]); // stable dep: only recreate terminal when session changes
 
+  // Dynamically update font size when store value changes
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) return;
+    if (terminal.options.fontSize === fontSize) return;
+    terminal.options.fontSize = fontSize;
+    try { fitAddon.fit(); } catch { /* ignore */ }
+    sendResizeRef.current(terminal.cols, terminal.rows);
+  }, [fontSize]);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div
@@ -240,6 +254,8 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  const fontSize = useStore((s) => s.fontSize);
+
   useEffect(() => {
     if (!viewerRef.current) return;
 
@@ -247,7 +263,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       cursorBlink: false,
       disableStdin: true,
       scrollback: 50000,
-      fontSize: 14,
+      fontSize,
       fontFamily: FONT_FAMILY,
       theme: TERMINAL_THEME,
     });
@@ -285,7 +301,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       resizeObserver.disconnect();
       terminal.dispose();
     };
-  }, [data]); // only recreate when scrollback data changes
+  }, [data, fontSize]); // recreate when scrollback data or font size changes
 
   return (
     <div
