@@ -59,13 +59,11 @@ const SLASH_COMMANDS = [
 
 interface MarkdownEditorProps {
   onSend: (text: string) => void;
-  onClose: () => void;
   sessionId: string;
   token: string;
-  hideToolbar?: boolean;
 }
 
-export function MarkdownEditor({ onSend, onClose, sessionId, token, hideToolbar }: MarkdownEditorProps) {
+export function MarkdownEditor({ onSend, sessionId, token }: MarkdownEditorProps) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -205,12 +203,29 @@ export function MarkdownEditor({ onSend, onClose, sessionId, token, hideToolbar 
         }
       }
 
+      // Tab key: insert 2 spaces
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const ta = textareaRef.current;
+        if (ta) {
+          const start = ta.selectionStart;
+          const end = ta.selectionEnd;
+          const newContent = content.slice(0, start) + '  ' + content.slice(end);
+          setContent(newContent);
+          const newPos = start + 2;
+          requestAnimationFrame(() => {
+            ta.selectionStart = ta.selectionEnd = newPos;
+          });
+        }
+        return;
+      }
+
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand],
+    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content],
   );
 
   return (
@@ -221,46 +236,6 @@ export function MarkdownEditor({ onSend, onClose, sessionId, token, hideToolbar 
       backgroundColor: '#1a1b26',
       overflow: 'hidden',
     }}>
-      {/* Toolbar */}
-      {!hideToolbar && (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 8px',
-        height: '28px',
-        flexShrink: 0,
-        backgroundColor: '#16161e',
-        borderBottom: '1px solid #292e42',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            className="pane-btn"
-            onClick={handleSend}
-            disabled={!content.trim()}
-            title="Send to terminal (Ctrl+Enter)"
-            style={!content.trim() ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
-          >
-            Send ⏎
-          </button>
-          <button
-            className="pane-btn"
-            onClick={() => setContent('')}
-            title="Clear editor"
-          >
-            Clear
-          </button>
-        </div>
-        <button
-          className="pane-btn pane-btn--danger"
-          onClick={onClose}
-          title="Close editor"
-        >
-          ×
-        </button>
-      </div>
-      )}
-
       {/* Slash command dropdown */}
       {slashOpen && filteredCommands.length > 0 && (
         <div className="slash-dropdown">
@@ -292,6 +267,20 @@ export function MarkdownEditor({ onSend, onClose, sessionId, token, hideToolbar 
         spellCheck={false}
         style={{ flex: 1 }}
       />
+
+      {/* Bottom action bar */}
+      <div className="md-editor-actions">
+        <button
+          className="pane-btn"
+          onClick={handleSend}
+          disabled={!content.trim()}
+          title="Send to terminal (Ctrl+Enter)"
+          style={!content.trim() ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
+        >
+          Send
+        </button>
+        <span style={{ fontSize: '10px', color: '#414868' }}>Ctrl+Enter</span>
+      </div>
     </div>
   );
 }

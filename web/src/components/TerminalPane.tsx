@@ -13,7 +13,7 @@ interface TerminalPaneProps {
   canClose: boolean;
 }
 
-const PLAN_MIN_HEIGHT = 100;
+const DOC_MIN_HEIGHT = 100;
 
 export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const killServerSession = useStore((s) => s.killServerSession);
@@ -25,8 +25,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [planOpen, setPlanOpen] = useState(false);
-  const [planHeightPercent, setPlanHeightPercent] = useState(50);
+  const [docOpen, setDocOpen] = useState(false);
+  const [docHeightPercent, setDocHeightPercent] = useState(50);
   const outerRef = useRef<HTMLDivElement>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +78,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
       const terminalPct = ((ev.clientY - rect.top) / containerHeight) * 100;
       // Plan panel is bottom part; clamp terminal between 20% and 80%
       const clamped = Math.min(80, Math.max(20, terminalPct));
-      setPlanHeightPercent(100 - clamped);
+      setDocHeightPercent(100 - clamped);
     };
 
     const onMouseUp = () => {
@@ -149,14 +149,14 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
           >
             {'\u2193'}
           </button>
-          {/* Plan panel toggle */}
+          {/* Doc panel toggle */}
           <button
-            className={`pane-btn${planOpen ? ' pane-btn--active' : ''}`}
-            onClick={() => setPlanOpen((v) => !v)}
-            title="Toggle Plan panel"
-            aria-label="Toggle Plan panel"
+            className={`pane-btn${docOpen ? ' pane-btn--active' : ''}`}
+            onClick={() => setDocOpen((v) => !v)}
+            title="Toggle Document browser"
+            aria-label="Toggle Document browser"
           >
-            Plan
+            Doc
           </button>
           <button
             className="pane-btn"
@@ -198,17 +198,17 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
         )}
       </div>
 
-      {/* Resize divider + Plan panel */}
-      {planOpen && (
+      {/* Resize divider + Doc panel */}
+      {docOpen && (
         <>
           <div
             className="md-editor-divider"
             onMouseDown={handleDividerMouseDown}
           />
-          <div style={{ height: `${planHeightPercent}%`, minHeight: PLAN_MIN_HEIGHT, flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ height: `${docHeightPercent}%`, minHeight: DOC_MIN_HEIGHT, flexShrink: 0, overflow: 'hidden' }}>
             <PlanPanel
               onSend={handleEditorSend}
-              onClose={() => setPlanOpen(false)}
+              onClose={() => setDocOpen(false)}
               sessionId={terminal.id}
               token={token || ''}
             />

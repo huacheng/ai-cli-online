@@ -7,12 +7,11 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config } from 'dotenv';
 import { existsSync, readFileSync, createReadStream } from 'fs';
-import { copyFile, unlink, stat, mkdir, writeFile } from 'fs/promises';
-import { join, dirname, basename } from 'path';
+import { copyFile, unlink, stat, mkdir, readFile } from 'fs/promises';
+import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupWebSocket, getActiveSessionNames } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
-import { getLatestPlanFile, getLatestPlanIfChanged } from './plans.js';
 import { listFiles, validatePath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
@@ -288,7 +287,7 @@ async function main() {
     res.json({ ok: true });
   });
 
-  // --- Plan APIs ---
+  // --- Pane command API ---
 
   // Get current pane command (to detect if claude is running)
   app.get('/api/sessions/:sessionId/pane-command', async (req, res) => {
@@ -302,51 +301,52 @@ async function main() {
     }
   });
 
-  // Get latest plan file from ~/.claude/plans/ (scoped to terminal CWD project)
-  app.get('/api/sessions/:sessionId/plan/latest', async (req, res) => {
+  // --- Document browser: file content API ---
+
+  const MAX_DOC_SIZE = 10 * 1024 * 1024; // 10MB
+  const PDF_EXTENSIONS = new Set(['.pdf']);
+
+  app.get('/api/sessions/:sessionId/file-content', async (req, res) => {
     const sessionName = resolveSession(req, res);
     if (!sessionName) return;
-    const since = parseFloat(req.query.since as string) || 0;
-    try {
-      // Get terminal CWD for project-scoped plan lookup
-      let cwd: string | undefined;
-      try { cwd = await getCwd(sessionName); } catch { /* tmux unavailable */ }
-
-      if (since > 0) {
-        const result = await getLatestPlanIfChanged(since, cwd);
-        if (result === 'unchanged') { res.status(304).end(); return; }
-        res.json({ plan: result });
-        return;
-      }
-      const result = await getLatestPlanFile(cwd);
-      res.json({ plan: result });
-    } catch {
-      res.json({ plan: null });
-    }
-  });
-
-  // Save plan file content to session CWD (Save As)
-  app.post('/api/sessions/:sessionId/plan/save-file', async (req, res) => {
-    const sessionName = resolveSession(req, res);
-    if (!sessionName) return;
-    const { filename, content } = req.body as { filename?: string; content?: string };
-    if (typeof content !== 'string') {
-      res.status(400).json({ error: 'content required' });
-      return;
-    }
-    const safeName = basename(filename || 'plan.md');
-    if (!safeName || safeName === '.' || safeName === '..') {
-      res.status(400).json({ error: 'Invalid filename' });
+    const filePath = req.query.path as string;
+    if (!filePath) {
+      res.status(400).json({ error: 'path query parameter required' });
       return;
     }
     try {
       const cwd = await getCwd(sessionName);
-      const destPath = join(cwd, safeName);
-      await writeFile(destPath, content, 'utf-8');
-      res.json({ ok: true, path: destPath });
-    } catch (err) {
-      console.error('[plan:save-file] Failed:', err);
-      res.status(500).json({ error: 'Failed to save file' });
+      const resolved = await validatePath(filePath, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const fileStat = await stat(resolved);
+      if (!fileStat.isFile()) {
+        res.status(400).json({ error: 'Not a file' });
+        return;
+      }
+      if (fileStat.size > MAX_DOC_SIZE) {
+        res.status(413).json({ error: 'File too large (max 10MB)' });
+        return;
+      }
+      // 304 check: if client sends `since` and file hasn't changed
+      const since = parseFloat(req.query.since as string) || 0;
+      if (since > 0 && fileStat.mtimeMs <= since) {
+        res.status(304).end();
+        return;
+      }
+      const ext = extname(resolved).toLowerCase();
+      const isPdf = PDF_EXTENSIONS.has(ext);
+      const content = await readFile(resolved, isPdf ? undefined : 'utf-8');
+      res.json({
+        content: isPdf ? (content as Buffer).toString('base64') : content,
+        mtime: fileStat.mtimeMs,
+        size: fileStat.size,
+        encoding: isPdf ? 'base64' : 'utf-8',
+      });
+    } catch {
+      res.status(404).json({ error: 'File not found' });
     }
   });
 
