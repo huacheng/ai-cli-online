@@ -104,7 +104,7 @@ function sendBinary(ws: WebSocket, typePrefix: number, data: string): void {
 /** Server-side keepalive: ping all clients every 30s, terminate if no pong */
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 function startKeepAlive(wss: WebSocketServer): void {
-  const KEEPALIVE_INTERVAL = 30_000;
+  const KEEPALIVE_INTERVAL = 20_000;
 
   keepAliveInterval = setInterval(() => {
     for (const ws of wss.clients) {

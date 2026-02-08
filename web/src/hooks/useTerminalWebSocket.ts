@@ -6,10 +6,10 @@ import type { Terminal } from '@xterm/xterm';
 const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 const RECONNECT_MIN = 500;
-const RECONNECT_MAX = 15000;
-const PING_INTERVAL = 15000;
-const PONG_TIMEOUT = 5000;
-const CONNECT_TIMEOUT = 10000;
+const RECONNECT_MAX = 8000;
+const PING_INTERVAL = 10000;
+const PONG_TIMEOUT = 4000;
+const CONNECT_TIMEOUT = 5000;
 const INPUT_BATCH_MS = 5;
 const MAX_INPUT_BUFFER = 64 * 1024;
 
@@ -47,6 +47,8 @@ export function useTerminalWebSocket(
   const onScrollbackRef = useRef(onScrollbackContent);
   const intentionalCloseRef = useRef(false);
   const pingSentAtRef = useRef<number>(0);
+  const firstRetryRef = useRef(true); // immediate first retry on unexpected close
+  const browserOfflineRef = useRef(!navigator.onLine);
 
   // Input batching: accumulate keystrokes within INPUT_BATCH_MS and send as one frame
   const inputBatchRef = useRef<string>('');
@@ -143,6 +145,7 @@ export function useTerminalWebSocket(
       // wait for server 'connected' message which confirms session is ready
       setTerminalError(sessionId, null);
       reconnectDelayRef.current = RECONNECT_MIN;
+      firstRetryRef.current = true; // next disconnect gets an immediate retry
     };
 
     ws.onclose = (event) => {
@@ -169,6 +172,21 @@ export function useTerminalWebSocket(
       if (event.code === 4005) {
         setErr(sessionId, 'Connection limit reached');
         return; // Don't reconnect — would just hit the limit again
+      }
+
+      // If browser is offline, don't schedule reconnect — the 'online' event handler will trigger it
+      if (!navigator.onLine) {
+        browserOfflineRef.current = true;
+        console.log(`[WS:${sessionId}] Browser offline, waiting for network...`);
+        return;
+      }
+
+      // Immediate first retry on unexpected disconnect (network blip), then backoff
+      if (firstRetryRef.current) {
+        firstRetryRef.current = false;
+        console.log(`[WS:${sessionId}] Reconnecting immediately (first retry)...`);
+        reconnectTimerRef.current = window.setTimeout(() => connect(), 50);
+        return;
       }
 
       const baseDelay = reconnectDelayRef.current;
@@ -300,7 +318,7 @@ export function useTerminalWebSocket(
     }
   }, []);
 
-  // Connect when token is available
+  // Connect when token is available + browser event handlers
   useEffect(() => {
     const token = useStore.getState().token;
     if (token) {
@@ -308,15 +326,65 @@ export function useTerminalWebSocket(
       connect();
     }
 
+    // Reconnect immediately when browser comes back online
+    const handleOnline = () => {
+      browserOfflineRef.current = false;
+      console.log(`[WS:${sessionId}] Browser online, reconnecting...`);
+      reconnectDelayRef.current = RECONNECT_MIN;
+      firstRetryRef.current = true;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        connect();
+      }
+    };
+
+    const handleOffline = () => {
+      browserOfflineRef.current = true;
+      console.log(`[WS:${sessionId}] Browser offline`);
+    };
+
+    // When tab becomes visible, immediately verify connection health
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        // Connection is dead — reconnect immediately
+        if (!browserOfflineRef.current && !intentionalCloseRef.current) {
+          reconnectDelayRef.current = RECONNECT_MIN;
+          firstRetryRef.current = true;
+          connect();
+        }
+        return;
+      }
+      // Connection looks open — send ping to verify it's actually alive
+      pingSentAtRef.current = performance.now();
+      ws.send(JSON.stringify({ type: 'ping' }));
+      if (pongTimeoutRef.current) clearTimeout(pongTimeoutRef.current);
+      pongTimeoutRef.current = window.setTimeout(() => {
+        if (pingSentAtRef.current > 0) {
+          console.log(`[WS:${sessionId}] Visibility ping timeout, reconnecting...`);
+          pingSentAtRef.current = 0;
+          ws.close();
+        }
+      }, PONG_TIMEOUT);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       intentionalCloseRef.current = true;
       cleanup();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
     };
-  }, [connect, cleanup]);
+  }, [connect, cleanup, sessionId]);
 
   return { sendInput, sendResize, requestScrollback };
 }

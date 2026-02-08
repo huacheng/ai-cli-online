@@ -483,6 +483,8 @@ async function main() {
       zlibDeflateOptions: { level: 1 }, // Fastest compression to avoid CPU bottleneck
       threshold: 128, // Only compress messages > 128 bytes
       concurrencyLimit: 10,
+      clientNoContextTakeover: true, // Stateless compression — better proxy compatibility
+      serverNoContextTakeover: true,
     },
   });
   setupWebSocket(wss, AUTH_TOKEN, DEFAULT_WORKING_DIR, safeTokenCompare, MAX_CONNECTIONS);
