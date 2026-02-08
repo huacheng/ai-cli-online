@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { LoginForm } from './components/LoginForm';
 import { SplitPaneContainer } from './components/SplitPaneContainer';
 import { SessionSidebar } from './components/SessionSidebar';
+import { TabBar } from './components/TabBar';
 
 // Read token from localStorage only (URL-based token removed for security — avoids log/history leak)
 function getInitialToken(): string | null {
@@ -12,8 +13,8 @@ function getInitialToken(): string | null {
 function App() {
   const token = useStore((s) => s.token);
   const setToken = useStore((s) => s.setToken);
-  const terminalIds = useStore((s) => s.terminalIds);
-  const addTerminal = useStore((s) => s.addTerminal);
+  const tabs = useStore((s) => s.tabs);
+  const addTab = useStore((s) => s.addTab);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
 
   // Initialize token from URL/localStorage on mount
@@ -24,10 +25,10 @@ function App() {
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-create first terminal after login
+  // Auto-create first tab after login
   useEffect(() => {
-    if (token && terminalIds.length === 0) {
-      addTerminal();
+    if (token && tabs.filter((t) => t.status === 'open').length === 0) {
+      addTab('Default');
     }
   }, [token]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -56,32 +57,6 @@ function App() {
           }}>
             AI-Cli Online
           </span>
-          <span style={{
-            fontSize: '11px',
-            color: '#565f89',
-            backgroundColor: '#1a1b26',
-            padding: '1px 8px',
-            borderRadius: '10px',
-            border: '1px solid #292e42',
-          }}>
-            {terminalIds.length} terminal{terminalIds.length !== 1 ? 's' : ''}
-          </span>
-          <button
-            className="header-btn"
-            onClick={() => addTerminal('horizontal')}
-            title="Add terminal (horizontal split)"
-            aria-label="Split horizontal"
-          >
-            |
-          </button>
-          <button
-            className="header-btn"
-            onClick={() => addTerminal('vertical')}
-            title="Add terminal (vertical split)"
-            aria-label="Split vertical"
-          >
-            ─
-          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <NetworkIndicator />
@@ -113,6 +88,9 @@ function App() {
         </main>
         <SessionSidebar />
       </div>
+
+      {/* Tab bar at bottom */}
+      <TabBar />
     </div>
   );
 }

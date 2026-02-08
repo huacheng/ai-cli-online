@@ -18,7 +18,6 @@ const PLAN_MIN_HEIGHT = 100;
 export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
   const removeTerminal = useStore((s) => s.removeTerminal);
   const splitTerminal = useStore((s) => s.splitTerminal);
-  const customName = useStore((s) => s.sessionNames[terminal.id]);
   const token = useStore((s) => s.token);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -114,8 +113,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
             backgroundColor: terminal.connected ? '#9ece6a' : '#f7768e',
           }} />
           <span style={{ fontSize: '11px', color: '#565f89' }}>
-            {customName || terminal.id}
-            {customName && <span style={{ color: '#414868' }}> ({terminal.id})</span>}
+            {terminal.id}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')
               : ' (disconnected)'}

@@ -445,3 +445,110 @@ body.resizing-panes-h * {
   color: #565f89;
   font-size: 11px;
 }
+
+/* ── Tab Bar ── */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 28px;
+  background: #1a1b26;
+  border-top: 1px solid #292e42;
+  flex-shrink: 0;
+  overflow-x: auto;
+  gap: 2px;
+}
+
+.tab-bar::-webkit-scrollbar { height: 0; }
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #565f89;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  border-radius: 4px 4px 0 0;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tab-item:hover {
+  color: #a9b1d6;
+  background: rgba(122, 162, 247, 0.05);
+}
+
+.tab-item--active {
+  color: #c0caf5;
+  border-bottom-color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.08);
+}
+
+.tab-item__name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-item__count {
+  font-size: 10px;
+  color: #414868;
+}
+
+.tab-item__close {
+  font-size: 14px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: opacity 0.1s ease;
+}
+
+.tab-item:hover .tab-item__close {
+  opacity: 0.5;
+}
+
+.tab-item__close:hover {
+  opacity: 1 !important;
+  color: #f7768e;
+  background: rgba(247, 118, 142, 0.1);
+}
+
+.tab-item__rename-input {
+  background: transparent;
+  border: 1px solid #7aa2f7;
+  color: #c0caf5;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 4px;
+  border-radius: 2px;
+  outline: none;
+  width: 100px;
+}
+
+.tab-bar-add {
+  background: none;
+  border: 1px solid transparent;
+  color: #565f89;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.tab-bar-add:hover {
+  color: #7aa2f7;
+  border-color: #292e42;
+  background: rgba(122, 162, 247, 0.1);
+}

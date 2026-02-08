@@ -2,42 +2,242 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { formatTime } from '../utils';
 
-function SessionItem({ sessionId, active, createdAt }: {
-  sessionId: string;
-  active: boolean;
-  createdAt: number;
-}) {
-  const isOpen = useStore((s) => !!s.terminalsMap[sessionId]);
-  const addTerminal = useStore((s) => s.addTerminal);
-  const killServerSession = useStore((s) => s.killServerSession);
-  const displayName = useStore((s) => s.sessionNames[sessionId] || sessionId);
-  const renameSession = useStore((s) => s.renameSession);
+// Component for each tab in the Tabs section
+function TabItem({ tabId }: { tabId: string }) {
+  const tab = useStore((s) => s.tabs.find((t) => t.id === tabId));
+  const activeTabId = useStore((s) => s.activeTabId);
+  const switchTab = useStore((s) => s.switchTab);
+  const closeTab = useStore((s) => s.closeTab);
+  const reopenTab = useStore((s) => s.reopenTab);
+  const deleteTab = useStore((s) => s.deleteTab);
+  const renameTab = useStore((s) => s.renameTab);
+  const terminalsMap = useStore((s) => s.terminalsMap);
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  if (!tab) return null;
+
+  const isActive = activeTabId === tabId;
+  const isOpen = tab.status === 'open';
+
   const handleClick = () => {
-    if (isOpen) return;
-    addTerminal('horizontal', sessionId);
+    if (isOpen) {
+      switchTab(tabId);
+    }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!isOpen) return;
     e.stopPropagation();
-    setEditValue(displayName !== sessionId ? displayName : '');
+    setEditValue(tab.name);
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleRenameCommit = () => {
     const trimmed = editValue.trim();
-    renameSession(sessionId, trimmed);
+    if (trimmed) {
+      renameTab(tabId, trimmed);
+    }
     setEditing(false);
+  };
+
+  const handleReopen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    reopenTab(tabId);
+  };
+
+  const handleClose = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    closeTab(tabId);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete tab "${tab.name}"? This will kill all tmux sessions in this tab.`)) return;
+    await deleteTab(tabId);
+  };
+
+  const handleToggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(!expanded);
+  };
+
+  return (
+    <div>
+      <div
+        onClick={handleClick}
+        style={{
+          padding: '8px 12px',
+          cursor: isOpen ? 'pointer' : 'default',
+          borderLeft: isActive ? '3px solid #7aa2f7' : '3px solid transparent',
+          backgroundColor: isActive ? 'rgba(122, 162, 247, 0.08)' : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          borderBottom: '1px solid #292e42',
+          transition: 'background-color 0.15s',
+          opacity: isOpen ? 1 : 0.5,
+        }}
+        onMouseEnter={(e) => {
+          if (isOpen && !isActive) e.currentTarget.style.backgroundColor = 'rgba(122, 162, 247, 0.05)';
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        {/* Expand arrow for open tabs */}
+        {isOpen && tab.terminalIds.length > 0 && (
+          <button
+            onClick={handleToggleExpand}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#565f89',
+              cursor: 'pointer',
+              fontSize: '10px',
+              padding: 0,
+              width: 14,
+              height: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {expanded ? '▼' : '▶'}
+          </button>
+        )}
+
+        {/* Info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleRenameCommit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameCommit();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              style={{
+                width: '100%',
+                background: '#1a1b26',
+                border: '1px solid #7aa2f7',
+                color: '#c0caf5',
+                borderRadius: '3px',
+                padding: '1px 4px',
+                fontSize: '13px',
+                outline: 'none',
+              }}
+            />
+          ) : (
+            <div
+              onDoubleClick={handleDoubleClick}
+              style={{
+                color: '#c0caf5',
+                fontSize: '13px',
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={isOpen ? "Double-click to rename" : tab.name}
+            >
+              {tab.name}
+            </div>
+          )}
+          <div style={{
+            color: '#565f89',
+            fontSize: '11px',
+            marginTop: '2px',
+          }}>
+            {tab.terminalIds.length} terminal{tab.terminalIds.length !== 1 ? 's' : ''} · {formatTime(Math.floor(tab.createdAt / 1000))}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        {isOpen ? (
+          <button
+            className="pane-btn pane-btn--danger"
+            onClick={handleClose}
+            style={{ flexShrink: 0 }}
+            title="Close tab"
+          >
+            ×
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+            <button
+              className="pane-btn"
+              onClick={handleReopen}
+              title="Reopen tab"
+              style={{ fontSize: '11px', padding: '2px 6px' }}
+            >
+              ↻
+            </button>
+            <button
+              className="pane-btn pane-btn--danger"
+              onClick={handleDelete}
+              title="Delete tab"
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Nested terminal list */}
+      {isOpen && expanded && tab.terminalIds.length > 0 && (
+        <div style={{ paddingLeft: '28px', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
+          {tab.terminalIds.map((termId) => {
+            const term = terminalsMap[termId];
+            return (
+              <div
+                key={termId}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  color: '#565f89',
+                  borderBottom: '1px solid rgba(41, 46, 66, 0.5)',
+                }}
+                title={term ? `Connected: ${term.connected}` : 'Terminal not found'}
+              >
+                <span style={{ fontFamily: 'monospace' }}>{termId}</span>
+                {term && (
+                  <span style={{ marginLeft: '8px', color: term.connected ? '#9ece6a' : '#f7768e' }}>
+                    {term.connected ? '●' : '○'}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Component for orphaned server sessions
+function OrphanedSessionItem({ sessionId, active, createdAt }: {
+  sessionId: string;
+  active: boolean;
+  createdAt: number;
+}) {
+  const addTerminal = useStore((s) => s.addTerminal);
+  const killServerSession = useStore((s) => s.killServerSession);
+
+  const handleClick = () => {
+    addTerminal('horizontal', sessionId);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete session "${displayName}"? This will kill the tmux session.`)) return;
+    if (!window.confirm(`Delete orphaned session "${sessionId}"? This will kill the tmux session.`)) return;
     killServerSession(sessionId);
   };
 
@@ -46,9 +246,7 @@ function SessionItem({ sessionId, active, createdAt }: {
       onClick={handleClick}
       style={{
         padding: '8px 12px',
-        cursor: isOpen ? 'default' : 'pointer',
-        borderLeft: isOpen ? '3px solid #7aa2f7' : '3px solid transparent',
-        backgroundColor: isOpen ? 'rgba(122, 162, 247, 0.08)' : 'transparent',
+        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
@@ -56,10 +254,10 @@ function SessionItem({ sessionId, active, createdAt }: {
         transition: 'background-color 0.15s',
       }}
       onMouseEnter={(e) => {
-        if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(122, 162, 247, 0.05)';
+        e.currentTarget.style.backgroundColor = 'rgba(122, 162, 247, 0.05)';
       }}
       onMouseLeave={(e) => {
-        if (!isOpen) e.currentTarget.style.backgroundColor = 'transparent';
+        e.currentTarget.style.backgroundColor = 'transparent';
       }}
     >
       {/* Status dot */}
@@ -73,50 +271,21 @@ function SessionItem({ sessionId, active, createdAt }: {
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {editing ? (
-          <input
-            ref={inputRef}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleRenameCommit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRenameCommit();
-              if (e.key === 'Escape') setEditing(false);
-            }}
-            style={{
-              width: '100%',
-              background: '#1a1b26',
-              border: '1px solid #7aa2f7',
-              color: '#c0caf5',
-              borderRadius: '3px',
-              padding: '1px 4px',
-              fontSize: '13px',
-              outline: 'none',
-            }}
-            placeholder={sessionId}
-          />
-        ) : (
-          <div
-            onDoubleClick={handleDoubleClick}
-            style={{
-              color: '#c0caf5',
-              fontSize: '13px',
-              fontWeight: 500,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-            title="Double-click to rename"
-          >
-            {displayName}
-          </div>
-        )}
+        <div style={{
+          color: '#c0caf5',
+          fontSize: '13px',
+          fontWeight: 500,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {sessionId}
+        </div>
         <div style={{
           color: '#565f89',
           fontSize: '11px',
           marginTop: '2px',
         }}>
-          {sessionId !== displayName && <span>{sessionId} · </span>}
           {formatTime(createdAt)}
         </div>
       </div>
@@ -139,8 +308,16 @@ export function SessionSidebar() {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const serverSessions = useStore((s) => s.serverSessions);
   const fetchSessions = useStore((s) => s.fetchSessions);
+  const tabs = useStore((s) => s.tabs);
+  const terminalIds = useStore((s) => s.terminalIds);
 
-  const terminalCount = useStore((s) => s.terminalIds.length);
+  // Find orphaned sessions (server sessions not in any tab)
+  const allTabTerminalIds = new Set(
+    tabs.flatMap((tab) => tab.terminalIds)
+  );
+  const orphanedSessions = serverSessions.filter(
+    (s) => !allTabTerminalIds.has(s.sessionId)
+  );
 
   // Poll sessions when sidebar is open and page is visible
   useEffect(() => {
@@ -170,7 +347,7 @@ export function SessionSidebar() {
     if (!sidebarOpen) return;
     const timer = setTimeout(fetchSessions, 800);
     return () => clearTimeout(timer);
-  }, [terminalCount, sidebarOpen, fetchSessions]);
+  }, [terminalIds.length, sidebarOpen, fetchSessions]);
 
   return (
     <div
@@ -197,7 +374,7 @@ export function SessionSidebar() {
         flexShrink: 0,
       }}>
         <span style={{ color: '#7aa2f7', fontSize: '14px', fontWeight: 'bold' }}>
-          Sessions
+          Tabs & Sessions
         </span>
         <button
           onClick={toggleSidebar}
@@ -216,26 +393,56 @@ export function SessionSidebar() {
         </button>
       </div>
 
-      {/* Session list */}
+      {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {serverSessions.length === 0 ? (
+        {/* Tabs Section */}
+        <div>
           <div style={{
-            color: '#565f89',
-            fontSize: '13px',
-            textAlign: 'center',
-            padding: '24px 12px',
+            padding: '8px 12px',
+            color: '#7aa2f7',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            backgroundColor: 'rgba(122, 162, 247, 0.05)',
+            borderBottom: '1px solid #292e42',
           }}>
-            No sessions
+            TABS
           </div>
-        ) : (
-          serverSessions.map((s) => (
-            <SessionItem
-              key={s.sessionId}
-              sessionId={s.sessionId}
-              active={s.active}
-              createdAt={s.createdAt}
-            />
-          ))
+          {tabs.length === 0 ? (
+            <div style={{
+              color: '#565f89',
+              fontSize: '13px',
+              textAlign: 'center',
+              padding: '12px',
+            }}>
+              No tabs
+            </div>
+          ) : (
+            tabs.map((tab) => <TabItem key={tab.id} tabId={tab.id} />)
+          )}
+        </div>
+
+        {/* Orphaned Sessions Section */}
+        {orphanedSessions.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            <div style={{
+              padding: '8px 12px',
+              color: '#e0af68',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              backgroundColor: 'rgba(224, 175, 104, 0.05)',
+              borderBottom: '1px solid #292e42',
+            }}>
+              ORPHANED SESSIONS
+            </div>
+            {orphanedSessions.map((s) => (
+              <OrphanedSessionItem
+                key={s.sessionId}
+                sessionId={s.sessionId}
+                active={s.active}
+                createdAt={s.createdAt}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
