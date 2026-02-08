@@ -50,6 +50,14 @@ bash start.sh
 
 然后访问 https://localhost:3001（或通过 nginx 反向代理）
 
+**systemd 服务** (开机自启):
+
+```bash
+sudo bash install-service.sh       # 交互确认安装
+sudo systemctl start cli-online    # 启动服务
+sudo journalctl -u cli-online -f   # 查看日志
+```
+
 ## 配置
 
 创建 `server/.env` 文件:
