@@ -153,7 +153,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
             resizeNetworkTimer = setTimeout(() => {
               resizeNetworkTimer = null;
               sendResizeRef.current(terminal.cols, terminal.rows);
-            }, 100);
+            }, 50);
           } catch {
             // Ignore fit errors during transitions
           }

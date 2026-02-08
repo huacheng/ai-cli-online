@@ -307,8 +307,9 @@ export function setupWebSocket(
           case 'resize': {
             const c = Math.max(1, Math.min(500, Math.floor(msg.cols || 80)));
             const r = Math.max(1, Math.min(500, Math.floor(msg.rows || 24)));
+            // PTY resize (sync) and tmux resize (async subprocess) are independent — run in parallel
             ptySession?.resize(c, r);
-            await resizeSession(sessionName, c, r);
+            resizeSession(sessionName, c, r);
             break;
           }
           case 'ping':
