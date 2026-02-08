@@ -16,7 +16,7 @@ export interface TmuxSessionInfo {
  */
 export function tokenToSessionName(token: string): string {
   const hash = createHash('sha256').update(token).digest('hex');
-  return `cli-online-${hash.slice(0, 8)}`;
+  return `ai-cli-online-${hash.slice(0, 8)}`;
 }
 
 /** Validate sessionId: only allow alphanumeric, underscore, hyphen, max 32 chars */
@@ -161,7 +161,7 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
       if (secondLastColon === -1) continue;
       const created = parseInt(rest.slice(secondLastColon + 1), 10);
       const name = rest.slice(0, secondLastColon);
-      if (!name.startsWith('cli-online-')) continue;
+      if (!name.startsWith('ai-cli-online-')) continue;
       if (attached > 0) continue;
       if (created < cutoff) {
         console.log(`[tmux] Cleaning up stale session: ${name} (created ${new Date(created * 1000).toISOString()})`);

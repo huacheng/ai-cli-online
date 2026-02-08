@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '../data');
-const DB_PATH = join(DATA_DIR, 'cli-online.db');
+const DB_PATH = join(DATA_DIR, 'ai-cli-online.db');
 
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });

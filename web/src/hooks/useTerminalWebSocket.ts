@@ -158,7 +158,7 @@ export function useTerminalWebSocket(
         authFailedRef.current = true;
         setErr(sessionId, 'Authentication failed');
         setTk(null);
-        localStorage.removeItem('cli-online-token');
+        localStorage.removeItem('ai-cli-online-token');
         return;
       }
 

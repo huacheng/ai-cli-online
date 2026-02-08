@@ -7,7 +7,7 @@ import { TabBar } from './components/TabBar';
 
 // Read token from localStorage only (URL-based token removed for security — avoids log/history leak)
 function getInitialToken(): string | null {
-  return localStorage.getItem('cli-online-token');
+  return localStorage.getItem('ai-cli-online-token');
 }
 
 function App() {

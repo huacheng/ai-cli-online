@@ -1,5 +1,5 @@
 {
-  "name": "cli-online-server",
+  "name": "ai-cli-online-server",
   "version": "1.5.0",
   "description": "CLI-Online Backend Server",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
-    "cli-online-shared": "*",
+    "ai-cli-online-shared": "*",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",

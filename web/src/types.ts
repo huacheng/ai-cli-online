@@ -54,4 +54,4 @@ export interface PersistedTabsState {
 }
 
 // Re-export shared protocol types
-export type { ClientMessage, ServerMessage } from 'cli-online-shared';
+export type { ClientMessage, ServerMessage } from 'ai-cli-online-shared';

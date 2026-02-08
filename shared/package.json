@@ -1,5 +1,5 @@
 {
-  "name": "cli-online-shared",
+  "name": "ai-cli-online-shared",
   "version": "1.5.0",
   "description": "Shared types for CLI-Online",
   "type": "module",

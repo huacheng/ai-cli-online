@@ -1,4 +1,4 @@
-# CLI-Online 变更日志
+# AI-CLI-Online 变更日志
 
 ## v1.5.0 (2026-02-08)
 
@@ -109,7 +109,7 @@
 ### 重构
 
 - `c9563b4` refactor: tmux 操作从 execFileSync 改为 async execFile
-- `107a12e` refactor: 提取共享类型包 cli-online-shared
+- `107a12e` refactor: 提取共享类型包 ai-cli-online-shared
 
 ### Bug 修复
 

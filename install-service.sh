@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ============================================
-#  CLI-Online systemd 服务安装脚本
+#  AI-CLI-Online systemd 服务安装脚本
 #  用法: sudo bash install-service.sh
 # ============================================
 
-SERVICE_NAME="cli-online"
+SERVICE_NAME="ai-cli-online"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # --- 检测环境 ---
@@ -42,7 +42,7 @@ fi
 # --- 确认信息 ---
 
 echo "================================"
-echo "  CLI-Online 服务安装"
+echo "  AI-CLI-Online 服务安装"
 echo "================================"
 echo ""
 echo "  项目目录:  $PROJECT_DIR"
@@ -65,7 +65,7 @@ fi
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=CLI-Online Web Terminal
+Description=AI-CLI-Online Web Terminal
 After=network.target
 
 [Service]

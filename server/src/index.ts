@@ -141,7 +141,7 @@ async function main() {
 
   // --- File transfer APIs ---
 
-  const UPLOAD_TMP_DIR = '/tmp/cli-online-uploads';
+  const UPLOAD_TMP_DIR = '/tmp/ai-cli-online-uploads';
   await mkdir(UPLOAD_TMP_DIR, { recursive: true, mode: 0o700 });
 
   const upload = multer({
@@ -407,7 +407,7 @@ async function main() {
   server.listen(Number(PORT), HOST, () => {
     console.log('');
     console.log('='.repeat(50));
-    console.log('  CLI-Online Terminal Server');
+    console.log('  AI-CLI-Online Terminal Server');
     console.log('='.repeat(50));
     console.log(`  ${protocol.toUpperCase()}:      ${protocol}://${HOST}:${PORT}`);
     console.log(`  WebSocket: ${wsProtocol}://${HOST}:${PORT}/ws`);

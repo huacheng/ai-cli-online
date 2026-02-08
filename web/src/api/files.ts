@@ -1,4 +1,4 @@
-import type { FileEntry } from 'cli-online-shared';
+import type { FileEntry } from 'ai-cli-online-shared';
 import { API_BASE, authHeaders } from './client';
 
 export type { FileEntry };

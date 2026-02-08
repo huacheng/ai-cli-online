@@ -1,8 +1,43 @@
 {
-  "name": "cli-online",
+  "name": "ai-cli-online",
   "version": "1.5.0",
-  "description": "AI-Cli Online - Web Terminal",
-  "private": true,
+  "description": "AI-Cli Online - Web Terminal for Claude Code via xterm.js + tmux",
+  "license": "MIT",
+  "bin": {
+    "ai-cli-online": "./bin/ai-cli-online.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huacheng/ai-cli-online.git"
+  },
+  "homepage": "https://github.com/huacheng/ai-cli-online#readme",
+  "bugs": {
+    "url": "https://github.com/huacheng/ai-cli-online/issues"
+  },
+  "keywords": [
+    "terminal",
+    "web-terminal",
+    "xterm",
+    "tmux",
+    "claude",
+    "claude-code",
+    "cli"
+  ],
+  "files": [
+    "bin/",
+    "shared/dist/",
+    "shared/package.json",
+    "server/dist/",
+    "server/package.json",
+    "server/.env.example",
+    "web/dist/",
+    "web/package.json",
+    "start.sh",
+    "install-service.sh"
+  ],
   "workspaces": [
     "shared",
     "server",

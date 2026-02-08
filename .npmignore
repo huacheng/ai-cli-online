@@ -1,0 +1,31 @@
+# Development & CI
+.omc/
+.claude/
+.git/
+.github/
+ref-projects/
+
+# Server sensitive files
+server/certs/
+server/.env
+server/data/
+
+# Generated service files
+*.service
+
+# Dependencies (npm install will recreate)
+node_modules/
+
+# Source maps
+*.map
+
+# TypeScript source (dist is included)
+server/src/
+web/src/
+shared/src/
+
+# Dev config
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+vite.config.*

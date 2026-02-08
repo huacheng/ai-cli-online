@@ -5,7 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${PORT:-3001}"
 
 echo "================================"
-echo "  CLI-Online 启动脚本"
+echo "  AI-CLI-Online 启动脚本"
 echo "================================"
 
 # 1. 清理占用端口的旧进程
@@ -25,7 +25,7 @@ else
 fi
 
 # 2. 清理残留的 node 子进程（仅限本项目）
-pkill -f "node.*cli-online.*dist/index.js" 2>/dev/null || true
+pkill -f "node.*ai-cli-online.*dist/index.js" 2>/dev/null || true
 
 # 3. 构建项目
 echo "[构建] 编译 server 和 web..."

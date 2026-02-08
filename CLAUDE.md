@@ -1,8 +1,8 @@
-# CLI-Online - Web Terminal for Claude Code
+# AI-CLI-Online - Web Terminal for Claude Code
 
 ## 项目概述
 
-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、文档浏览器（Markdown/HTML/PDF）、编辑器面板（多行编辑 + 草稿持久化）和 capture-pane 滚动历史回看（带 ANSI 颜色）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、文档浏览器（Markdown/HTML/PDF）、编辑器面板（多行编辑 + 草稿持久化）和 capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
@@ -20,7 +20,7 @@ CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端�
 ## 目录结构
 
 ```
-cli-online/
+ai-cli-online/
 ├── shared/           # 共享类型定义 (ClientMessage, ServerMessage)
 │   └── src/types.ts
 ├── server/           # 后端服务 (TypeScript)
@@ -284,7 +284,7 @@ latency: number | null;                           // 全局网络延迟 (ms)
 
 ## 编辑器草稿持久化
 
-- 后端使用 better-sqlite3 (WAL 模式)，数据库位于 `server/data/cli-online.db`
+- 后端使用 better-sqlite3 (WAL 模式)，数据库位于 `server/data/ai-cli-online.db`
 - `drafts` 表: `session_name (PK)` + `content` + `updated_at`
 - 前端通过 `GET/PUT /api/sessions/:sessionId/draft` 进行草稿读写
 - 支持跨浏览器刷新恢复编辑内容

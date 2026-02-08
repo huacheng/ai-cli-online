@@ -13,11 +13,11 @@ import { API_BASE, authHeaders } from './api/client';
 // localStorage keys
 // ---------------------------------------------------------------------------
 
-const TABS_KEY = 'cli-online-tabs';
+const TABS_KEY = 'ai-cli-online-tabs';
 
 // Legacy keys (migration only)
-const LEGACY_LAYOUT_KEY = 'cli-online-layout';
-const LEGACY_SESSION_NAMES_KEY = 'cli-online-session-names';
+const LEGACY_LAYOUT_KEY = 'ai-cli-online-layout';
+const LEGACY_SESSION_NAMES_KEY = 'ai-cli-online-session-names';
 
 // Legacy persistence type (migration only)
 interface LegacyPersistedLayout {
@@ -153,9 +153,9 @@ function persistTabsDebounced(state: PersistableFields): void {
 /**
  * Load persisted tabs (v2) or migrate from v1 layout.
  *
- * 1. Try `cli-online-tabs` with version: 2 -> return if found
- * 2. Try old `cli-online-layout` -> wrap into single "Default" tab
- * 3. Read old `cli-online-session-names` -> use first session name as tab name
+ * 1. Try `ai-cli-online-tabs` with version: 2 -> return if found
+ * 2. Try old `ai-cli-online-layout` -> wrap into single "Default" tab
+ * 3. Read old `ai-cli-online-session-names` -> use first session name as tab name
  * 4. Write migrated v2, delete old keys
  * 5. Return null if neither exists
  */
@@ -303,7 +303,7 @@ export const useStore = create<AppState>((set, get) => ({
   setToken: (token) => {
     if (token) {
       try {
-        localStorage.setItem('cli-online-token', token);
+        localStorage.setItem('ai-cli-online-token', token);
       } catch {
         /* storage full */
       }
@@ -341,7 +341,7 @@ export const useStore = create<AppState>((set, get) => ({
         return;
       }
     } else {
-      localStorage.removeItem('cli-online-token');
+      localStorage.removeItem('ai-cli-online-token');
       localStorage.removeItem(TABS_KEY);
     }
 

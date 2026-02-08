@@ -1,118 +1,162 @@
 # AI-Cli Online
 
-Web Terminal for Claude Code — 通过浏览器使用完整的终端环境
+[![npm version](https://img.shields.io/npm/v/ai-cli-online.svg)](https://www.npmjs.com/package/ai-cli-online)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-## 功能特性
+A lightweight web terminal for accessing Claude Code (or any CLI) from your browser via xterm.js + tmux.
 
-- **Web 终端**: xterm.js + WebGL 渲染，完整终端体验
-- **tmux 持久化**: 断网后进程存活，重连即恢复
-- **Tab 多标签页**: 独立终端分组，刷新后自动恢复
-- **分屏布局**: 水平 / 垂直任意嵌套分割
-- **文档浏览器**: 支持 Markdown / HTML / PDF 渲染
-- **编辑器面板**: 多行编辑 + 草稿 SQLite 持久化
-- **文件传输**: 上传文件到 CWD + 浏览 / 下载
-- **滚动历史**: capture-pane 回看，保留 ANSI 颜色
-- **会话管理**: 侧边栏管理 session（恢复 / 删除 / 重命名）
-- **网络指示器**: 实时 RTT 延迟 + 信号条
-- **自动重连**: 断网后自动重连 + jitter 防雷群
-- **安全认证**: Token 认证 + timing-safe 比较
+[**中文文档**](README.zh-CN.md)
 
-## 快速开始
+## Features
 
-### 前提条件
+- **Full Web Terminal** — xterm.js with WebGL rendering, binary protocol for ultra-low latency
+- **Session Persistence** — tmux keeps processes alive through disconnects; reconnect and resume instantly
+- **Multi-Tab** — independent terminal groups with layout persistence across browser refreshes
+- **Split Panes** — horizontal / vertical splits, arbitrarily nested
+- **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal
+- **Editor Panel** — multi-line editing with server-side draft persistence (SQLite)
+- **File Transfer** — upload files to CWD, browse and download via REST API
+- **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
+- **Session Management** — sidebar to restore, delete, and rename sessions
+- **Network Indicator** — real-time RTT latency display with signal bars
+- **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
+- **Secure Auth** — token authentication with timing-safe comparison
+
+## Comparison: AI-Cli Online vs OpenClaw
+
+| Dimension | AI-Cli Online | OpenClaw |
+|-----------|--------------|----------|
+| **Positioning** | Lightweight web terminal | AI agent orchestration platform |
+| **Core Use Case** | Browser-based remote terminal access | Multi-channel AI assistant |
+| **Terminal Emulation** | xterm.js + WebGL | None |
+| **Session Persistence** | tmux (survives disconnects) | Gateway in-memory state |
+| **Multi-Tab / Split** | Tabs + arbitrarily nested panes | None |
+| **Message Channels** | WebSocket (single channel) | 16+ (WhatsApp / Telegram / Slack / Discord...) |
+| **Native Apps** | None (pure web) | macOS + iOS + Android |
+| **Voice Interaction** | None | Voice Wake + Talk Mode |
+| **AI Agent** | None built-in (run any CLI) | Pi Agent runtime + multi-agent routing |
+| **Canvas / UI** | Document browser (MD / HTML / PDF) | A2UI real-time visual workspace |
+| **File Transfer** | REST API upload / download | Channel-native media |
+| **Security Model** | Token auth + timing-safe | Device pairing + DM policy + Docker sandbox |
+| **Extensibility** | Shell scripts | 33 extensions + 60+ skills + ClawHub |
+| **Transport** | Binary frames (ultra-low latency) | JSON WebSocket |
+| **Deployment** | Single-node Node.js | Single-node + Tailscale Serve/Funnel |
+| **Tech Stack** | React + Express + node-pty | Lit + Express + Pi Agent |
+| **Package Size** | ~12 MB | ~300 MB+ |
+| **Install** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
+
+## Quick Start
+
+### Option 1: npx (Recommended)
+
+```bash
+npx ai-cli-online
+```
+
+### Option 2: Global Install
+
+```bash
+npm install -g ai-cli-online
+ai-cli-online
+```
+
+### Option 3: From Source
+
+```bash
+git clone https://github.com/huacheng/ai-cli-online.git
+cd ai-cli-online
+npm install
+npm run build
+npm start
+```
+
+## Prerequisites
 
 - Node.js >= 18
-- tmux 已安装 (`sudo apt install tmux`)
+- tmux installed (`sudo apt install tmux` or `brew install tmux`)
 
-### 安装
+## Configuration
 
-```bash
-npm install
+Create `server/.env`:
+
+```env
+PORT=3001                        # Server port
+HOST=0.0.0.0                     # Bind address
+AUTH_TOKEN=your-secret-token     # Auth token (required for production)
+DEFAULT_WORKING_DIR=/home/user   # Default working directory
+HTTPS_ENABLED=true               # Set to false behind nginx reverse proxy
 ```
 
-### 运行
+See `server/.env.example` for all available options.
 
-**开发模式** (前后端分离):
+## Architecture
+
+```
+Browser (xterm.js + WebGL) <-- WebSocket binary/JSON --> Express (node-pty) <--> tmux session --> shell
+```
+
+- **Frontend**: React + Zustand + xterm.js (WebGL renderer)
+- **Backend**: Node.js + Express + node-pty + WebSocket + better-sqlite3
+- **Session Manager**: tmux (persistent terminal sessions)
+- **Layout System**: Tabs + recursive tree structure (LeafNode / SplitNode)
+- **Transport**: Binary frames (hot path) + JSON (control messages)
+- **Data Persistence**: SQLite (editor drafts)
+
+### Performance
+
+- **Binary protocol** — 1-byte prefix frames for terminal I/O, eliminating JSON overhead
+- **TCP Nagle disabled** — `setNoDelay(true)` removes up to 40 ms keystroke delay
+- **WebSocket compression** — `perMessageDeflate` (level 1, threshold 128 B), 50-70% bandwidth reduction
+- **WebGL renderer** — 3-10x rendering throughput vs canvas
+- **Parallel initialization** — PTY creation, tmux config, and resize run concurrently
+
+## Project Structure
+
+```
+ai-cli-online/
+├── shared/          # Shared type definitions (ClientMessage, ServerMessage)
+├── server/          # Backend (TypeScript)
+│   └── src/
+│       ├── index.ts      # Main entry (HTTP + WebSocket + REST API)
+│       ├── websocket.ts  # WebSocket <-> PTY relay (binary + JSON)
+│       ├── tmux.ts       # tmux session management
+│       ├── files.ts      # File operations
+│       ├── pty.ts        # node-pty wrapper
+│       ├── db.ts         # SQLite database (draft persistence)
+│       ├── auth.ts       # Auth utilities
+│       └── types.ts      # Type definitions
+├── web/             # Frontend (React + Vite)
+│   └── src/
+│       ├── App.tsx        # Main app component
+│       ├── store.ts       # Zustand state management
+│       ├── components/    # UI components
+│       ├── hooks/         # React hooks
+│       └── api/           # API client
+├── start.sh         # Production start script
+└── package.json     # Monorepo config
+```
+
+## Development
 
 ```bash
-# 同时启动前后端
+# Dev mode (frontend + backend separately)
 npm run dev
-```
 
-前端访问 http://localhost:3000，自动代理到后端 3001 端口。
+# Build
+npm run build
 
-**生产模式** (一体化):
-
-```bash
-# 一键构建并启动
+# Production (build + start)
 bash start.sh
 ```
 
-然后访问 https://localhost:3001（或通过 nginx 反向代理）
-
-**systemd 服务** (开机自启):
+### systemd Service
 
 ```bash
-sudo bash install-service.sh       # 交互确认安装
-sudo systemctl start cli-online    # 启动服务
-sudo journalctl -u cli-online -f   # 查看日志
+sudo bash install-service.sh          # Interactive install
+sudo systemctl start ai-cli-online    # Start service
+sudo journalctl -u ai-cli-online -f   # View logs
 ```
-
-## 配置
-
-创建 `server/.env` 文件:
-
-```env
-# 服务端口
-PORT=3001
-
-# 绑定地址
-HOST=0.0.0.0
-
-# 认证 Token (生产环境必须设置)
-AUTH_TOKEN=your-secret-token
-
-# 默认工作目录
-DEFAULT_WORKING_DIR=/home/ubuntu
-
-# 是否启用 HTTPS (nginx 反代时设为 false)
-HTTPS_ENABLED=true
-```
-
-## 项目结构
-
-```
-cli-online/
-├── shared/          # 共享类型定义 (ClientMessage, ServerMessage)
-├── server/          # 后端服务 (TypeScript)
-│   └── src/
-│       ├── index.ts      # 主入口 (HTTP + WebSocket + REST API)
-│       ├── websocket.ts  # WebSocket 双向 relay (二进制 + JSON)
-│       ├── tmux.ts       # tmux 会话管理
-│       ├── files.ts      # 文件操作
-│       ├── pty.ts        # node-pty 封装
-│       ├── db.ts         # SQLite 数据库 (草稿持久化)
-│       ├── auth.ts       # 认证工具
-│       └── types.ts      # 类型定义
-├── web/             # 前端应用 (React + Vite)
-│   └── src/
-│       ├── App.tsx        # 主应用组件
-│       ├── store.ts       # Zustand 状态管理
-│       ├── components/    # UI 组件
-│       ├── hooks/         # React Hooks
-│       └── api/           # API 客户端
-├── start.sh         # 生产启动脚本
-└── package.json     # Monorepo 配置
-```
-
-## 架构
-
-```
-浏览器 (xterm.js + WebGL) <-WebSocket binary/JSON-> Express (node-pty) <-> tmux session -> shell
-```
-
-- **传输协议**: 二进制帧 (1 字节前缀) 用于终端 I/O，JSON 用于控制消息
-- **性能优化**: TCP Nagle 禁用、WebSocket 压缩、resize 并行化、session 初始化并行化
 
 ## License
 
