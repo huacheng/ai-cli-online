@@ -69,6 +69,20 @@ export class PtySession {
     }
   }
 
+  /** Pause PTY output (backpressure from WebSocket) */
+  pause(): void {
+    if (this.alive) {
+      this.proc.pause();
+    }
+  }
+
+  /** Resume PTY output after backpressure relief */
+  resume(): void {
+    if (this.alive) {
+      this.proc.resume();
+    }
+  }
+
   kill(): void {
     if (this.alive) {
       this.alive = false;

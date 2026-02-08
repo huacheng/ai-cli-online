@@ -14,7 +14,10 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const html = useMemo(() => {
     if (!content) return '';
     const raw = marked.parse(content, { async: false }) as string;
-    return DOMPurify.sanitize(raw);
+    return DOMPurify.sanitize(raw, {
+      ADD_TAGS: ['img'],
+      ADD_ATTR: ['src', 'alt', 'title', 'width', 'height'],
+    });
   }, [content]);
 
   if (!content) {

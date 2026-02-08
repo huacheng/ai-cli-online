@@ -84,6 +84,7 @@ export function LoginForm() {
               onChange={(e) => setInputToken(e.target.value)}
               placeholder="Enter your AUTH_TOKEN"
               autoFocus
+              autoComplete="current-password"
               style={{
                 width: '100%',
                 padding: '11px 14px',

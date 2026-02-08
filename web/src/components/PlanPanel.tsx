@@ -5,6 +5,9 @@ import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
 import { fetchFileContent } from '../api/docs';
 import { useHorizontalResize } from '../hooks/useHorizontalResize';
+import { useFileBrowser } from '../hooks/useFileBrowser';
+import { FileListHeader, FileListStatus } from './FileListShared';
+import type { FileEntry } from '../api/files';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -27,6 +30,88 @@ function getDocType(path: string): DocType {
 
 function getFileName(path: string): string {
   return path.split('/').pop() || path;
+}
+
+const DOC_EXTENSIONS = new Set(['.md', '.html', '.htm', '.pdf']);
+
+function isDocOrDir(f: FileEntry): boolean {
+  if (f.type === 'directory') return true;
+  const dot = f.name.lastIndexOf('.');
+  if (dot === -1) return false;
+  return DOC_EXTENSIONS.has(f.name.slice(dot).toLowerCase());
+}
+
+function fileIcon(f: FileEntry): string {
+  if (f.type === 'directory') return '\u{1F4C1}';
+  const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
+  if (ext === '.pdf') return '\u{1F4D5}';
+  if (ext === '.html' || ext === '.htm') return '\u{1F310}';
+  return '\u{1F4DD}';
+}
+
+const docDirFilter = (files: FileEntry[]) => files.filter(isDocOrDir);
+
+/** Inline directory browser shown when no document is open */
+function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect: (path: string) => void }) {
+  const noop = useCallback(() => {}, []);
+  const filter = useCallback(docDirFilter, []);
+  const { cwd, files, loading, error, handleNavigate, handleGoUp, handleRefresh } =
+    useFileBrowser({ sessionId, onClose: noop, filter });
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <FileListHeader cwd={cwd} onGoUp={handleGoUp} onRefresh={handleRefresh} onClose={noop} />
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+        <FileListStatus loading={loading} error={error} empty={files.length === 0} emptyText="No documents found" />
+        {!loading && !error && files.map((file) => (
+          <div
+            key={file.name}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '3px 12px',
+              fontSize: 13,
+              cursor: 'pointer',
+              borderBottom: '1px solid #1e2030',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#24283b'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onClick={() => {
+              if (file.type === 'directory') handleNavigate(file.name);
+              else onSelect(cwd + '/' + file.name);
+            }}
+          >
+            <span style={{ width: 20, flexShrink: 0, marginRight: 6, color: file.type === 'directory' ? '#7aa2f7' : '#565f89' }}>
+              {fileIcon(file)}
+            </span>
+            <span style={{
+              flex: 1,
+              color: file.type === 'directory' ? '#7aa2f7' : '#a9b1d6',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+            }}>
+              {file.name}
+            </span>
+            {file.type === 'file' && (
+              <span style={{
+                fontSize: 10,
+                color: '#565f89',
+                background: '#24283b',
+                padding: '1px 5px',
+                borderRadius: 3,
+                marginLeft: 6,
+                flexShrink: 0,
+              }}>
+                {file.name.slice(file.name.lastIndexOf('.')).toLowerCase()}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps) {
@@ -148,19 +233,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   // Render document content
   const renderDoc = (scrollRefSetter?: (el: HTMLDivElement | null) => void) => {
     if (!docPath || !docType) {
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: '#414868',
-          fontStyle: 'italic',
-          fontSize: '13px',
-        }}>
-          Click Open to browse documents
-        </div>
-      );
+      return <InlineDocBrowser sessionId={sessionId} onSelect={openDoc} />;
     }
 
     if (!docContent && docType !== 'pdf') {

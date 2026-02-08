@@ -237,8 +237,22 @@ export function setupWebSocket(
           return;
         }
 
+        // Backpressure: pause PTY when WebSocket send buffer is full
+        const HIGH_WATER_MARK = 1024 * 1024; // 1MB
+        let ptyPaused = false;
         ptySession.onData((data) => {
           sendBinary(ws, BIN_TYPE_OUTPUT, data);
+          if (!ptyPaused && ws.bufferedAmount > HIGH_WATER_MARK) {
+            ptyPaused = true;
+            ptySession!.pause();
+          }
+        });
+        // Resume PTY when WebSocket buffer drains
+        ws.on('drain', () => {
+          if (ptyPaused && ws.bufferedAmount < HIGH_WATER_MARK / 2) {
+            ptyPaused = false;
+            ptySession?.resume();
+          }
         });
 
         ptySession.onExit((code, signal) => {

@@ -7,8 +7,15 @@ export type { FileEntry };
 export const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 export const MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
 
+export interface ListFilesResult {
+  files: FileEntry[];
+  truncated: boolean;
+}
+
+const MAX_DIR_ENTRIES = 1000;
+
 /** List files in a directory, directories first, then alphabetical */
-export async function listFiles(dirPath: string): Promise<FileEntry[]> {
+export async function listFiles(dirPath: string): Promise<ListFilesResult> {
   const entries = await readdir(dirPath, { withFileTypes: true });
 
   // Parallel stat for all entries (much faster on large directories)
@@ -37,8 +44,9 @@ export async function listFiles(dirPath: string): Promise<FileEntry[]> {
     return a.name.localeCompare(b.name);
   });
 
-  // Cap at 1000 entries to prevent excessive memory/bandwidth usage on huge directories
-  return results.slice(0, 1000);
+  // Cap entries to prevent excessive memory/bandwidth usage on huge directories
+  const truncated = results.length > MAX_DIR_ENTRIES;
+  return { files: truncated ? results.slice(0, MAX_DIR_ENTRIES) : results, truncated };
 }
 
 /**

@@ -104,6 +104,8 @@ bash start.sh
 | DEFAULT_WORKING_DIR | 默认工作目录 | $HOME |
 | HTTPS_ENABLED | 是否启用 HTTPS | true (需要 server/certs/) |
 | TRUST_PROXY | 反向代理信任层数 | (空，不信任) |
+| RATE_LIMIT_READ | 只读 API 限速 (次/分钟) | 180 |
+| RATE_LIMIT_WRITE | 写入 API 限速 (次/分钟) | 60 |
 
 ## 布局系统
 

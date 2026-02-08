@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { fetchDraft, saveDraft } from '../api/drafts';
+import { fetchFiles, type FileEntry } from '../api/files';
 import { useStore } from '../store';
 
 const SLASH_COMMANDS = [
@@ -81,11 +82,34 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [slashFilter, setSlashFilter] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
 
+  // File selector autocomplete state
+  const [fileOpen, setFileOpen] = useState(false);
+  const [fileFilter, setFileFilter] = useState('');
+  const [fileDir, setFileDir] = useState('');
+  const [fileIndex, setFileIndex] = useState(0);
+  const [fileList, setFileList] = useState<FileEntry[]>([]);
+  const [fileLoading, setFileLoading] = useState(false);
+  const baseCwdRef = useRef('');
+  const fileDropdownRef = useRef<HTMLDivElement>(null);
+
   const filteredCommands = useMemo(() => {
     if (!slashFilter) return SLASH_COMMANDS;
     const q = slashFilter.toLowerCase();
     return SLASH_COMMANDS.filter((c) => c.cmd.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
   }, [slashFilter]);
+
+  const filteredFiles = useMemo(() => {
+    let list = fileList;
+    if (fileFilter) {
+      const q = fileFilter.toLowerCase();
+      list = list.filter((f) => f.name.toLowerCase().includes(q));
+    }
+    return [...list].sort((a, b) => {
+      if (a.type === 'directory' && b.type !== 'directory') return -1;
+      if (a.type !== 'directory' && b.type === 'directory') return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [fileList, fileFilter]);
 
   // Load draft on mount
   useEffect(() => {
@@ -116,6 +140,50 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
+  // Fetch file list when @ selector opens or directory changes
+  useEffect(() => {
+    if (!fileOpen) return;
+    let cancelled = false;
+    setFileLoading(true);
+
+    (async () => {
+      try {
+        if (!fileDir) {
+          // Fresh @ open — fetch CWD
+          const res = await fetchFiles(token, sessionId);
+          if (cancelled) return;
+          baseCwdRef.current = res.cwd;
+          setFileList(res.files);
+        } else {
+          // Subdirectory navigation
+          if (!baseCwdRef.current) {
+            const cwdRes = await fetchFiles(token, sessionId);
+            if (cancelled) return;
+            baseCwdRef.current = cwdRes.cwd;
+          }
+          const targetPath = `${baseCwdRef.current}/${fileDir.replace(/\/$/, '')}`;
+          const res = await fetchFiles(token, sessionId, targetPath);
+          if (cancelled) return;
+          setFileList(res.files);
+        }
+        setFileLoading(false);
+      } catch {
+        if (cancelled) return;
+        setFileList([]);
+        setFileLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [fileOpen, fileDir, token, sessionId]);
+
+  // Scroll active file item into view
+  useEffect(() => {
+    if (!fileOpen || !fileDropdownRef.current) return;
+    const active = fileDropdownRef.current.querySelector('.file-item--active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [fileIndex, fileOpen]);
 
   const handleSend = useCallback(() => {
     const text = content.trim();
@@ -171,6 +239,51 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setSlashIndex(0);
   }, [content]);
 
+  // Insert file at @ mention, or navigate into directory
+  const insertFileAtMention = useCallback((file: FileEntry) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const before = content.slice(0, pos);
+    const after = content.slice(pos);
+
+    const atMatch = before.match(/@([a-zA-Z0-9_.\-/]*)$/);
+    if (!atMatch) return;
+
+    const atStart = before.length - atMatch[0].length;
+
+    if (file.type === 'directory') {
+      // Append directory name and navigate into it
+      const newToken = '@' + fileDir + file.name + '/';
+      const newContent = content.slice(0, atStart) + newToken + after;
+      setContent(newContent);
+      const newPos = atStart + newToken.length;
+      setFileDir(fileDir + file.name + '/');
+      setFileFilter('');
+      setFileIndex(0);
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = newPos;
+        ta.focus();
+      });
+    } else {
+      // Insert filename and close selector
+      const inserted = file.name + ' ';
+      const newContent = content.slice(0, atStart) + inserted + after;
+      setContent(newContent);
+      const newPos = atStart + inserted.length;
+      setFileOpen(false);
+      setFileFilter('');
+      setFileDir('');
+      setFileIndex(0);
+      setFileList([]);
+      baseCwdRef.current = '';
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = newPos;
+        ta.focus();
+      });
+    }
+  }, [content, fileDir]);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
@@ -186,8 +299,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       setSlashOpen(true);
       setSlashFilter(match[1]);
       setSlashIndex(0);
+      setFileOpen(false);
     } else {
       setSlashOpen(false);
+      // Check for @ file mention
+      const atMatch = before.match(/@([a-zA-Z0-9_.\-/]*)$/);
+      if (atMatch) {
+        const fullPath = atMatch[1];
+        const lastSlash = fullPath.lastIndexOf('/');
+        const dirPart = lastSlash >= 0 ? fullPath.slice(0, lastSlash + 1) : '';
+        const filterPart = lastSlash >= 0 ? fullPath.slice(lastSlash + 1) : fullPath;
+        setFileFilter(filterPart);
+        setFileIndex(0);
+        setFileDir(dirPart);
+        setFileOpen(true);
+      } else {
+        setFileOpen(false);
+      }
     }
   }, []);
 
@@ -217,6 +345,30 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
       }
 
+      // File selector navigation
+      if (fileOpen && filteredFiles.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setFileIndex((i) => (i + 1) % filteredFiles.length);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setFileIndex((i) => (i - 1 + filteredFiles.length) % filteredFiles.length);
+          return;
+        }
+        if (e.key === 'Tab' || e.key === 'Enter') {
+          e.preventDefault();
+          insertFileAtMention(filteredFiles[fileIndex]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setFileOpen(false);
+          return;
+        }
+      }
+
       // Tab key: insert 2 spaces
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -239,7 +391,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         handleSend();
       }
     },
-    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content],
+    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content, fileOpen, filteredFiles, fileIndex, insertFileAtMention],
   );
 
   return (
@@ -270,6 +422,30 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </div>
       )}
 
+      {/* File selector dropdown */}
+      {fileOpen && (fileLoading || filteredFiles.length > 0) && (
+        <div className="file-dropdown" ref={fileDropdownRef}>
+          {fileLoading ? (
+            <div className="file-item file-loading">Loading...</div>
+          ) : (
+            filteredFiles.map((f, i) => (
+              <div
+                key={f.name}
+                className={`file-item${i === fileIndex ? ' file-item--active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertFileAtMention(f);
+                }}
+                onMouseEnter={() => setFileIndex(i)}
+              >
+                <span className="file-icon">{f.type === 'directory' ? '\u{1F4C1}' : '\u{1F4C4}'}</span>
+                <span className="file-name">{f.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Full-width textarea */}
       <textarea
         ref={textareaRef}
@@ -277,7 +453,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         value={content}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="Type / for commands, Ctrl+Enter to send"
+        placeholder="Type / for commands, @ for files, Ctrl+Enter to send"
         spellCheck={false}
         style={{ flex: 1, fontSize: `${fontSize}px` }}
       />

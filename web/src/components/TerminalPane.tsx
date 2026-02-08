@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback, useEffect } from 'react';
+import { memo, useRef, useState, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
@@ -14,8 +14,18 @@ interface TerminalPaneProps {
 }
 
 const DOC_MIN_HEIGHT = 100;
+const NARROW_THRESHOLD = 600;
+
+function useWindowWidth() {
+  return useSyncExternalStore(
+    (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb); },
+    () => window.innerWidth,
+  );
+}
 
 export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
+  const windowWidth = useWindowWidth();
+  const isNarrow = windowWidth < NARROW_THRESHOLD;
   const killServerSession = useStore((s) => s.killServerSession);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);
@@ -160,8 +170,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
           </button>
           <button
             className="pane-btn"
-            onClick={() => splitTerminal(terminal.id, 'horizontal')}
-            title="Split horizontal (left/right)"
+            onClick={() => splitTerminal(terminal.id, isNarrow ? 'vertical' : 'horizontal')}
+            title={isNarrow ? 'Split vertical (screen too narrow for horizontal)' : 'Split horizontal (left/right)'}
             aria-label="Split horizontal"
           >
             |
@@ -190,6 +200,22 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
       {/* Terminal + FileBrowser overlay */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: '80px' }}>
         <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
+        {!terminal.connected && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(26, 27, 38, 0.85)',
+            zIndex: 2,
+            pointerEvents: 'none',
+          }}>
+            <span style={{ color: '#565f89', fontSize: '13px', fontStyle: 'italic' }}>
+              Connecting...
+            </span>
+          </div>
+        )}
         {fileBrowserOpen && (
           <FileBrowser
             sessionId={terminal.id}

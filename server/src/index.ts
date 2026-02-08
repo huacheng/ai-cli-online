@@ -31,6 +31,8 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || ''; // empty = no CORS headers (s
 const TRUST_PROXY = process.env.TRUST_PROXY || ''; // set to '1' when behind a reverse proxy
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
 const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
+const RATE_LIMIT_READ = parseInt(process.env.RATE_LIMIT_READ || '180', 10);
+const RATE_LIMIT_WRITE = parseInt(process.env.RATE_LIMIT_WRITE || '60', 10);
 
 const CERT_PATH = join(__dirname, '../certs/server.crt');
 const KEY_PATH = join(__dirname, '../certs/server.key');
@@ -65,16 +67,17 @@ async function main() {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "https:", "data:"],
         connectSrc: ["'self'", "wss:", "ws:"],
       },
     },
     frameguard: { action: 'deny' },
   }));
 
-  // Rate limiting on API endpoints
+  // Rate limiting — higher limit for read-only GET, lower for mutations
   app.use('/api/', rateLimit({
     windowMs: 60 * 1000,
-    max: 60,
+    max: (req) => req.method === 'GET' ? RATE_LIMIT_READ : RATE_LIMIT_WRITE,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests' },
@@ -196,8 +199,8 @@ async function main() {
         res.status(400).json({ error: 'Invalid path' });
         return;
       }
-      const files = await listFiles(targetDir);
-      res.json({ cwd: targetDir, files });
+      const { files, truncated } = await listFiles(targetDir);
+      res.json({ cwd: targetDir, files, truncated });
     } catch (err) {
       console.error(`[api:files] ${sessionName}:`, err);
       res.status(404).json({ error: 'Session not found or directory not accessible' });
@@ -459,6 +462,12 @@ async function main() {
     console.log('');
   });
 
+  // Run startup cleanup immediately (clear stale drafts from previous runs)
+  try {
+    const purged = cleanupOldDrafts(7);
+    if (purged > 0) console.log(`[startup] Cleaned up ${purged} stale drafts`);
+  } catch (e) { console.error('[startup:drafts]', e); }
+
   // Periodic cleanup of stale tmux sessions
   let cleanupTimer: ReturnType<typeof setInterval> | null = null;
   if (SESSION_TTL_HOURS > 0) {
@@ -476,15 +485,18 @@ async function main() {
     // Clear all intervals to allow event loop to drain
     clearWsIntervals();
     if (cleanupTimer) clearInterval(cleanupTimer);
-    // Close all WebSocket connections
+    // Close all WebSocket connections (triggers ws 'close' handlers which kill PTYs)
     wss.clients.forEach((client) => {
       client.close(1001, 'Server shutting down');
     });
-    server.close(() => {
-      try { closeDb(); } catch { /* ignore */ }
-      console.log('[shutdown] Server closed');
-      process.exit(0);
-    });
+    // Allow 500ms for WebSocket close handlers to fire and clean up PTYs
+    setTimeout(() => {
+      server.close(() => {
+        try { closeDb(); } catch { /* ignore */ }
+        console.log('[shutdown] Server closed');
+        process.exit(0);
+      });
+    }, 500);
     // Force exit after 5s if graceful close hangs
     setTimeout(() => {
       console.log('[shutdown] Forced exit');

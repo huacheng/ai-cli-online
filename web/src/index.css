@@ -63,6 +63,8 @@ body.resizing-panes * {
   transition: width 0.2s ease;
   overflow: hidden;
   flex-shrink: 0;
+  z-index: 10;
+  position: relative;
 }
 
 body.resizing-panes-v {
@@ -444,6 +446,51 @@ body.resizing-panes-h * {
 .slash-desc {
   color: #565f89;
   font-size: 11px;
+}
+
+/* ── File selector autocomplete ── */
+.file-dropdown {
+  flex-shrink: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #1e2030;
+  border-bottom: 1px solid #292e42;
+  z-index: 10;
+  font-size: 12px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.file-item:hover,
+.file-item--active {
+  background: #292e42;
+}
+
+.file-loading {
+  color: #565f89;
+  cursor: default;
+}
+
+.file-icon {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.file-name {
+  color: #c0caf5;
+  font-family: 'Maple Mono CN', 'JetBrains Mono', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Tab Bar ── */
