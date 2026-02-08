@@ -150,13 +150,18 @@ npm run build
 bash start.sh
 ```
 
-### systemd Service
+### systemd Service + nginx Reverse Proxy
 
 ```bash
-sudo bash install-service.sh          # Interactive install
+sudo bash install-service.sh          # Interactive install (systemd + optional nginx)
 sudo systemctl start ai-cli-online    # Start service
 sudo journalctl -u ai-cli-online -f   # View logs
 ```
+
+The install script will:
+1. Create a systemd service for auto-start and process management
+2. Detect nginx and optionally configure reverse proxy (WebSocket support, SSL, `client_max_body_size`)
+3. Auto-set `HTTPS_ENABLED=false` and `TRUST_PROXY=1` in `server/.env` when nginx is enabled
 
 ## License
 

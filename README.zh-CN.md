@@ -150,13 +150,18 @@ npm run build
 bash start.sh
 ```
 
-### systemd 服务
+### systemd 服务 + nginx 反向代理
 
 ```bash
-sudo bash install-service.sh             # 交互确认安装
+sudo bash install-service.sh             # 交互安装 (systemd + 可选 nginx 反代)
 sudo systemctl start ai-cli-online       # 启动服务
 sudo journalctl -u ai-cli-online -f      # 查看日志
 ```
+
+安装脚本会：
+1. 创建 systemd 服务，支持开机自启和进程管理
+2. 检测 nginx 并可选配置反向代理（WebSocket 支持、SSL、`client_max_body_size`）
+3. nginx 启用时自动设置 `HTTPS_ENABLED=false` 和 `TRUST_PROXY=1`
 
 ## License
 
