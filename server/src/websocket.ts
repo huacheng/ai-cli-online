@@ -214,12 +214,11 @@ export function setupWebSocket(
         if (!resumed) {
           await createSession(sessionName, cols, rows, defaultCwd);
         } else {
-          await resizeSession(sessionName, cols, rows);
-        }
-
-        // Send scrollback for resumed sessions (binary for performance)
-        if (resumed) {
-          const scrollback = await captureScrollback(sessionName);
+          // resizeSession and captureScrollback are independent — run in parallel
+          const [, scrollback] = await Promise.all([
+            resizeSession(sessionName, cols, rows),
+            captureScrollback(sessionName),
+          ]);
           if (scrollback) {
             sendBinary(ws, BIN_TYPE_SCROLLBACK, scrollback);
           }

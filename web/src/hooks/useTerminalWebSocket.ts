@@ -171,8 +171,10 @@ export function useTerminalWebSocket(
         return; // Don't reconnect — would just hit the limit again
       }
 
-      const delay = reconnectDelayRef.current;
-      reconnectDelayRef.current = Math.min(delay * 2, RECONNECT_MAX);
+      const baseDelay = reconnectDelayRef.current;
+      reconnectDelayRef.current = Math.min(baseDelay * 2, RECONNECT_MAX);
+      // Add jitter (50-150% of base delay) to prevent thundering herd on mass reconnect
+      const delay = Math.round(baseDelay * (0.5 + Math.random()));
       console.log(`[WS:${sessionId}] Reconnecting in ${delay}ms...`);
       reconnectTimerRef.current = window.setTimeout(() => {
         connect();
