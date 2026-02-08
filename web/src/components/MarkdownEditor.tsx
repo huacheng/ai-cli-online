@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { fetchDraft, saveDraft } from '../api/drafts';
 
 const SLASH_COMMANDS = [
@@ -57,13 +57,18 @@ const SLASH_COMMANDS = [
   { cmd: '/oh-my-claudecode:trace', desc: 'Agent flow trace timeline' },
 ];
 
+export interface MarkdownEditorHandle {
+  send: () => void;
+}
+
 interface MarkdownEditorProps {
   onSend: (text: string) => void;
+  onContentChange?: (hasContent: boolean) => void;
   sessionId: string;
   token: string;
 }
 
-export function MarkdownEditor({ onSend, sessionId, token }: MarkdownEditorProps) {
+export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ onSend, onContentChange, sessionId, token }, ref) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -117,6 +122,13 @@ export function MarkdownEditor({ onSend, sessionId, token }: MarkdownEditorProps
     setContent('');
     saveDraft(token, sessionId, '').catch(() => {});
   }, [content, onSend, token, sessionId]);
+
+  useImperativeHandle(ref, () => ({ send: handleSend }), [handleSend]);
+
+  // Notify parent of content emptiness changes
+  useEffect(() => {
+    onContentChange?.(content.trim().length > 0);
+  }, [content, onContentChange]);
 
   // Insert slash command at cursor, replacing the /prefix
   const insertSlashCommand = useCallback((cmd: string) => {
@@ -267,20 +279,6 @@ export function MarkdownEditor({ onSend, sessionId, token }: MarkdownEditorProps
         spellCheck={false}
         style={{ flex: 1 }}
       />
-
-      {/* Bottom action bar */}
-      <div className="md-editor-actions">
-        <button
-          className="pane-btn"
-          onClick={handleSend}
-          disabled={!content.trim()}
-          title="Send to terminal (Ctrl+Enter)"
-          style={!content.trim() ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
-        >
-          Send
-        </button>
-        <span style={{ fontSize: '10px', color: '#414868' }}>Ctrl+Enter</span>
-      </div>
     </div>
   );
-}
+});

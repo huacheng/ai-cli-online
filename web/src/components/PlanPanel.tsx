@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
 import { fetchFileContent } from '../api/docs';
@@ -40,6 +40,10 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   const [expanded, setExpanded] = useState(false);
   const [leftWidthPercent, setLeftWidthPercent] = useState(50);
   const [copied, setCopied] = useState(false);
+
+  // Editor ref + content tracking
+  const editorRef = useRef<MarkdownEditorHandle>(null);
+  const [editorHasContent, setEditorHasContent] = useState(false);
 
   // Scroll position memory: filePath → scrollTop
   const scrollPositionsRef = useRef(new Map<string, number>());
@@ -251,20 +255,25 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
       backgroundColor: '#1a1b26',
       overflow: 'hidden',
     }}>
-      {/* Toolbar */}
+      {/* Toolbar — mirrors left/right split below */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 8px',
         height: '28px',
         flexShrink: 0,
         backgroundColor: '#16161e',
         borderBottom: '1px solid #292e42',
-        gap: '6px',
       }}>
-        {/* Left: Open + file info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+        {/* Left section: Open + file info (matches doc preview width) */}
+        <div style={{
+          width: `${leftWidthPercent}%`,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '0 8px',
+          minWidth: 0,
+        }}>
           <button
             className="pane-btn"
             onClick={() => setPickerOpen((v) => !v)}
@@ -282,7 +291,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: '300px',
+                  minWidth: 0,
                   cursor: 'pointer',
                 }}
                 onClick={handleCopyPath}
@@ -305,14 +314,38 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
           )}
         </div>
 
-        {/* Right: close */}
-        <button
-          className="pane-btn pane-btn--danger"
-          onClick={onClose}
-          title="Close Doc panel"
-        >
-          &times;
-        </button>
+        {/* 4px gap matching the divider width */}
+        <div style={{ width: '4px', flexShrink: 0 }} />
+
+        {/* Right section: Send + close (matches editor width) */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 8px',
+          minWidth: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              className="pane-btn"
+              onClick={() => editorRef.current?.send()}
+              disabled={!editorHasContent}
+              title="Send to terminal (Ctrl+Enter)"
+              style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
+            >
+              Send
+            </button>
+            <span style={{ fontSize: '10px', color: '#414868' }}>Ctrl+Enter</span>
+          </div>
+          <button
+            className="pane-btn pane-btn--danger"
+            onClick={onClose}
+            title="Close Doc panel"
+          >
+            &times;
+          </button>
+        </div>
       </div>
 
       {/* Left/Right split body */}
@@ -328,7 +361,9 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         {/* Right: Editor */}
         <div className="plan-editor-wrap">
           <MarkdownEditor
+            ref={editorRef}
             onSend={onSend}
+            onContentChange={setEditorHasContent}
             sessionId={sessionId}
             token={token}
           />
