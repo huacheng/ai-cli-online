@@ -1,5 +1,38 @@
 # AI-CLI-Online 变更日志
 
+## v2.1.3 (2026-02-08)
+
+### 安全
+
+- CSP 添加 imgSrc 指令，允许 HTTPS 和 data: 协议图片
+- DOMPurify 配置白名单 img 标签及 src/alt/title/width/height 属性
+- 登录表单添加 `autoComplete="current-password"` 消除浏览器警告
+
+### 性能
+
+- WebSocket 背压控制 — 基于 `bufferedAmount` 的 PTY pause/resume 流控 (1MB 高水位)
+- REST API 分层限速 — 读端点 180/min、写端点 60/min，参数可通过 .env 配置
+- 优雅停机 — 500ms 延迟确保 PTY 清理完成
+- 启动时清理过期草稿，避免累积
+
+### 体验
+
+- 文档浏览器空状态改为显示当前目录文件列表，点击即打开
+- DocumentPicker 弹窗限定在渲染器区域，不再遮挡编辑器
+- Markdown 编辑器支持 `@` 文件选择器自动补全
+- 小屏 (<600px) 自动将水平分屏降级为垂直分屏
+- 终端未连接时显示 "Connecting..." 覆盖层
+- 侧边栏 z-index 修复，不再被终端 WebGL 层遮挡
+
+### 后端
+
+- `listFiles` 返回 `{ files, truncated }` 结构，目录条目上限 1000
+- 文件目录上限截断后通过 `truncated` 字段告知前端
+
+### 文档
+
+- README 添加截图 + 精简描述
+
 ## v2.1.2 (2026-02-08)
 
 ### 性能优化
