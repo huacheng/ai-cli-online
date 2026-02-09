@@ -55,7 +55,7 @@ ai-cli-online/
 │           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + CSS 层隔离)
 │           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割/关闭按钮)
 │           ├── PlanPanel.tsx          # 文档浏览器 (Markdown/HTML/PDF 渲染 + 编辑器)
-│           ├── DocumentPicker.tsx     # 文档选择器 (按扩展名过滤 .md/.html/.pdf)
+│           ├── DocumentPicker.tsx     # 文档选择器 (按扩展名过滤 .md/.html/.pdf, 显示文件大小)
 │           ├── MarkdownRenderer.tsx   # Markdown 渲染器
 │           ├── MarkdownEditor.tsx     # Markdown 编辑器 (多行编辑 + 草稿持久化)
 │           ├── PdfRenderer.tsx        # PDF 渲染器
@@ -246,11 +246,13 @@ latency: number | null;                           // 全局网络延迟 (ms)
 
 通过 `tmux capture-pane` 实现，不依赖 `stripAltScreen`，不影响 vim/less/htop 等使用 alternate screen 的程序。
 
-- 点击终端右上角 `↑` 按钮 → 发送 `capture-scrollback` 请求
-- 服务端执行 `tmux capture-pane -p -e -S -10000`，`-e` 保留 ANSI 颜色转义码
+- 点击终端右上角 `↑` 按钮 → 发送 `capture-scrollback` 请求（按钮 `tabIndex={-1}` + `blur()` 防止空格键误触发）
+- 服务端执行 `tmux capture-pane -t '=${name}:' -p -e -S -10000`，`-e` 保留 ANSI 颜色转义码
+  - **注意**: `-t` 必须使用 `=${name}:` 格式（`=` 精确匹配 + `:` 定位到活动 pane），纯 `=${name}` 对 pane 级命令无效
 - 服务端将 `\n` 归一化为 `\r\n` 后通过二进制帧发送
-- 前端用只读 xterm.js 实例 (`disableStdin: true`, `scrollback: 50000`) 渲染
-- ESC 键或点击 `✕` 关闭覆盖层
+- 前端用只读 xterm.js 实例 (`disableStdin: true`, `scrollback: 50000`) + WebGL 渲染器渲染
+- 覆盖层使用绝对定位布局（`position: absolute`），确保容器尺寸可用后执行 `fitAddon.fit()`，带间隔重试机制
+- ESC 键通过 `terminal.attachCustomKeyEventHandler` 拦截（因为 xterm.js 即使 `disableStdin: true` 仍会捕获键盘事件），或点击 `✕` 关闭覆盖层
 
 ## tmux 配置
 
@@ -261,6 +263,15 @@ latency: number | null;                           // 全局网络延迟 (ms)
 | history-limit | 50000 | 大容量滚动历史 |
 | status | off | 关闭状态栏，避免 scrollback 噪音 |
 | mouse | off | 鼠标滚轮由 xterm.js 处理 |
+
+### tmux `-t` 目标格式
+
+| 命令类型 | 格式 | 示例 | 说明 |
+|----------|------|------|------|
+| session 级 | `=${name}` | `has-session -t '=${name}'` | `=` 前缀精确匹配，防止 `t1` 匹配 `t10` |
+| pane 级 | `=${name}:` | `capture-pane -t '=${name}:'` | 尾部 `:` 定位到 session 的活动 pane |
+
+**重要**: `capture-pane`、`list-panes` 等 pane 级命令需要使用 `=${name}:` 格式。纯 `=${name}` 对 pane 级命令会返回 "can't find pane" 错误。`=` 精确匹配前缀不可省略，否则会导致 session 名称模糊匹配串线（如 `t1` 误匹配 `t14`）。
 
 ## 前置要求
 
@@ -282,7 +293,7 @@ latency: number | null;                           // 全局网络延迟 (ms)
 终端面板左侧可打开文档浏览器，支持查看项目文档。
 
 - 支持格式: Markdown (`.md`)、HTML (`.html/.htm`)、PDF (`.pdf`)
-- DocumentPicker 按扩展名过滤 CWD 下的文档文件
+- DocumentPicker 按扩展名过滤 CWD 下的文档文件，显示文件大小（B/KB/MB）
 - Markdown 渲染器 + 编辑器 (多行编辑，草稿通过 SQLite 服务端持久化)
 - PDF 使用独立渲染器组件
 - 文件变更通过 `mtime` 轮询检测（3 秒间隔），支持 304 未修改优化
