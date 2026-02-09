@@ -12,7 +12,9 @@ export type ClientMessage =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'ping' }
-  | { type: 'capture-scrollback' };
+  | { type: 'capture-scrollback' }
+  | { type: 'stream-file'; path: string }
+  | { type: 'cancel-stream' };
 
 // Server → Client messages
 export type ServerMessage =
@@ -21,4 +23,7 @@ export type ServerMessage =
   | { type: 'scrollback-content'; data: string }
   | { type: 'connected'; resumed: boolean }
   | { type: 'error'; error: string }
-  | { type: 'pong'; timestamp: number };
+  | { type: 'pong'; timestamp: number }
+  | { type: 'file-stream-start'; size: number; mtime: number }
+  | { type: 'file-stream-end' }
+  | { type: 'file-stream-error'; error: string };

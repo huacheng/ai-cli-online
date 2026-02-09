@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import type { Terminal } from '@xterm/xterm';
+import { dispatchFileChunk, dispatchFileControl } from '../fileStreamBus';
 
 // Auto-detect WebSocket URL based on page protocol (works for both dev proxy and production)
 const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
@@ -18,6 +19,7 @@ const BIN_TYPE_OUTPUT = 0x01;
 const BIN_TYPE_INPUT = 0x02;
 const BIN_TYPE_SCROLLBACK = 0x03;
 const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
+const BIN_TYPE_FILE_CHUNK = 0x05;
 
 /** Shared TextDecoder/TextEncoder instances (avoids per-message allocation) */
 const textDecoder = new TextDecoder();
@@ -226,6 +228,10 @@ export function useTerminalWebSocket(
               onScrollbackRef.current?.(textDecoder.decode(payload));
               break;
             }
+            case BIN_TYPE_FILE_CHUNK: {
+              dispatchFileChunk(sessionId, payload);
+              break;
+            }
           }
           return;
         }
@@ -274,6 +280,11 @@ export function useTerminalWebSocket(
             }
             break;
           }
+          case 'file-stream-start':
+          case 'file-stream-end':
+          case 'file-stream-error':
+            dispatchFileControl(sessionId, msg);
+            break;
         }
       } catch {
         // Ignore parse errors
@@ -315,6 +326,18 @@ export function useTerminalWebSocket(
   const requestScrollback = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'capture-scrollback' }));
+    }
+  }, []);
+
+  const requestFileStream = useCallback((path: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'stream-file', path }));
+    }
+  }, []);
+
+  const cancelFileStream = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'cancel-stream' }));
     }
   }, []);
 
@@ -386,5 +409,5 @@ export function useTerminalWebSocket(
     };
   }, [connect, cleanup, sessionId]);
 
-  return { sendInput, sendResize, requestScrollback };
+  return { sendInput, sendResize, requestScrollback, requestFileStream, cancelFileStream };
 }

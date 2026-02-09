@@ -67,7 +67,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
   };
 
   // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing \r for Enter)
-  const sendTimerRef = useRef<number>();
+  const sendTimerRef = useRef<number>(undefined);
   const handleEditorSend = useCallback((text: string) => {
     if (terminalViewRef.current) {
       const merged = text.replace(/\r?\n/g, ' ').trimEnd();
@@ -245,6 +245,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
               onClose={() => setDocOpen(false)}
               sessionId={terminal.id}
               token={token || ''}
+              onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
+              onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
             />
           </div>
         </>

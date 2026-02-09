@@ -19,7 +19,7 @@ function loadPdfjs() {
 }
 
 interface PdfRendererProps {
-  data: string; // base64 encoded PDF
+  data: string | Uint8Array; // base64 string (HTTP) or Uint8Array (WS stream)
   scrollRef?: (el: HTMLDivElement | null) => void;
 }
 
@@ -46,9 +46,14 @@ export function PdfRenderer({ data, scrollRef }: PdfRendererProps) {
         await loadPdfjs();
         if (!pdfjsLib || renderId !== renderIdRef.current) return;
 
-        const binary = atob(data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        let bytes: Uint8Array;
+        if (data instanceof Uint8Array) {
+          bytes = data;
+        } else {
+          const binary = atob(data);
+          bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        }
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
         if (renderId !== renderIdRef.current) return;

@@ -3,7 +3,9 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
-import { fetchFileContent } from '../api/docs';
+import { VirtualTextRenderer } from './VirtualTextRenderer';
+import { useFileStream } from '../hooks/useFileStream';
+import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
 import { useHorizontalResize } from '../hooks/useHorizontalResize';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import { FileListHeader, FileListStatus } from './FileListShared';
@@ -14,9 +16,9 @@ interface PlanPanelProps {
   token: string;
   onClose: () => void;
   onSend: (text: string) => void;
+  onRequestFileStream?: (path: string) => void;
+  onCancelFileStream?: () => void;
 }
-
-const POLL_INTERVAL = 3000;
 
 type DocType = 'md' | 'html' | 'pdf' | 'text' | null;
 
@@ -122,12 +124,13 @@ function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect
   );
 }
 
-export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps) {
+export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStream }: PlanPanelProps) {
   // Document state
   const [docPath, setDocPath] = useState<string | null>(null);
-  const [docContent, setDocContent] = useState('');
   const [docType, setDocType] = useState<DocType>(null);
-  const docMtimeRef = useRef(0);
+
+  // File stream hook
+  const fileStream = useFileStream();
 
   // UI state
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -145,6 +148,12 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
   const scrollPositionsRef = useRef(new Map<string, number>());
   const rendererScrollRef = useRef<HTMLDivElement | null>(null);
   const expandedScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Register file stream event bus handler
+  useEffect(() => {
+    registerFileStreamHandler(sessionId, fileStream.handleChunk, fileStream.handleControl);
+    return () => unregisterFileStreamHandler(sessionId);
+  }, [sessionId, fileStream.handleChunk, fileStream.handleControl]);
 
   // Save scroll position for current doc
   const saveScrollPosition = useCallback(() => {
@@ -165,51 +174,22 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
     });
   }, [expanded]);
 
-  // Open a document
-  const openDoc = useCallback((path: string) => {
+  // Open a document — all files go through WS stream
+  const openDoc = useCallback((path: string, _size?: number) => {
     saveScrollPosition();
     const type = getDocType(path);
     setDocPath(path);
     setDocType(type);
-    setDocContent('');
-    docMtimeRef.current = 0;
     setPickerOpen(false);
 
-    // Fetch immediately
-    fetchFileContent(token, sessionId, path).then((result) => {
-      if (result) {
-        setDocContent(result.content);
-        docMtimeRef.current = result.mtime;
-        requestAnimationFrame(() => restoreScrollPosition(path));
-      }
-    }).catch(() => {});
-  }, [token, sessionId, saveScrollPosition, restoreScrollPosition]);
-
-  // Poll for file changes
-  useEffect(() => {
-    if (!docPath) return;
-    let cancelled = false;
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const result = await fetchFileContent(token, sessionId, docPath, docMtimeRef.current);
-        if (cancelled) return;
-        if (result) {
-          setDocContent(result.content);
-          docMtimeRef.current = result.mtime;
-        }
-      } catch {
-        // ignore polling errors
-      }
-    };
-
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [token, sessionId, docPath]);
+    // Reset and start stream with appropriate mode
+    fileStream.reset();
+    const mode = type === 'text' ? 'lines'
+               : type === 'pdf' ? 'binary'
+               : 'content';  // md, html
+    fileStream.startStream(mode);
+    onRequestFileStream?.(path);
+  }, [saveScrollPosition, fileStream, onRequestFileStream]);
 
   // Copy path to clipboard
   const handleCopyPath = useCallback(() => {
@@ -235,8 +215,12 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
 
   // Sync scroll when toggling expanded
   useEffect(() => {
-    if (docPath) restoreScrollPosition(docPath);
-  }, [expanded, docPath, restoreScrollPosition]);
+    if (docPath && fileStream.state.status === 'complete') restoreScrollPosition(docPath);
+  }, [expanded, docPath, restoreScrollPosition, fileStream.state.status]);
+
+  // Progress bar data
+  const { status, totalSize, receivedBytes } = fileStream.state;
+  const streamPct = totalSize > 0 ? Math.round((receivedBytes / totalSize) * 100) : 0;
 
   // Render document content
   const renderDoc = (scrollRefSetter?: (el: HTMLDivElement | null) => void) => {
@@ -244,7 +228,39 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
       return <InlineDocBrowser sessionId={sessionId} onSelect={openDoc} />;
     }
 
-    if (!docContent && docType !== 'pdf') {
+    const { status: st, lines, content, buffer } = fileStream.state;
+
+    // Error state
+    if (st === 'error') {
+      return (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: '#f7768e',
+          fontSize: '13px',
+          padding: '12px',
+          textAlign: 'center',
+        }}>
+          {fileStream.state.error || 'Stream error'}
+        </div>
+      );
+    }
+
+    // Streaming: text renders progressively, others wait
+    if (st === 'streaming') {
+      if (docType === 'text') {
+        return (
+          <VirtualTextRenderer
+            lines={lines}
+            totalSize={totalSize}
+            receivedBytes={receivedBytes}
+            streaming={true}
+          />
+        );
+      }
+      // md/html/pdf — show loading, progress bar is in toolbar
       return (
         <div style={{
           display: 'flex',
@@ -259,62 +275,53 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
       );
     }
 
-    if (docType === 'md') {
-      return (
-        <div
-          ref={scrollRefSetter}
-          style={{ height: '100%', overflow: 'auto' }}
-        >
-          <MarkdownRenderer content={docContent} />
-        </div>
-      );
-    }
-
-    if (docType === 'html') {
-      return (
-        <div
-          ref={scrollRefSetter}
-          style={{ height: '100%', overflow: 'auto' }}
-        >
-          <iframe
-            srcDoc={docContent}
-            sandbox=""
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              backgroundColor: '#fff',
-            }}
-            title="HTML Preview"
+    // Complete: render by type
+    if (st === 'complete') {
+      if (docType === 'text') {
+        return (
+          <VirtualTextRenderer
+            lines={lines}
+            totalSize={totalSize}
+            receivedBytes={receivedBytes}
+            streaming={false}
           />
-        </div>
-      );
+        );
+      }
+      if (docType === 'md') {
+        return (
+          <div ref={scrollRefSetter} style={{ height: '100%', overflow: 'auto' }}>
+            <MarkdownRenderer content={content} />
+          </div>
+        );
+      }
+      if (docType === 'html') {
+        return (
+          <div ref={scrollRefSetter} style={{ height: '100%', overflow: 'auto' }}>
+            <iframe
+              srcDoc={content}
+              sandbox=""
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                backgroundColor: '#fff',
+              }}
+              title="HTML Preview"
+            />
+          </div>
+        );
+      }
+      if (docType === 'pdf' && buffer) {
+        return <PdfRenderer data={buffer} scrollRef={scrollRefSetter} />;
+      }
     }
 
-    if (docType === 'pdf') {
-      return <PdfRenderer data={docContent} scrollRef={scrollRefSetter} />;
+    // idle — show inline browser
+    if (st === 'idle') {
+      return <InlineDocBrowser sessionId={sessionId} onSelect={openDoc} />;
     }
 
-    // text fallback for all other file types
-    return (
-      <div
-        ref={scrollRefSetter}
-        style={{ height: '100%', overflow: 'auto' }}
-      >
-        <pre style={{
-          margin: 0,
-          padding: '12px',
-          fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace',
-          fontSize: '13px',
-          color: '#a9b1d6',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-          lineHeight: 1.5,
-        }}>
-          {docContent}
-        </pre>
-      </div>
-    );
+    return null;
   };
 
   return (
@@ -334,7 +341,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         backgroundColor: '#16161e',
         borderBottom: '1px solid #292e42',
       }}>
-        {/* Left section: Open + file info (matches doc preview width) */}
+        {/* Left section: Open + file info + progress bar (matches doc preview width) */}
         <div style={{
           width: `${leftWidthPercent}%`,
           flexShrink: 0,
@@ -381,6 +388,24 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
                 &#x26F6;
               </button>
             </>
+          )}
+          {/* Progress bar — shown during streaming */}
+          {status === 'streaming' && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+              <div style={{
+                flex: 1, height: 4, backgroundColor: '#292e42', borderRadius: 2, overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${streamPct}%`,
+                  backgroundColor: '#7aa2f7',
+                  transition: 'width 0.2s',
+                }} />
+              </div>
+              <span style={{ fontSize: 10, color: '#565f89', whiteSpace: 'nowrap' }}>
+                {streamPct}%
+              </span>
+            </div>
           )}
         </div>
 

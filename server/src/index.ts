@@ -165,7 +165,7 @@ async function main() {
   /** Helper: resolve session from request params + auth */
   function resolveSession(req: express.Request, res: express.Response): string | null {
     if (!checkAuth(req, res)) return null;
-    const { sessionId } = req.params;
+    const sessionId = req.params.sessionId as string;
     if (!isValidSessionId(sessionId)) {
       res.status(400).json({ error: 'Invalid sessionId' });
       return null;

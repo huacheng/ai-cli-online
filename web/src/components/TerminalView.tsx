@@ -8,6 +8,8 @@ import { useStore } from '../store';
 
 export interface TerminalViewHandle {
   sendInput: (data: string) => void;
+  requestFileStream: (path: string) => void;
+  cancelFileStream: () => void;
 }
 
 const TERMINAL_THEME = {
@@ -54,13 +56,14 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     setScrollbackVisible(true);
   }, []);
 
-  const { sendInput, sendResize, requestScrollback } = useTerminalWebSocket(
+  const { sendInput, sendResize, requestScrollback, requestFileStream, cancelFileStream } = useTerminalWebSocket(
     terminalRef,
     sessionId,
     handleScrollbackContent,
   );
 
-  useImperativeHandle(ref, () => ({ sendInput }), [sendInput]);
+  useImperativeHandle(ref, () => ({ sendInput, requestFileStream, cancelFileStream }),
+    [sendInput, requestFileStream, cancelFileStream]);
 
   // Use refs for callbacks to decouple effect lifecycle from callback identity.
   // This prevents terminal destruction/recreation if callbacks change reference.

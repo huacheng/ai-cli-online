@@ -9,7 +9,11 @@ import {
   createSession,
   captureScrollback,
   resizeSession,
+  getCwd,
 } from './tmux.js';
+import { validatePath } from './files.js';
+import { createReadStream, type ReadStream } from 'fs';
+import { stat as fsStat } from 'fs/promises';
 import { PtySession } from './pty.js';
 import type { ClientMessage, ServerMessage } from './types.js';
 
@@ -27,6 +31,12 @@ const BIN_TYPE_OUTPUT = 0x01;
 const BIN_TYPE_INPUT = 0x02;
 const BIN_TYPE_SCROLLBACK = 0x03;
 const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
+const BIN_TYPE_FILE_CHUNK = 0x05;
+
+const MAX_STREAM_SIZE = 50 * 1024 * 1024; // 50MB
+const STREAM_CHUNK_SIZE = 64 * 1024;      // 64KB highWaterMark
+const STREAM_HIGH_WATER = 1024 * 1024;    // 1MB backpressure threshold
+const STREAM_LOW_WATER = 512 * 1024;      // 512KB resume threshold
 
 /** Track active connections per session name to prevent duplicates */
 const activeConnections = new Map<string, WebSocket>();
@@ -170,10 +180,12 @@ export function setupWebSocket(
     // First-message auth: wait for { type: 'auth', token } before setting up session.
     // A 5-second timeout ensures unauthenticated connections don't linger.
     let authenticated = !authToken; // skip auth if no token configured
+    let authenticatedToken = '';    // saved for buildSessionName in stream-file
     let sessionName = '';
     let ptySession: PtySession | null = null;
     let sessionInitializing = false; // guard against concurrent initSession calls
     let lastScrollbackTime = 0; // throttle capture-scrollback requests
+    let activeFileStream: ReadStream | null = null;
     const SCROLLBACK_THROTTLE_MS = 2000;
     const AUTH_TIMEOUT = 5000;
 
@@ -304,6 +316,7 @@ export function setupWebSocket(
             return;
           }
           authenticated = true;
+          authenticatedToken = msg.token;
           await initSession(msg.token);
           return;
         }
@@ -341,6 +354,82 @@ export function setupWebSocket(
             sendBinary(ws, BIN_TYPE_SCROLLBACK_CONTENT, normalized);
             break;
           }
+          case 'stream-file': {
+            // Cancel any existing stream
+            if (activeFileStream) {
+              activeFileStream.destroy();
+              activeFileStream = null;
+            }
+
+            try {
+              const cwd = await getCwd(sessionName);
+              const resolved = await validatePath(msg.path, cwd);
+              if (!resolved) {
+                send(ws, { type: 'file-stream-error', error: 'Invalid path' });
+                break;
+              }
+
+              const fileStat = await fsStat(resolved);
+              if (!fileStat.isFile()) {
+                send(ws, { type: 'file-stream-error', error: 'Not a file' });
+                break;
+              }
+              if (fileStat.size > MAX_STREAM_SIZE) {
+                send(ws, { type: 'file-stream-error', error: `File too large (${(fileStat.size / 1024 / 1024).toFixed(1)}MB > 50MB limit)` });
+                break;
+              }
+
+              send(ws, { type: 'file-stream-start', size: fileStat.size, mtime: fileStat.mtimeMs });
+
+              const stream = createReadStream(resolved, { highWaterMark: STREAM_CHUNK_SIZE });
+              activeFileStream = stream;
+
+              stream.on('data', (chunk: Buffer | string) => {
+                const data = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+                if (ws.readyState !== WebSocket.OPEN) {
+                  stream.destroy();
+                  return;
+                }
+                const buf = Buffer.allocUnsafe(1 + data.length);
+                buf[0] = BIN_TYPE_FILE_CHUNK;
+                buf.set(data, 1);
+                ws.send(buf);
+
+                // Backpressure: pause stream when WS send buffer is full
+                if (ws.bufferedAmount > STREAM_HIGH_WATER) {
+                  stream.pause();
+                  const checkDrain = () => {
+                    if (ws.bufferedAmount < STREAM_LOW_WATER) {
+                      stream.resume();
+                    } else {
+                      setTimeout(checkDrain, 10);
+                    }
+                  };
+                  setTimeout(checkDrain, 10);
+                }
+              });
+
+              stream.on('end', () => {
+                activeFileStream = null;
+                send(ws, { type: 'file-stream-end' });
+              });
+
+              stream.on('error', (err) => {
+                activeFileStream = null;
+                send(ws, { type: 'file-stream-error', error: err.message });
+              });
+            } catch (err) {
+              send(ws, { type: 'file-stream-error', error: err instanceof Error ? err.message : 'Stream failed' });
+            }
+            break;
+          }
+          case 'cancel-stream': {
+            if (activeFileStream) {
+              activeFileStream.destroy();
+              activeFileStream = null;
+            }
+            break;
+          }
         }
       } catch (err) {
         console.error(`[WS] Message handling error${sessionName ? ` for ${sessionName}` : ''}:`, err);
@@ -349,6 +438,10 @@ export function setupWebSocket(
 
     ws.on('close', () => {
       if (authTimer) clearTimeout(authTimer);
+      if (activeFileStream) {
+        activeFileStream.destroy();
+        activeFileStream = null;
+      }
       if (sessionName) {
         console.log(`[WS] Client disconnected, session: ${sessionName}`);
         if (activeConnections.get(sessionName) === ws) {

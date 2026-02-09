@@ -6,5 +6,5 @@ export function safeTokenCompare(a: string, b: string): boolean {
   const key = 'ai-cli-online-token-compare';
   const hmacA = createHmac('sha256', key).update(a).digest();
   const hmacB = createHmac('sha256', key).update(b).digest();
-  return timingSafeEqual(hmacA, hmacB);
+  return timingSafeEqual(hmacA as Uint8Array, hmacB as Uint8Array);
 }

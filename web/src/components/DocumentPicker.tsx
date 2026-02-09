@@ -18,7 +18,7 @@ function fileIcon(name: string, type: string): string {
 
 interface DocumentPickerProps {
   sessionId: string;
-  onSelect: (filePath: string) => void;
+  onSelect: (filePath: string, size: number) => void;
   onClose: () => void;
 }
 
@@ -26,8 +26,8 @@ export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerP
   const { cwd, files, loading, error, handleNavigate, handleGoUp, handleRefresh } =
     useFileBrowser({ sessionId, onClose });
 
-  const handleSelect = (fileName: string) => {
-    onSelect(cwd + '/' + fileName);
+  const handleSelect = (fileName: string, size: number) => {
+    onSelect(cwd + '/' + fileName, size);
   };
 
   return (
@@ -59,7 +59,7 @@ export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerP
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             onClick={() => {
               if (file.type === 'directory') handleNavigate(file.name);
-              else handleSelect(file.name);
+              else handleSelect(file.name, file.size);
             }}
           >
             <span style={{

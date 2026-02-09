@@ -74,7 +74,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const fontSize = useStore((s) => s.fontSize);
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const loadedRef = useRef(false);
 
   // Slash command autocomplete state
