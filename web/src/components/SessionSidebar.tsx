@@ -19,6 +19,7 @@ function TabItem({ tabId }: { tabId: string }) {
     });
   });
 
+  const killServerSession = useStore((s) => s.killServerSession);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [expanded, setExpanded] = useState(false);
@@ -208,6 +209,8 @@ function TabItem({ tabId }: { tabId: string }) {
                 fontSize: '11px',
                 color: '#565f89',
                 borderBottom: '1px solid rgba(41, 46, 66, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
               }}
               title={`Connected: ${term.connected}`}
             >
@@ -215,6 +218,19 @@ function TabItem({ tabId }: { tabId: string }) {
               <span style={{ marginLeft: '8px', color: term.connected ? '#9ece6a' : '#f7768e' }}>
                 {term.connected ? '●' : '○'}
               </span>
+              <button
+                className="pane-btn pane-btn--danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Close terminal "${term.id}"?`)) {
+                    killServerSession(term.id);
+                  }
+                }}
+                style={{ marginLeft: 'auto', flexShrink: 0 }}
+                title="Close terminal"
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>

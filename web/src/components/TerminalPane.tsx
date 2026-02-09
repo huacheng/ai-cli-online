@@ -32,9 +32,8 @@ function useIsNarrow(): boolean {
   return narrow;
 }
 
-export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
+export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPaneProps) {
   const isNarrow = useIsNarrow();
-  const killServerSession = useStore((s) => s.killServerSession);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);
 
@@ -192,16 +191,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: T
           >
             ─
           </button>
-          {canClose && (
-            <button
-              className="pane-btn pane-btn--danger"
-              onClick={() => killServerSession(terminal.id)}
-              title="Close terminal"
-              aria-label="Close terminal"
-            >
-              ×
-            </button>
-          )}
         </div>
       </div>
 
