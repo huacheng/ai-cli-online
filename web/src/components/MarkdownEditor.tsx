@@ -57,6 +57,7 @@ const SLASH_COMMANDS = [
   { cmd: '/oh-my-claudecode:writer-memory', desc: 'Writer memory system' },
   { cmd: '/oh-my-claudecode:psm', desc: 'Project session manager' },
   { cmd: '/oh-my-claudecode:trace', desc: 'Agent flow trace timeline' },
+  { cmd: '/token-planner', desc: 'Task complexity grading & token routing' },
 ];
 
 export interface MarkdownEditorHandle {
