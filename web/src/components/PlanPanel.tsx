@@ -261,7 +261,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend }: PlanPanelProps)
         >
           <iframe
             srcDoc={docContent}
-            sandbox="allow-same-origin"
+            sandbox=""
             style={{
               width: '100%',
               height: '100%',

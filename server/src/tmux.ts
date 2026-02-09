@@ -2,7 +2,13 @@ import { execFile as execFileCb, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import { createHash } from 'crypto';
 
-const execFile = promisify(execFileCb);
+const _execFile = promisify(execFileCb);
+const EXEC_TIMEOUT = 5000; // 5s safety timeout for all tmux calls
+
+/** execFile wrapper with default timeout to prevent indefinite hangs */
+function execFile(file: string, args: string[], options?: Record<string, unknown>) {
+  return _execFile(file, args, { timeout: EXEC_TIMEOUT, ...options });
+}
 
 export interface TmuxSessionInfo {
   sessionName: string;
@@ -58,12 +64,12 @@ export async function createSession(
     '-y', String(rows),
   ], { cwd });
 
-  // Configure tmux for web terminal usage (parallel for faster session creation)
-  await Promise.all([
-    execFile('tmux', ['set-option', '-t', `=${name}`, 'history-limit', '50000']).catch(() => {}),
-    execFile('tmux', ['set-option', '-t', `=${name}`, 'status', 'off']).catch(() => {}),
-    execFile('tmux', ['set-option', '-t', `=${name}`, 'mouse', 'off']).catch(() => {}),
-  ]);
+  // Configure tmux for web terminal usage (single call with \; separator)
+  await execFile('tmux', [
+    'set-option', '-t', `=${name}`, 'history-limit', '50000', ';',
+    'set-option', '-t', `=${name}`, 'status', 'off', ';',
+    'set-option', '-t', `=${name}`, 'mouse', 'off',
+  ]).catch(() => {});
 
   console.log(`[tmux] Created session: ${name} (${cols}x${rows}) in ${cwd}`);
 }

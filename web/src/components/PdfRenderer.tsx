@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 
-// pdfjs-dist is loaded dynamically to avoid SSR issues and keep bundle lighter
+// pdfjs-dist is loaded on-demand when a user actually opens a PDF
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
-const pdfjsReady = import('pdfjs-dist').then((mod) => {
-  pdfjsLib = mod;
-  mod.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
-    import.meta.url,
-  ).toString();
-  return mod;
-});
+let pdfjsReady: Promise<typeof import('pdfjs-dist')> | null = null;
+
+function loadPdfjs() {
+  if (!pdfjsReady) {
+    pdfjsReady = import('pdfjs-dist').then((mod) => {
+      pdfjsLib = mod;
+      mod.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.mjs',
+        import.meta.url,
+      ).toString();
+      return mod;
+    });
+  }
+  return pdfjsReady;
+}
 
 interface PdfRendererProps {
   data: string; // base64 encoded PDF
@@ -36,7 +43,7 @@ export function PdfRenderer({ data, scrollRef }: PdfRendererProps) {
 
     (async () => {
       try {
-        await pdfjsReady;
+        await loadPdfjs();
         if (!pdfjsLib || renderId !== renderIdRef.current) return;
 
         const binary = atob(data);
