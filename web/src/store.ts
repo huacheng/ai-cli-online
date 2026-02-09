@@ -355,6 +355,46 @@ if (typeof window !== 'undefined') {
 }
 
 // ---------------------------------------------------------------------------
+// Shared terminal removal helper (used by removeTerminal & killServerSession)
+// ---------------------------------------------------------------------------
+
+function removeTerminalFromState(
+  state: AppState,
+  terminalId: string,
+): Partial<AppState> | null {
+  const ownerTab = state.tabs.find((t) => t.terminalIds.includes(terminalId));
+
+  if (!ownerTab) {
+    // Not in any tab — just remove from terminalsMap
+    const { [terminalId]: _, ...rest } = state.terminalsMap;
+    return { terminalsMap: rest };
+  }
+
+  const newTabTerminalIds = ownerTab.terminalIds.filter((tid) => tid !== terminalId);
+  const newTabLayout = ownerTab.layout ? removeLeafFromTree(ownerTab.layout, terminalId) : null;
+  const newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({
+    ...t,
+    terminalIds: newTabTerminalIds,
+    layout: newTabLayout,
+  }));
+
+  const { [terminalId]: _, ...restTerminals } = state.terminalsMap;
+
+  const update: Partial<AppState> = {
+    terminalsMap: restTerminals,
+    tabs: newTabs,
+  };
+
+  // Update derived top-level fields only if this is the active tab
+  if (ownerTab.id === state.activeTabId) {
+    update.terminalIds = newTabTerminalIds;
+    update.layout = newTabLayout;
+  }
+
+  return update;
+}
+
+// ---------------------------------------------------------------------------
 // AppState interface
 // ---------------------------------------------------------------------------
 
@@ -889,42 +929,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   removeTerminal: (id) => {
-    const state = get();
-
-    // Find which tab owns this terminal
-    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
-    if (!ownerTab) {
-      // Not in any tab — just remove from terminalsMap
-      const { [id]: _, ...rest } = state.terminalsMap;
-      set({ terminalsMap: rest });
-      return;
+    const update = removeTerminalFromState(get(), id);
+    if (update) {
+      set(update);
+      persistTabs(toPersistable(get()));
     }
-
-    const newTabTerminalIds = ownerTab.terminalIds.filter((tid) => tid !== id);
-    const newTabLayout = ownerTab.layout ? removeLeafFromTree(ownerTab.layout, id) : null;
-    const newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({
-      ...t,
-      terminalIds: newTabTerminalIds,
-      layout: newTabLayout,
-    }));
-
-    const { [id]: _, ...restTerminals } = state.terminalsMap;
-
-    // Update derived top-level fields only if this is the active tab
-    if (ownerTab.id === state.activeTabId) {
-      set({
-        terminalsMap: restTerminals,
-        terminalIds: newTabTerminalIds,
-        layout: newTabLayout,
-        tabs: newTabs,
-      });
-    } else {
-      set({
-        terminalsMap: restTerminals,
-        tabs: newTabs,
-      });
-    }
-    persistTabs(toPersistable(get()));
   },
 
   // --- Terminal connection state (unchanged, global) --------------------------
@@ -1027,40 +1036,10 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     // Find owning tab and remove the terminal from it
-    const state = get();
-    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(sessionId));
-
-    if (ownerTab) {
-      const newTabTerminalIds = ownerTab.terminalIds.filter((tid) => tid !== sessionId);
-      const newTabLayout = ownerTab.layout
-        ? removeLeafFromTree(ownerTab.layout, sessionId)
-        : null;
-      const newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({
-        ...t,
-        terminalIds: newTabTerminalIds,
-        layout: newTabLayout,
-      }));
-
-      const { [sessionId]: _, ...restTerminals } = state.terminalsMap;
-
-      if (ownerTab.id === state.activeTabId) {
-        set({
-          terminalsMap: restTerminals,
-          terminalIds: newTabTerminalIds,
-          layout: newTabLayout,
-          tabs: newTabs,
-        });
-      } else {
-        set({
-          terminalsMap: restTerminals,
-          tabs: newTabs,
-        });
-      }
+    const update = removeTerminalFromState(get(), sessionId);
+    if (update) {
+      set(update);
       persistTabs(toPersistable(get()));
-    } else {
-      // Not in any tab — remove from terminalsMap only
-      const { [sessionId]: _, ...restTerminals } = state.terminalsMap;
-      set({ terminalsMap: restTerminals });
     }
 
     // Small delay to let tmux finish killing the session before refreshing

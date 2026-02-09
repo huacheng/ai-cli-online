@@ -156,9 +156,9 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
       '#{session_name}:#{session_created}:#{session_attached}',
     ], { encoding: 'utf-8' });
 
+    const staleNames: string[] = [];
     for (const line of stdout.trim().split('\n')) {
       if (!line) continue;
-      // Use lastIndexOf to safely parse (consistent with listSessions)
       const lastColon = line.lastIndexOf(':');
       if (lastColon === -1) continue;
       const attached = parseInt(line.slice(lastColon + 1), 10);
@@ -171,9 +171,10 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
       if (attached > 0) continue;
       if (created < cutoff) {
         console.log(`[tmux] Cleaning up stale session: ${name} (created ${new Date(created * 1000).toISOString()})`);
-        await killSession(name);
+        staleNames.push(name);
       }
     }
+    await Promise.all(staleNames.map((name) => killSession(name)));
   } catch {
     // No tmux server or no sessions
   }
