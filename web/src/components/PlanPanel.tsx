@@ -32,6 +32,12 @@ function getFileName(path: string): string {
   return path.split('/').pop() || path;
 }
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function fileIcon(f: FileEntry): string {
   if (f.type === 'directory') return '\u{1F4C1}';
   const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
@@ -86,17 +92,28 @@ function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect
               {file.name}
             </span>
             {file.type === 'file' && (
-              <span style={{
-                fontSize: 10,
-                color: '#565f89',
-                background: '#24283b',
-                padding: '1px 5px',
-                borderRadius: 3,
-                marginLeft: 6,
-                flexShrink: 0,
-              }}>
-                {file.name.slice(file.name.lastIndexOf('.')).toLowerCase()}
-              </span>
+              <>
+                <span style={{
+                  fontSize: 10,
+                  color: '#565f89',
+                  marginLeft: 6,
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {formatSize(file.size)}
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  color: '#565f89',
+                  background: '#24283b',
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  marginLeft: 6,
+                  flexShrink: 0,
+                }}>
+                  {file.name.slice(file.name.lastIndexOf('.')).toLowerCase()}
+                </span>
+              </>
             )}
           </div>
         ))}

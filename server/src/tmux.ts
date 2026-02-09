@@ -82,7 +82,7 @@ export async function captureScrollback(name: string): Promise<string> {
   try {
     const { stdout } = await execFile('tmux', [
       'capture-pane',
-      '-t', `=${name}`,
+      '-t', `=${name}:`,
       '-p',
       '-e',
       '-S', '-10000',

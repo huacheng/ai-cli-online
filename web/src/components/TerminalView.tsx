@@ -214,7 +214,9 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       />
       {/* Scrollback toggle button */}
       <button
-        onClick={() => {
+        tabIndex={-1}
+        onClick={(e) => {
+          (e.currentTarget as HTMLElement).blur();
           if (scrollbackVisible) {
             setScrollbackVisible(false);
             setScrollbackData('');
@@ -284,12 +286,50 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     terminal.loadAddon(fitAddon);
     terminal.open(viewerRef.current);
 
-    requestAnimationFrame(() => {
-      try { fitAddon.fit(); } catch { /* ignore */ }
-      // Newlines are already normalized server-side to \r\n
-      terminal.write(data, () => {
+    // Load WebGL renderer (same as main terminal) — canvas 2D may not render
+    // in some environments while WebGL works fine
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => webglAddon.dispose());
+      terminal.loadAddon(webglAddon);
+    } catch {
+      // WebGL not available, fall back to default canvas renderer
+    }
+
+    // Handle ESC at xterm level — xterm captures keyboard events even
+    // with disableStdin, preventing document-level listeners from firing
+    terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current();
+      return false; // don't let xterm process any keys
+    });
+
+    // Write data immediately so it's buffered regardless of fit success,
+    // then fit to get correct dimensions and scroll to bottom.
+    terminal.write(data);
+
+    let fitRetryId: ReturnType<typeof setInterval> | null = null;
+
+    const doFit = () => {
+      const el = viewerRef.current;
+      if (!el || el.clientWidth <= 0 || el.clientHeight <= 0) return false;
+      try {
+        fitAddon.fit();
         terminal.scrollToBottom();
-      });
+        return true;
+      } catch { return false; }
+    };
+
+    requestAnimationFrame(() => {
+      if (!doFit()) {
+        let count = 0;
+        fitRetryId = setInterval(() => {
+          count++;
+          if (doFit() || count >= 30) {
+            clearInterval(fitRetryId!);
+            fitRetryId = null;
+          }
+        }, 50);
+      }
     });
 
     let sbRafId: number | null = null;
@@ -297,7 +337,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       if (sbRafId) return;
       sbRafId = requestAnimationFrame(() => {
         sbRafId = null;
-        try { fitAddon.fit(); } catch { /* ignore */ }
+        doFit();
       });
     });
     resizeObserver.observe(viewerRef.current);
@@ -308,6 +348,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
+      if (fitRetryId) clearInterval(fitRetryId);
       if (sbRafId) cancelAnimationFrame(sbRafId);
       document.removeEventListener('keydown', onKeyDown);
       resizeObserver.disconnect();
@@ -325,6 +366,8 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     }
   }, [fontSize]);
 
+  const HEADER_H = 28;
+
   return (
     <div
       style={{
@@ -332,26 +375,31 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
         inset: 0,
         zIndex: 5,
         backgroundColor: '#1a1b26',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
       <div style={{
-        padding: '4px 12px',
+        height: HEADER_H,
+        boxSizing: 'border-box',
+        padding: '0 12px',
         background: '#24283b',
         color: '#7aa2f7',
         fontSize: 12,
         borderBottom: '1px solid #414868',
-        flexShrink: 0,
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
       }}>
         <span>Scrollback History (mouse wheel to scroll, ESC to close)</span>
       </div>
       <div
         ref={viewerRef}
-        style={{ flex: 1, overflow: 'hidden' }}
+        style={{
+          position: 'absolute',
+          top: HEADER_H,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          overflow: 'hidden',
+        }}
       />
     </div>
   );
