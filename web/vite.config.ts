@@ -11,7 +11,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'terminal': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-webgl'],
+          'terminal': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-webgl', '@xterm/addon-web-links'],
           'markdown': ['marked', 'dompurify'],
         },
       },

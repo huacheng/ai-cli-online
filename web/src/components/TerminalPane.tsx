@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback, useEffect, useSyncExternalStore } from 'react';
+import { memo, useRef, useState, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
@@ -16,16 +16,24 @@ interface TerminalPaneProps {
 const DOC_MIN_HEIGHT = 100;
 const NARROW_THRESHOLD = 600;
 
-function useWindowWidth() {
-  return useSyncExternalStore(
-    (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb); },
-    () => window.innerWidth,
-  );
+/** Shared matchMedia hook — single listener, only fires when crossing the threshold */
+const narrowQuery = typeof window !== 'undefined'
+  ? window.matchMedia(`(max-width: ${NARROW_THRESHOLD - 1}px)`)
+  : null;
+
+function useIsNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => narrowQuery?.matches ?? false);
+  useEffect(() => {
+    if (!narrowQuery) return;
+    const handler = (e: MediaQueryListEvent) => setNarrow(e.matches);
+    narrowQuery.addEventListener('change', handler);
+    return () => narrowQuery.removeEventListener('change', handler);
+  }, []);
+  return narrow;
 }
 
 export const TerminalPane = memo(function TerminalPane({ terminal, canClose }: TerminalPaneProps) {
-  const windowWidth = useWindowWidth();
-  const isNarrow = windowWidth < NARROW_THRESHOLD;
+  const isNarrow = useIsNarrow();
   const killServerSession = useStore((s) => s.killServerSession);
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);

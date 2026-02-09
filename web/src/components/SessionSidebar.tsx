@@ -307,10 +307,11 @@ function OrphanedSessionItem({ sessionId, active, createdAt }: {
 export function SessionSidebar() {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
-  const serverSessions = useStore((s) => s.serverSessions);
   const fetchSessions = useStore((s) => s.fetchSessions);
-  const tabs = useStore((s) => s.tabs);
-  const terminalIds = useStore((s) => s.terminalIds);
+  // Only subscribe to heavy data when sidebar is actually open
+  const serverSessions = useStore((s) => sidebarOpen ? s.serverSessions : []);
+  const tabs = useStore((s) => sidebarOpen ? s.tabs : []);
+  const terminalIdsLength = useStore((s) => s.terminalIds.length);
 
   // Find orphaned sessions (server sessions not in any tab)
   const allTabTerminalIds = new Set(
@@ -348,7 +349,7 @@ export function SessionSidebar() {
     if (!sidebarOpen) return;
     const timer = setTimeout(fetchSessions, 800);
     return () => clearTimeout(timer);
-  }, [terminalIds.length, sidebarOpen, fetchSessions]);
+  }, [terminalIdsLength, sidebarOpen, fetchSessions]);
 
   return (
     <div
