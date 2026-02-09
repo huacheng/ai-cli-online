@@ -24,7 +24,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Editor Panel** — multi-line editing with server-side draft persistence (SQLite)
 - **File Transfer** — upload files to CWD, browse and download via REST API
 - **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
-- **Session Management** — sidebar to restore, delete, and rename sessions
+- **Session Management** — sidebar to restore, delete, rename sessions, and close individual terminals (with confirmation)
 - **Font Size Control** — adjustable terminal font size (A−/A+) with server-side persistence
 - **Network Indicator** — real-time RTT latency display with signal bars
 - **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd

@@ -53,7 +53,7 @@ ai-cli-online/
 │           ├── LoginForm.tsx          # Token 认证表单
 │           ├── TabBar.tsx             # Tab 多标签页栏 (新增/切换/关闭/重命名)
 │           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + CSS 层隔离)
-│           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割/关闭按钮)
+│           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割按钮)
 │           ├── PlanPanel.tsx          # 文档浏览器 (Markdown/HTML/PDF 渲染 + 编辑器)
 │           ├── DocumentPicker.tsx     # 文档选择器 (按扩展名过滤 .md/.html/.pdf, 显示文件大小)
 │           ├── MarkdownRenderer.tsx   # Markdown 渲染器
@@ -61,7 +61,7 @@ ai-cli-online/
 │           ├── PdfRenderer.tsx        # PDF 渲染器
 │           ├── ErrorBoundary.tsx      # React 错误边界
 │           ├── FileBrowser.tsx        # 文件浏览器覆盖层 (目录导航 + 下载)
-│           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名)
+│           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名/关闭终端)
 │           └── SplitPaneContainer.tsx # 递归布局渲染 (水平/垂直分割)
 ├── start.sh          # 生产启动脚本 (构建 + 启动)
 └── package.json      # Monorepo 配置

@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.3.1 (2026-02-09)
+
+### 改进
+
+- **终端关闭按钮移至侧边栏** — 移除 TerminalPane 标题栏的 [×] 关闭按钮（防止误点击），改为在 SessionSidebar 展开的终端列表中提供 [×] 按钮，点击前弹出确认弹窗
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.3.1
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.3.1
+
 ## v2.2.6 (2026-02-09)
 
 ### 修复
