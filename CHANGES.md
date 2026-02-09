@@ -1,5 +1,23 @@
 # AI-CLI-Online 变更日志
 
+## v2.2.6 (2026-02-09)
+
+### 修复
+
+- **[BUG] scrollback history 无内容** — `tmux capture-pane -t =${name}` 的 `=` 精确匹配前缀对 pane 级命令无效，改为 `=${name}:` 格式（尾部冒号指定当前活动 pane），保留精确匹配防止会话串线
+- **ScrollbackViewer 渲染失败** — 加载 WebGL 渲染器（与主终端一致）；布局从 flex 改为 absolute 定位确保容器有确定尺寸；fit 增加 interval 重试机制
+- **ESC 关闭 scrollback 失效** — xterm.js 即使 `disableStdin: true` 仍拦截键盘事件，通过 `attachCustomKeyEventHandler` 在 xterm 层直接拦截 ESC
+- **空格键误触发 scrollback** — scrollback 按钮添加 `tabIndex={-1}` + click 后 `blur()`，防止焦点残留导致空格键激活
+
+### 功能
+
+- **文件列表显示大小** — DocumentPicker 和 InlineDocBrowser 文件列表增加文件大小显示（B / KB / MB 智能格式化）
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.2.6
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.6
+
 ## v2.2.5 (2026-02-09)
 
 ### 重构

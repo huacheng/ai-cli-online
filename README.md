@@ -20,7 +20,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Session Persistence** — tmux keeps processes alive through disconnects; reconnect and resume instantly
 - **Multi-Tab** — independent terminal groups with layout persistence across browser refreshes
 - **Split Panes** — horizontal / vertical splits, arbitrarily nested
-- **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal
+- **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal; file picker shows file sizes
 - **Editor Panel** — multi-line editing with server-side draft persistence (SQLite)
 - **File Transfer** — upload files to CWD, browse and download via REST API
 - **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
