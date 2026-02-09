@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.3.2 (2026-02-09)
+
+### 修复
+
+- **tmux 状态栏未隐藏** — `set-option -t =${name}` 的 `=` 精确匹配前缀对 `set-option`/`show-options` 命令无效（返回 "no such session"），导致 `status off` 等配置静默失败。修复：`set-option` 改用裸 session 名；提取 `configureSession()` 函数；恢复已有 session 时也重新应用配置
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.3.2
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.3.2
+
 ## v2.3.1 (2026-02-09)
 
 ### 改进

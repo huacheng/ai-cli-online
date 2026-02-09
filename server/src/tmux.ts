@@ -49,6 +49,16 @@ export async function hasSession(name: string): Promise<boolean> {
   }
 }
 
+/** Configure tmux session options for web terminal usage.
+ *  Note: set-option does NOT support the = exact-match prefix, so use bare name. */
+export async function configureSession(name: string): Promise<void> {
+  await execFile('tmux', [
+    'set-option', '-t', name, 'history-limit', '50000', ';',
+    'set-option', '-t', name, 'status', 'off', ';',
+    'set-option', '-t', name, 'mouse', 'off',
+  ]).catch(() => {});
+}
+
 /** Create a new tmux session (detached) */
 export async function createSession(
   name: string,
@@ -64,12 +74,7 @@ export async function createSession(
     '-y', String(rows),
   ], { cwd });
 
-  // Configure tmux for web terminal usage (single call with \; separator)
-  await execFile('tmux', [
-    'set-option', '-t', `=${name}`, 'history-limit', '50000', ';',
-    'set-option', '-t', `=${name}`, 'status', 'off', ';',
-    'set-option', '-t', `=${name}`, 'mouse', 'off',
-  ]).catch(() => {});
+  await configureSession(name);
 
   console.log(`[tmux] Created session: ${name} (${cols}x${rows}) in ${cwd}`);
 }

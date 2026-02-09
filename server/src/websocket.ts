@@ -7,6 +7,7 @@ import {
   tokenToSessionName,
   hasSession,
   createSession,
+  configureSession,
   captureScrollback,
   resizeSession,
   getCwd,
@@ -227,10 +228,11 @@ export function setupWebSocket(
         if (!resumed) {
           await createSession(sessionName, cols, rows, defaultCwd);
         } else {
-          // resizeSession and captureScrollback are independent — run in parallel
+          // resizeSession, captureScrollback, and configureSession are independent — run in parallel
           const [, scrollback] = await Promise.all([
             resizeSession(sessionName, cols, rows),
             captureScrollback(sessionName),
+            configureSession(sessionName),
           ]);
           if (scrollback) {
             sendBinary(ws, BIN_TYPE_SCROLLBACK, scrollback);
