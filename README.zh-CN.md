@@ -50,7 +50,7 @@
 | **传输协议** | 二进制帧（超低延迟） | JSON WebSocket |
 | **部署** | 单机 Node.js | 单机 + Tailscale Serve/Funnel |
 | **技术栈** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **包大小** | ~12 MB | ~300 MB+ |
+| **包大小** | ~950 KB | ~300 MB+ |
 | **安装** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
 
 ## 快速开始
@@ -118,6 +118,8 @@ TRUST_PROXY=1                    # nginx 反代时设为 1
 - **WebSocket 压缩** — `perMessageDeflate`（level 1，threshold 128 B），带宽减少 50-70%
 - **WebGL 渲染器** — 渲染吞吐量提升 3-10 倍
 - **并行初始化** — PTY 创建、tmux 配置、resize 并行执行
+- **PDF 懒加载** — pdfjs-dist (445 KB) 仅在用户打开 PDF 文件时加载
+- **智能重渲染** — matchMedia 阈值 hook、条件 Zustand selector、分批 stat 调用
 
 ## 项目结构
 

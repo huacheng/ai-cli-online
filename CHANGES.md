@@ -1,5 +1,64 @@
 # AI-CLI-Online 变更日志
 
+## v2.2.5 (2026-02-09)
+
+### 重构
+
+- **stale session 批量清理** — `cleanupStaleSessions` 改为 `Promise.all` 并行 kill，避免串行阻塞
+- **listFiles 并发限制** — stat 调用分 50 个一批处理，防止大目录耗尽文件描述符
+- **终端移除逻辑去重** — 提取 `removeTerminalFromState` 共享函数，消除 `removeTerminal`/`killServerSession` 重复代码
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.2.5
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.5
+
+## v2.2.4 (2026-02-09)
+
+### 性能
+
+- **matchMedia 替代 resize 监听** — `useWindowWidth` 改为 `useIsNarrow` (matchMedia)，N 个终端共享单个阈值监听器，消除重复 resize 事件
+- **Zustand selector 优化** — SessionSidebar 关闭时跳过 tabs/serverSessions 订阅；`terminalIds.length` 替代数组引用避免无效 effect 触发
+- **Chunk 修正** — `@xterm/addon-web-links` 归入 terminal manualChunk，index chunk 减小 2.5KB
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.2.4
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.4
+
+## v2.2.3 (2026-02-09)
+
+### 安全
+
+- **[CRITICAL] iframe sandbox 加固** — 移除文档浏览器 HTML iframe 的 `allow-same-origin` 属性，防止恶意 HTML 文件通过同源访问窃取 localStorage 中的 auth token
+
+### 性能
+
+- **PDF 懒加载** — `pdfjs-dist` (445KB / 131KB gzip) 改为首次打开 PDF 时才动态加载，不再在模块导入时立即触发
+- **tmux set-option 合并** — 3 次独立子进程调用合并为单次 tmux 调用（`;` 分隔符）
+
+### 稳定性
+
+- **tmux execFile 超时保护** — 所有 tmux 子进程调用增加 5 秒超时，防止 tmux 挂起导致 Node.js 事件循环无限阻塞
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.2.3
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.3
+
+## v2.2.2 (2026-02-09)
+
+### 优化
+
+- **移除 Maple Mono CN 字体** — 删除 ~11MB 的 MapleMono woff2 字体文件，统一使用 JetBrains Mono
+- 清理所有 `@font-face` 声明和 `font-family` 引用
+- npm 包体积从 ~12MB 降至 ~948KB
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.2.2
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.2.2
+
 ## v2.2.1 (2026-02-08)
 
 ### 修复

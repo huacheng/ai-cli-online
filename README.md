@@ -50,7 +50,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 | **Transport** | Binary frames (ultra-low latency) | JSON WebSocket |
 | **Deployment** | Single-node Node.js | Single-node + Tailscale Serve/Funnel |
 | **Tech Stack** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **Package Size** | ~12 MB | ~300 MB+ |
+| **Package Size** | ~950 KB | ~300 MB+ |
 | **Install** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
 
 ## Quick Start
@@ -118,6 +118,8 @@ Browser (xterm.js + WebGL) <-- WebSocket binary/JSON --> Express (node-pty) <-->
 - **WebSocket compression** — `perMessageDeflate` (level 1, threshold 128 B), 50-70% bandwidth reduction
 - **WebGL renderer** — 3-10x rendering throughput vs canvas
 - **Parallel initialization** — PTY creation, tmux config, and resize run concurrently
+- **PDF lazy loading** — pdfjs-dist (445 KB) only loaded when a user opens a PDF file
+- **Smart re-render** — matchMedia threshold hook, conditional Zustand selectors, batched stat calls
 
 ## Project Structure
 

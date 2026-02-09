@@ -201,7 +201,7 @@ latency: number | null;                           // 全局网络延迟 (ms)
 ### 连接优化
 - **即时 resize**: 收到 `connected` 后立即发送尺寸，无盲等延迟
 - **服务端换行归一化**: scrollback 的 `\n → \r\n` 在服务端完成，避免客户端主线程阻塞
-- **tmux 配置并行化**: `Promise.all` 同时设置 history-limit/status/mouse
+- **tmux 配置单次调用**: 3 个 set-option 合并为单次 tmux 命令（`;` 分隔符），所有 execFile 调用带 5s 超时保护
 - **session 初始化并行化**: PTY 创建与 tmux 配置并行执行
 - **PTY/tmux resize 并行**: resize 时 PTY 和 tmux 同时调整
 - **重连 jitter**: 重连时随机延迟，避免多客户端同时重连造成雷群效应
@@ -229,7 +229,7 @@ latency: number | null;                           // 全局网络延迟 (ms)
 | `PUT` | `/api/settings/font-size` | 保存用户字体大小设置 (10-24) |
 
 实现细节：
-- CWD 通过 `tmux display-message #{pane_current_path}` 获取，反映终端当前所在目录
+- CWD 通过 `tmux list-panes -F #{pane_current_path}` 获取，反映终端当前所在目录
 - 上传使用 `copyFile` + `unlink` 而非 `rename`，以支持跨文件系统（`/tmp` → 目标目录）
 - 下载使用 `fs.createReadStream` 流式响应，设置 `Content-Disposition: attachment`
 - 前端上传通过 XMLHttpRequest 实现进度回调，下载通过 fetch blob + Object URL 触发浏览器下载
@@ -254,7 +254,7 @@ latency: number | null;                           // 全局网络延迟 (ms)
 
 ## tmux 配置
 
-创建 session 时并行设置以下选项 (Promise.all)：
+创建 session 时通过单次 tmux 命令设置以下选项（`;` 分隔符合并）：
 
 | 选项 | 值 | 说明 |
 |------|-----|------|
