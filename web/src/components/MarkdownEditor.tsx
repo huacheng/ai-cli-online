@@ -563,7 +563,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               }}
               onMouseEnter={() => setSlashIndex(i)}
             >
-              <span className={'slash-cmd' + ('local' in c && c.local ? ' slash-cmd--local' : '')}>{c.cmd}</span>
+              <span className="slash-cmd">{c.cmd}</span>
               <span className="slash-desc">{c.desc}</span>
             </div>
           ))}
