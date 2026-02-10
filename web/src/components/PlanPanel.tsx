@@ -167,6 +167,9 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [editorHasContent, setEditorHasContent] = useState(false);
 
+  // Track which consumer owns the current file stream ('doc' or 'plan')
+  const streamTargetRef = useRef<'doc' | 'plan'>('doc');
+
   // Plan mode state
   const [planFilePath, setPlanFilePath] = useState<string | null>(null);
   const [planMarkdown, setPlanMarkdown] = useState('');
@@ -222,15 +225,16 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
     // Avoid re-requesting if already streamed this path
     if (planStreamedRef.current === planFilePath && planMarkdown) return;
     planStreamedRef.current = planFilePath;
+    streamTargetRef.current = 'plan';
     fileStream.reset();
     fileStream.startStream('content');
     onRequestFileStream?.(planFilePath);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planMode, planFilePath, connected]);
 
-  // When plan mode stream completes, capture the content
+  // When plan mode stream completes, capture the content (only if stream was for Plan)
   useEffect(() => {
-    if (planMode && fileStream.state.status === 'complete' && planFilePath) {
+    if (planMode && fileStream.state.status === 'complete' && planFilePath && streamTargetRef.current === 'plan') {
       setPlanMarkdown(fileStream.state.content);
     }
   }, [planMode, fileStream.state.status, fileStream.state.content, planFilePath]);
@@ -279,6 +283,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
     setPickerOpen(false);
 
     // Reset and start stream with appropriate mode
+    streamTargetRef.current = 'doc';
     fileStream.reset();
     const mode = type === 'text' ? 'lines'
                : type === 'pdf' ? 'binary'
@@ -290,6 +295,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   // Refresh current document
   const handleRefresh = useCallback(() => {
     if (!docPath || !docType) return;
+    streamTargetRef.current = 'doc';
     fileStream.reset();
     const mode = docType === 'text' ? 'lines'
                : docType === 'pdf' ? 'binary'
