@@ -62,6 +62,7 @@ const SLASH_COMMANDS = [
 
 export interface MarkdownEditorHandle {
   send: () => void;
+  fillContent: (text: string) => void;
 }
 
 interface MarkdownEditorProps {
@@ -77,6 +78,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const loadedRef = useRef(false);
+
+  // Undo history stack for programmatic edits (Tab, slash insert, @ insert)
+  const undoStackRef = useRef<string[]>([]);
+  const UNDO_MAX = 50;
+  const pushUndo = useCallback(() => {
+    undoStackRef.current.push(content);
+    if (undoStackRef.current.length > UNDO_MAX) undoStackRef.current.shift();
+  }, [content]);
 
   // Slash command autocomplete state
   const [slashOpen, setSlashOpen] = useState(false);
@@ -194,7 +203,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     saveDraft(token, sessionId, '').catch(() => {});
   }, [content, onSend, token, sessionId]);
 
-  useImperativeHandle(ref, () => ({ send: handleSend }), [handleSend]);
+  const fillContent = useCallback((text: string) => {
+    pushUndo();
+    setContent(text);
+  }, [pushUndo]);
+
+  useImperativeHandle(ref, () => ({ send: handleSend, fillContent }), [handleSend, fillContent]);
 
   // Notify parent of content emptiness changes
   useEffect(() => {
@@ -205,6 +219,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const insertSlashCommand = useCallback((cmd: string) => {
     const ta = textareaRef.current;
     if (!ta) return;
+    pushUndo();
     const pos = ta.selectionStart;
     const before = content.slice(0, pos);
     const after = content.slice(pos);
@@ -213,7 +228,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const lineStart = lastNewline + 1;
     const lineBeforeCursor = before.slice(lineStart);
     // Match /... at the end of line content before cursor
-    const match = lineBeforeCursor.match(/\/[a-zA-Z-]*$/);
+    const match = lineBeforeCursor.match(/\/[a-zA-Z:-]*$/);
     if (match) {
       const replaceStart = lineStart + (match.index ?? 0);
       const inserted = cmd + ' ';
@@ -238,12 +253,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setSlashOpen(false);
     setSlashFilter('');
     setSlashIndex(0);
-  }, [content]);
+  }, [content, pushUndo]);
 
   // Insert file at @ mention, or navigate into directory
   const insertFileAtMention = useCallback((file: FileEntry) => {
     const ta = textareaRef.current;
     if (!ta) return;
+    pushUndo();
     const pos = ta.selectionStart;
     const before = content.slice(0, pos);
     const after = content.slice(pos);
@@ -283,7 +299,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         ta.focus();
       });
     }
-  }, [content, fileDir]);
+  }, [content, fileDir, pushUndo]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -295,7 +311,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const lastNewline = before.lastIndexOf('\n');
     const lineBeforeCursor = before.slice(lastNewline + 1);
 
-    const match = lineBeforeCursor.match(/^\/([a-zA-Z-]*)$/);
+    const match = lineBeforeCursor.match(/(?:^|\s)\/([a-zA-Z:-]*)$/);
     if (match) {
       setSlashOpen(true);
       setSlashFilter(match[1]);
@@ -370,11 +386,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
       }
 
+      // Ctrl+Z: pop undo stack (for programmatic edits)
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        const prev = undoStackRef.current.pop();
+        if (prev != null) {
+          e.preventDefault();
+          setContent(prev);
+        }
+        return;
+      }
+
       // Tab key: insert 2 spaces
       if (e.key === 'Tab') {
         e.preventDefault();
         const ta = textareaRef.current;
         if (ta) {
+          pushUndo();
           const start = ta.selectionStart;
           const end = ta.selectionEnd;
           const newContent = content.slice(0, start) + '  ' + content.slice(end);
@@ -392,7 +419,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         handleSend();
       }
     },
-    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content, fileOpen, filteredFiles, fileIndex, insertFileAtMention],
+    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content, fileOpen, filteredFiles, fileIndex, insertFileAtMention, pushUndo],
   );
 
   return (
