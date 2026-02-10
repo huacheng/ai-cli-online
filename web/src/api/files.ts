@@ -65,6 +65,19 @@ export async function fetchCwd(token: string, sessionId: string): Promise<string
   return data.cwd;
 }
 
+export async function touchFile(token: string, sessionId: string, name: string): Promise<{ ok: boolean; path: string; existed?: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/touch`,
+    {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    },
+  );
+  if (!res.ok) throw new Error('Failed to create file');
+  return res.json();
+}
+
 export async function downloadFile(token: string, sessionId: string, filePath: string): Promise<void> {
   const res = await fetch(
     `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download?path=${encodeURIComponent(filePath)}`,

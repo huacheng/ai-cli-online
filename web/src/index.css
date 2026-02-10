@@ -630,3 +630,163 @@ body.resizing-panes-h * {
   background: #16161e;
   border-top: 1px solid #292e42;
 }
+
+/* ── Plan Annotation Toolbar ── */
+.plan-anno-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  height: 28px;
+  flex-shrink: 0;
+  background: #16161e;
+  border-bottom: 1px solid #292e42;
+}
+
+/* ── Plan Annotation Content ── */
+.plan-anno-content {
+  user-select: text;
+}
+
+/* ── Plan Insert Zone ── */
+.plan-insert-zone {
+  position: relative;
+  min-height: 4px;
+  transition: min-height 0.15s ease;
+}
+
+.plan-insert-zone:hover {
+  min-height: 24px;
+}
+
+.plan-insert-btn {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid #414868;
+  background: #1e2030;
+  color: #7aa2f7;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  z-index: 2;
+  transition: all 0.15s ease;
+}
+
+.plan-insert-zone:hover .plan-insert-btn,
+.plan-insert-zone--empty .plan-insert-btn {
+  display: block;
+}
+
+.plan-insert-zone--empty {
+  min-height: 48px;
+}
+
+.plan-insert-zone--empty .plan-insert-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  border-color: #565f89;
+}
+
+.plan-insert-btn:hover {
+  background: #292e42;
+  border-color: #7aa2f7;
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* ── Annotation Card ── */
+.plan-annotation-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 8px;
+  margin: 2px 0;
+  background: rgba(224, 175, 104, 0.06);
+  border-left: 3px solid #e0af68;
+  border-radius: 0 4px 4px 0;
+}
+
+.plan-annotation-card--editing {
+  border-left-color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.06);
+}
+
+.plan-annotation-textarea {
+  flex: 1;
+  min-height: 36px;
+  resize: vertical;
+  border: 1px solid #292e42;
+  border-radius: 3px;
+  background: #1a1b26;
+  color: #a9b1d6;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 4px 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.plan-annotation-textarea:focus {
+  border-color: #7aa2f7;
+}
+
+.plan-annotation-textarea::placeholder {
+  color: #414868;
+  font-style: italic;
+}
+
+/* ── Deletion Card ── */
+.plan-deletion-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 2px 0;
+  background: rgba(247, 118, 142, 0.06);
+  border-left: 3px solid #f7768e;
+  border-radius: 0 4px 4px 0;
+  font-size: 11px;
+}
+
+/* ── Delete Float Button ── */
+.plan-delete-float {
+  position: absolute;
+  z-index: 10;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #f7768e;
+  background: #1e2030;
+  color: #f7768e;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+}
+
+.plan-delete-float:hover {
+  background: rgba(247, 118, 142, 0.15);
+  transform: scale(1.15);
+}
+
+/* ── Deleted Block Visual ── */
+.plan-block--deleted {
+  text-decoration: line-through;
+  opacity: 0.4;
+  background: rgba(247, 118, 142, 0.08);
+  border-radius: 2px;
+  position: relative;
+}

@@ -17,11 +17,14 @@ export interface SplitNode {
 export type LayoutNode = LeafNode | SplitNode;
 
 // Terminal instance for connection state tracking
+export type PanelMode = 'none' | 'chat' | 'plan';
+
 export interface TerminalInstance {
   id: string;
   connected: boolean;
   sessionResumed: boolean;
   error: string | null;
+  panelMode: PanelMode;
 }
 
 // Server session info from REST API

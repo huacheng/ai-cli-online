@@ -37,13 +37,18 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);
 
+  const setTerminalPanelMode = useStore((s) => s.setTerminalPanelMode);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const terminalViewRef = useRef<TerminalViewHandle>(null);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [docOpen, setDocOpen] = useState(false);
   const [docHeightPercent, setDocHeightPercent] = useState(50);
+
+  // Panel mode from store (persists across tab switches)
+  const docOpen = terminal.panelMode !== 'none';
+  const planMode = terminal.panelMode === 'plan';
   const outerRef = useRef<HTMLDivElement>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,14 +171,23 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             {'\u2193'}
           </button>
-          {/* Doc panel toggle */}
+          {/* Chat panel toggle */}
           <button
-            className={`pane-btn${docOpen ? ' pane-btn--active' : ''}`}
-            onClick={() => setDocOpen((v) => !v)}
-            title="Toggle Document browser"
-            aria-label="Toggle Document browser"
+            className={`pane-btn${terminal.panelMode === 'chat' ? ' pane-btn--active' : ''}`}
+            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'chat' ? 'none' : 'chat')}
+            title="Toggle Chat panel"
+            aria-label="Toggle Chat panel"
           >
-            Doc
+            Chat
+          </button>
+          {/* Plan mode toggle */}
+          <button
+            className={`pane-btn${terminal.panelMode === 'plan' ? ' pane-btn--active' : ''}`}
+            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'plan' ? 'none' : 'plan')}
+            title="Toggle Plan annotation mode"
+            aria-label="Toggle Plan annotation mode"
+          >
+            Plan
           </button>
           <button
             className="pane-btn"
@@ -231,11 +245,14 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           <div style={{ height: `${docHeightPercent}%`, minHeight: DOC_MIN_HEIGHT, flexShrink: 0, overflow: 'hidden' }}>
             <PlanPanel
               onSend={handleEditorSend}
-              onClose={() => setDocOpen(false)}
+              onClose={() => setTerminalPanelMode(terminal.id, 'none')}
               sessionId={terminal.id}
               token={token || ''}
+              connected={terminal.connected}
               onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
               onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
+              planMode={planMode}
+              onPlanModeClose={() => setTerminalPanelMode(terminal.id, 'chat')}
             />
           </div>
         </>

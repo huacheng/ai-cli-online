@@ -81,28 +81,15 @@ export function DocumentPicker({ sessionId, onSelect, onClose }: DocumentPickerP
               {file.name}
             </span>
             {file.type === 'file' && (
-              <>
-                <span style={{
-                  fontSize: 10,
-                  color: '#565f89',
-                  marginLeft: 6,
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {formatSize(file.size)}
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  color: '#565f89',
-                  background: '#24283b',
-                  padding: '1px 5px',
-                  borderRadius: 3,
-                  marginLeft: 6,
-                  flexShrink: 0,
-                }}>
-                  {file.name.slice(file.name.lastIndexOf('.')).toLowerCase()}
-                </span>
-              </>
+              <span style={{
+                fontSize: 10,
+                color: '#565f89',
+                marginLeft: 6,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}>
+                {formatSize(file.size)}
+              </span>
             )}
           </div>
         ))}

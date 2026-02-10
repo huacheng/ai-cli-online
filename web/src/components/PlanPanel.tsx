@@ -4,20 +4,25 @@ import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
 import { VirtualTextRenderer } from './VirtualTextRenderer';
+import { PlanAnnotationRenderer } from './PlanAnnotationRenderer';
 import { useFileStream } from '../hooks/useFileStream';
 import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
 import { useHorizontalResize } from '../hooks/useHorizontalResize';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import { FileListHeader, FileListStatus } from './FileListShared';
+import { fetchFiles, touchFile } from '../api/files';
 import type { FileEntry } from '../api/files';
 
 interface PlanPanelProps {
   sessionId: string;
   token: string;
+  connected: boolean;
   onClose: () => void;
   onSend: (text: string) => void;
   onRequestFileStream?: (path: string) => void;
   onCancelFileStream?: () => void;
+  planMode?: boolean;
+  onPlanModeClose?: () => void;
 }
 
 type DocType = 'md' | 'html' | 'pdf' | 'text' | null;
@@ -94,28 +99,15 @@ function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect
               {file.name}
             </span>
             {file.type === 'file' && (
-              <>
-                <span style={{
-                  fontSize: 10,
-                  color: '#565f89',
-                  marginLeft: 6,
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {formatSize(file.size)}
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  color: '#565f89',
-                  background: '#24283b',
-                  padding: '1px 5px',
-                  borderRadius: 3,
-                  marginLeft: 6,
-                  flexShrink: 0,
-                }}>
-                  {file.name.slice(file.name.lastIndexOf('.')).toLowerCase()}
-                </span>
-              </>
+              <span style={{
+                fontSize: 10,
+                color: '#565f89',
+                marginLeft: 6,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}>
+                {formatSize(file.size)}
+              </span>
             )}
           </div>
         ))}
@@ -124,7 +116,7 @@ function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect
   );
 }
 
-export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStream }: PlanPanelProps) {
+export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequestFileStream, planMode, onPlanModeClose }: PlanPanelProps) {
   // Document state
   const [docPath, setDocPath] = useState<string | null>(null);
   const [docType, setDocType] = useState<DocType>(null);
@@ -143,6 +135,75 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
   // Editor ref + content tracking
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [editorHasContent, setEditorHasContent] = useState(false);
+
+  // Plan mode state
+  const [planFilePath, setPlanFilePath] = useState<string | null>(null);
+  const [planMarkdown, setPlanMarkdown] = useState('');
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planExpanded, setPlanExpanded] = useState(false);
+  // Auto-detect PLAN.md when planMode activates
+  useEffect(() => {
+    if (!planMode) return;
+    let cancelled = false;
+    setPlanLoading(true);
+    (async () => {
+      try {
+        const res = await fetchFiles(token, sessionId);
+        if (cancelled) return;
+        const planFile = res.files.find((f: FileEntry) => f.name === 'PLAN.md');
+        if (planFile) {
+          const fullPath = res.cwd + '/PLAN.md';
+          setPlanFilePath(fullPath);
+          setPlanMarkdown('');
+        } else {
+          // Auto-create empty PLAN.md
+          try {
+            const result = await touchFile(token, sessionId, 'PLAN.md');
+            if (cancelled) return;
+            if (result.ok && result.path) {
+              setPlanFilePath(result.path);
+              setPlanMarkdown('');
+              setPlanLoading(false);
+              return;
+            }
+          } catch { /* fall through */ }
+          setPlanFilePath(null);
+          setPlanMarkdown('');
+        }
+      } catch {
+        setPlanFilePath(null);
+      } finally {
+        if (!cancelled) setPlanLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planMode, sessionId, token]);
+
+  // Phase 2: request file stream once WS is connected and planFilePath is known
+  const planStreamedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!planMode || !planFilePath || !connected) return;
+    // Avoid re-requesting if already streamed this path
+    if (planStreamedRef.current === planFilePath && planMarkdown) return;
+    planStreamedRef.current = planFilePath;
+    fileStream.reset();
+    fileStream.startStream('content');
+    onRequestFileStream?.(planFilePath);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planMode, planFilePath, connected]);
+
+  // When plan mode stream completes, capture the content
+  useEffect(() => {
+    if (planMode && fileStream.state.status === 'complete' && planFilePath) {
+      setPlanMarkdown(fileStream.state.content);
+    }
+  }, [planMode, fileStream.state.status, fileStream.state.content, planFilePath]);
+
+  // Handle Execute from annotation renderer — fill into editor
+  const handlePlanExecute = useCallback((summary: string) => {
+    editorRef.current?.fillContent(summary);
+  }, []);
 
   // Scroll position memory: filePath → scrollTop
   const scrollPositionsRef = useRef(new Map<string, number>());
@@ -191,6 +252,17 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
     onRequestFileStream?.(path);
   }, [saveScrollPosition, fileStream, onRequestFileStream]);
 
+  // Refresh current document
+  const handleRefresh = useCallback(() => {
+    if (!docPath || !docType) return;
+    fileStream.reset();
+    const mode = docType === 'text' ? 'lines'
+               : docType === 'pdf' ? 'binary'
+               : 'content';
+    fileStream.startStream(mode);
+    onRequestFileStream?.(docPath);
+  }, [docPath, docType, fileStream, onRequestFileStream]);
+
   // Copy path to clipboard
   const handleCopyPath = useCallback(() => {
     if (!docPath) return;
@@ -202,16 +274,17 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
 
   // Close expanded view on ESC
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded && !planExpanded) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (planExpanded) { setPlanExpanded(false); return; }
         saveScrollPosition();
         setExpanded(false);
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [expanded, saveScrollPosition]);
+  }, [expanded, planExpanded, saveScrollPosition]);
 
   // Sync scroll when toggling expanded
   useEffect(() => {
@@ -387,6 +460,14 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
               >
                 &#x26F6;
               </button>
+              <button
+                className="pane-btn"
+                onClick={handleRefresh}
+                title="Refresh document"
+                style={{ fontSize: '12px' }}
+              >
+                &#x21BB;
+              </button>
             </>
           )}
           {/* Progress bar — shown during streaming */}
@@ -412,7 +493,7 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
         {/* 4px gap matching the divider width */}
         <div style={{ width: '4px', flexShrink: 0 }} />
 
-        {/* Right section: Send + close (matches editor width) */}
+        {/* Right section: Editor controls or Plan controls */}
         <div style={{
           flex: 1,
           display: 'flex',
@@ -421,25 +502,57 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
           padding: '0 8px',
           minWidth: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              className="pane-btn"
-              onClick={() => editorRef.current?.send()}
-              disabled={!editorHasContent}
-              title="Send to terminal (Ctrl+Enter)"
-              style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
-            >
-              Send
-            </button>
-            <span style={{ fontSize: '10px', color: '#414868' }}>Ctrl+Enter</span>
-          </div>
-          <button
-            className="pane-btn pane-btn--danger"
-            onClick={onClose}
-            title="Close Doc panel"
-          >
-            &times;
-          </button>
+          {planMode ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', color: '#bb9af7', fontWeight: 600 }}>Plan</span>
+                {planFilePath && (
+                  <span style={{ fontSize: '10px', color: '#565f89' }}>
+                    {planFilePath.split('/').pop()}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  className="pane-btn"
+                  onClick={() => setPlanExpanded(true)}
+                  title="Expand plan view"
+                  style={{ fontSize: '12px' }}
+                >
+                  &#x26F6;
+                </button>
+                <button
+                  className="pane-btn pane-btn--danger"
+                  onClick={() => { onPlanModeClose?.(); }}
+                  title="Close Plan mode"
+                >
+                  &times;Plan
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  className="pane-btn"
+                  onClick={() => editorRef.current?.send()}
+                  disabled={!editorHasContent}
+                  title="Send to terminal (Ctrl+Enter)"
+                  style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: '#9ece6a' }}
+                >
+                  Send
+                </button>
+                <span style={{ fontSize: '10px', color: '#414868' }}>Ctrl+Enter</span>
+              </div>
+              <button
+                className="pane-btn pane-btn--danger"
+                onClick={onClose}
+                title="Close Doc panel"
+              >
+                &times;
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -461,19 +574,46 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
         {/* Horizontal divider */}
         <div className="plan-divider-h" onMouseDown={onDividerMouseDown} />
 
-        {/* Right: Editor */}
+        {/* Right: Editor or Plan Annotation Renderer */}
         <div className="plan-editor-wrap">
-          <MarkdownEditor
-            ref={editorRef}
-            onSend={onSend}
-            onContentChange={setEditorHasContent}
-            sessionId={sessionId}
-            token={token}
-          />
+          {planMode ? (
+            planLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#565f89', fontSize: 13 }}>
+                Loading PLAN.md...
+              </div>
+            ) : planFilePath ? (
+              <PlanAnnotationRenderer
+                markdown={planMarkdown}
+                filePath={planFilePath}
+                sessionId={sessionId}
+                onExecute={handlePlanExecute}
+                expanded={planExpanded}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
+                <span style={{ color: '#565f89', fontSize: 13, fontStyle: 'italic' }}>No PLAN.md found in CWD</span>
+                <button
+                  className="pane-btn"
+                  onClick={() => setPickerOpen(true)}
+                  style={{ color: '#7aa2f7' }}
+                >
+                  Select file
+                </button>
+              </div>
+            )
+          ) : (
+            <MarkdownEditor
+              ref={editorRef}
+              onSend={onSend}
+              onContentChange={setEditorHasContent}
+              sessionId={sessionId}
+              token={token}
+            />
+          )}
         </div>
       </div>
 
-      {/* Expanded overlay */}
+      {/* Expanded overlay (doc) */}
       {expanded && (
         <div className="doc-expanded-overlay">
           <div className="doc-expanded-header">
@@ -499,6 +639,33 @@ export function PlanPanel({ sessionId, token, onClose, onSend, onRequestFileStre
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             {renderDoc((el) => { expandedScrollRef.current = el; })}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded overlay (plan annotations) */}
+      {planExpanded && planFilePath && (
+        <div className="doc-expanded-overlay">
+          <div className="doc-expanded-header">
+            <span style={{ fontSize: '12px', color: '#bb9af7' }}>
+              Plan: {planFilePath.split('/').pop()}
+            </span>
+            <button
+              className="pane-btn pane-btn--danger"
+              onClick={() => setPlanExpanded(false)}
+              title="Close expanded view (ESC)"
+            >
+              &times;
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <PlanAnnotationRenderer
+              markdown={planMarkdown}
+              filePath={planFilePath}
+              sessionId={sessionId}
+              onExecute={handlePlanExecute}
+              expanded={true}
+            />
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config } from 'dotenv';
 import { existsSync, readFileSync, createReadStream } from 'fs';
-import { copyFile, unlink, stat, mkdir, readFile } from 'fs/promises';
+import { copyFile, unlink, stat, mkdir, readFile, writeFile } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
@@ -314,6 +314,32 @@ async function main() {
       res.json({ command });
     } catch {
       res.json({ command: '' });
+    }
+  });
+
+  // --- Touch (create empty file) API ---
+
+  app.post('/api/sessions/:sessionId/touch', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const { name } = req.body as { name?: string };
+      if (!name || typeof name !== 'string' || name.includes('/') || name.includes('..')) {
+        res.status(400).json({ error: 'Invalid filename' });
+        return;
+      }
+      const cwd = await getCwd(sessionName);
+      const fullPath = join(cwd, name);
+      await writeFile(fullPath, '', { flag: 'wx' }); // create exclusively
+      res.json({ ok: true, path: fullPath });
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST') {
+        const cwd = await getCwd(sessionName).catch(() => '');
+        res.json({ ok: true, existed: true, path: cwd ? join(cwd, String((req.body as { name: string }).name)) : '' });
+      } else {
+        console.error(`[api:touch] ${sessionName}:`, err);
+        res.status(500).json({ error: 'Failed to create file' });
+      }
     }
   });
 

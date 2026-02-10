@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   TerminalInstance,
+  PanelMode,
   LayoutNode,
   SplitDirection,
   ServerSession,
@@ -437,6 +438,7 @@ interface AppState {
   setTerminalConnected: (id: string, connected: boolean) => void;
   setTerminalResumed: (id: string, resumed: boolean) => void;
   setTerminalError: (id: string, error: string | null) => void;
+  setTerminalPanelMode: (id: string, mode: PanelMode) => void;
 
   setSplitSizes: (splitId: string, sizes: number[]) => void;
 
@@ -488,7 +490,7 @@ export const useStore = create<AppState>((set, get) => ({
         for (const tab of localSaved.tabs) {
           if (tab.status === 'open') {
             for (const id of tab.terminalIds) {
-              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null };
+              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
             }
           }
         }
@@ -572,6 +574,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
+      panelMode: 'none' as PanelMode,
     };
     const leaf: LayoutNode = { type: 'leaf', terminalId: termId };
     const tab: TabState = {
@@ -670,7 +673,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Recreate TerminalInstances in terminalsMap
     const newTerminalsMap = { ...state.terminalsMap };
     for (const tid of tab.terminalIds) {
-      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null };
+      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
     }
 
     const newTabs = updateTab(state.tabs, tabId, (t) => ({
@@ -784,6 +787,7 @@ export const useStore = create<AppState>((set, get) => ({
         connected: false,
         sessionResumed: false,
         error: null,
+        panelMode: 'none' as PanelMode,
       };
       const leaf: LayoutNode = { type: 'leaf', terminalId: id };
       const tab: TabState = {
@@ -826,6 +830,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
+      panelMode: 'none' as PanelMode,
     };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
 
@@ -901,6 +906,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
+      panelMode: 'none' as PanelMode,
     };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
     const splitId = `s${nextSplitId}`;
@@ -961,6 +967,14 @@ export const useStore = create<AppState>((set, get) => ({
       const existing = state.terminalsMap[id];
       if (!existing || existing.error === error) return state;
       return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, error } } };
+    });
+  },
+
+  setTerminalPanelMode: (id, mode) => {
+    set((state) => {
+      const existing = state.terminalsMap[id];
+      if (!existing || existing.panelMode === mode) return state;
+      return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, panelMode: mode } } };
     });
   },
 
@@ -1103,7 +1117,7 @@ async function restoreFromServer(
     for (const tab of reconciled.tabs) {
       if (tab.status === 'open') {
         for (const id of tab.terminalIds) {
-          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null };
+          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
         }
       }
     }
