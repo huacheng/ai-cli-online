@@ -1,5 +1,40 @@
 # AI-CLI-Online 变更日志
 
+## v2.4.0 (2026-02-10)
+
+### 新功能
+
+- **Mermaid 图表渲染** — Markdown 文档中的 mermaid/gantt 代码块内联渲染为 SVG 图表，暗色主题适配 Tokyo Night 配色
+  - CDN 懒加载: jsdelivr 主源 + unpkg 备源，加载失败重置 promise 允许重试
+  - CSP `scriptSrc` 白名单 `cdn.jsdelivr.net` 和 `unpkg.com`
+  - 共享 `useMermaidRender` hook，MarkdownRenderer 和 PlanAnnotationRenderer 复用
+- **Plan 批注系统** — 文档内容内联批注，支持新增/编辑/删除，持久化存储
+  - 基线过滤 + 防闪烁 + 双实例修复
+  - 面板模式持久化 (panelMode localStorage)
+- **鼠标选中自动复制 + 右键粘贴** — 终端剪贴板集成
+- **编辑器 undo 撤销栈** — 编辑器支持撤销操作
+- **斜杠命令增强** — `/history` 历史回看、冒号分隔符支持、蓝紫色统一标识
+- **tmux 固定 socket 路径** — 服务重启后 tmux server 存活，自动重连恢复会话
+- **fillContent API** — 编辑器内容填充接口
+
+### 修复
+
+- **CSP 拦截 CDN 动态 import** — helmet `scriptSrc` 仅 `'self'` 导致 mermaid CDN 加载被浏览器阻止
+- **mermaid 循环依赖** — MarkdownRenderer ↔ useMermaidRender ESM 循环引用导致 `loadMermaid` 为 undefined
+- **CDN 失败静默吞错** — loadMermaid 失败后 promise 缓存 rejected 结果，后续调用永远失败
+- **Open 打开文件污染 Plan 编辑器** — 文档切换时编辑器内容隔离
+
+### 重构
+
+- **提取 `useMermaidRender` hook** — 消除 MarkdownRenderer 和 PlanAnnotationRenderer ~50 行重复 mermaid 渲染逻辑
+- **消除 `formatSize`/`fileIcon` 重复** — 统一到 `utils.ts`，删除 PlanPanel 和 DocumentPicker 本地副本
+- **CSS class 提取** — `.mermaid-error`、`.pane-btn--sm` 替代内联样式
+- **`useTextareaKit` 共享逻辑** — 编辑器通用行为提取
+
+### 性能
+
+- **WebSocket 输入批处理间隔** — 从 5ms 调整为 10ms
+
 ## v2.3.2 (2026-02-09)
 
 ### 修复

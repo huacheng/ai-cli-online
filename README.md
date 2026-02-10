@@ -17,11 +17,14 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 ## Features
 
 - **Full Web Terminal** — xterm.js with WebGL rendering, binary protocol for ultra-low latency
-- **Session Persistence** — tmux keeps processes alive through disconnects; reconnect and resume instantly
+- **Session Persistence** — tmux keeps processes alive through disconnects; fixed socket path ensures auto-reconnect even after server restarts
 - **Multi-Tab** — independent terminal groups with layout persistence across browser refreshes
 - **Split Panes** — horizontal / vertical splits, arbitrarily nested
 - **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal; file picker shows file sizes
-- **Editor Panel** — multi-line editing with server-side draft persistence (SQLite)
+- **Mermaid Diagrams** — Gantt charts, flowcharts, and other Mermaid diagrams render inline with dark theme; CDN fallback for reliability
+- **Plan Annotations** — add, edit, and delete inline annotations on document content with persistent storage
+- **Editor Panel** — multi-line editing with server-side draft persistence (SQLite), undo stack, and slash commands (`/history`, etc.)
+- **Copy & Paste** — mouse selection auto-copies to clipboard; right-click pastes into terminal
 - **File Transfer** — upload files to CWD, browse and download via REST API
 - **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
 - **Session Management** — sidebar to restore, delete, rename sessions, and close individual terminals (with confirmation)

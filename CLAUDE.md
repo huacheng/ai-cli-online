@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，重连即恢复。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、文档浏览器（Markdown/HTML/PDF）、编辑器面板（多行编辑 + 草稿持久化）和 capture-pane 滚动历史回看（带 ANSI 颜色）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、文档浏览器（Markdown/HTML/PDF + Mermaid 图表渲染）、Plan 批注系统（内联新增/编辑/删除）、编辑器面板（多行编辑 + undo 撤销栈 + 斜杠命令 + 草稿持久化）、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
@@ -38,10 +38,11 @@ ai-cli-online/
 │       ├── App.tsx           # 主应用组件 (Login / TabBar / Terminal / NetworkIndicator)
 │       ├── store.ts          # Zustand 状态管理 (tabs + terminalsMap + 树形布局)
 │       ├── types.ts          # 类型定义 (LayoutNode, TerminalInstance, TabState)
-│       ├── utils.ts          # 工具函数 (formatSize/formatTime)
+│       ├── utils.ts          # 工具函数 (formatSize/formatTime/fileIcon)
 │       ├── index.css         # 全局样式 + xterm.css + resize 光标
 │       ├── hooks/
-│       │   └── useTerminalWebSocket.ts  # WebSocket 二进制协议 + 自动重连 + RTT 测量
+│       │   ├── useTerminalWebSocket.ts  # WebSocket 二进制协议 + 自动重连 + RTT 测量
+│       │   └── useMermaidRender.ts      # Mermaid 图表渲染 hook (CDN 懒加载 + fallback)
 │       ├── api/
 │       │   ├── client.ts          # API 基础配置 (API_BASE + authHeaders)
 │       │   ├── files.ts           # 文件传输 API (上传/下载/列表)
@@ -56,8 +57,9 @@ ai-cli-online/
 │           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割按钮)
 │           ├── PlanPanel.tsx          # 文档浏览器 (Markdown/HTML/PDF 渲染 + 编辑器)
 │           ├── DocumentPicker.tsx     # 文档选择器 (按扩展名过滤 .md/.html/.pdf, 显示文件大小)
-│           ├── MarkdownRenderer.tsx   # Markdown 渲染器
-│           ├── MarkdownEditor.tsx     # Markdown 编辑器 (多行编辑 + 草稿持久化)
+│           ├── MarkdownRenderer.tsx   # Markdown 渲染器 (Mermaid 图表内联渲染)
+│           ├── MarkdownEditor.tsx     # Markdown 编辑器 (多行编辑 + undo 栈 + 斜杠命令 + 草稿持久化)
+│           ├── PlanAnnotationRenderer.tsx  # Plan 批注渲染器 (内联批注 + Mermaid 图表)
 │           ├── PdfRenderer.tsx        # PDF 渲染器
 │           ├── ErrorBoundary.tsx      # React 错误边界
 │           ├── FileBrowser.tsx        # 文件浏览器覆盖层 (目录导航 + 下载)
@@ -294,10 +296,19 @@ latency: number | null;                           // 全局网络延迟 (ms)
 
 - 支持格式: Markdown (`.md`)、HTML (`.html/.htm`)、PDF (`.pdf`)
 - DocumentPicker 按扩展名过滤 CWD 下的文档文件，显示文件大小（B/KB/MB）
-- Markdown 渲染器 + 编辑器 (多行编辑，草稿通过 SQLite 服务端持久化)
+- Markdown 渲染器 + 编辑器 (多行编辑 + undo 撤销栈 + 斜杠命令，草稿通过 SQLite 服务端持久化)
+- **Mermaid 图表渲染** — Gantt 甘特图、flowchart 流程图等 Mermaid 代码块内联渲染，暗色主题
+  - CDN 懒加载: jsdelivr 主源 + unpkg 备源，加载失败时显示可见错误提示
+  - CSP 白名单: `scriptSrc` 包含 `cdn.jsdelivr.net` 和 `unpkg.com`
+  - 共享 `useMermaidRender` hook，MarkdownRenderer 和 PlanAnnotationRenderer 复用
+- **Plan 批注** — 文档内容内联批注系统
+  - 新增 / 编辑 / 删除批注，持久化存储
+  - 基线过滤 + 防闪烁 + 双实例修复
+- **鼠标选中自动复制 + 右键粘贴** — 终端剪贴板集成
 - PDF 使用独立渲染器组件
 - 文件变更通过 `mtime` 轮询检测（3 秒间隔），支持 304 未修改优化
 - Send 按钮可将编辑器内容发送到终端
+- `/history` 斜杠命令支持查看编辑历史
 
 ## 编辑器草稿持久化
 
