@@ -632,15 +632,18 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               <CenteredLoading label="Loading PLAN.md..." />
             ) : planFilePath && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
               <CenteredLoading label="Loading PLAN.md..." percent={fileStream.state.totalSize > 0 ? Math.round((fileStream.state.receivedBytes / fileStream.state.totalSize) * 100) : undefined} />
-            ) : planFilePath ? (
+            ) : planFilePath && !planExpanded ? (
               <PlanAnnotationRenderer
                 ref={planAnnotationRef}
                 markdown={planMarkdown}
                 filePath={planFilePath}
                 sessionId={sessionId}
                 onExecute={handlePlanExecute}
-                expanded={planExpanded}
               />
+            ) : planFilePath && planExpanded ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#565f89', fontSize: 12 }}>
+                Editing in expanded view
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
                 <span style={{ color: '#565f89', fontSize: 13, fontStyle: 'italic' }}>No PLAN.md found in CWD</span>
@@ -712,6 +715,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <PlanAnnotationRenderer
+              ref={planAnnotationRef}
               markdown={planMarkdown}
               filePath={planFilePath}
               sessionId={sessionId}

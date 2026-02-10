@@ -32,7 +32,7 @@ function saveToHistory(text: string) {
 
 const SLASH_COMMANDS = [
   // Local (intercepted, not sent to terminal)
-  { cmd: '/history', desc: 'Browse sent message history', local: true },
+  { cmd: '/history', desc: 'Browse sent message history' },
   // Claude Code built-in
   { cmd: '/plan', desc: 'Enter plan mode' },
   { cmd: '/help', desc: 'Get help' },
@@ -110,7 +110,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   // Shared undo stack for programmatic edits (Tab, slash insert, @ insert)
   const { pushUndo: _pushUndo, popUndo } = useTextareaUndo();
-  const pushUndo = useCallback(() => _pushUndo(content), [_pushUndo, content]);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const pushUndo = useCallback(() => _pushUndo(contentRef.current), [_pushUndo]);
 
   // Slash command autocomplete state
   const [slashOpen, setSlashOpen] = useState(false);
@@ -234,13 +236,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }, [fileIndex, fileOpen]);
 
   const handleSend = useCallback(() => {
-    const text = content.trim();
+    const text = contentRef.current.trim();
     if (!text) return;
     saveToHistory(text);
     onSend(text);
     setContent('');
     saveDraft(token, sessionId, '').catch(() => {});
-  }, [content, onSend, token, sessionId]);
+  }, [onSend, token, sessionId]);
 
   const fillContent = useCallback((text: string) => {
     pushUndo();
@@ -296,8 +298,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const updated = historyItems.filter((h) => h.ts !== item.ts || h.text !== item.text);
     setHistoryItems(updated);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
-    if (historyIndex >= updated.length) setHistoryIndex(Math.max(0, updated.length - 1));
-  }, [filteredHistory, historyItems, historyIndex]);
+    // Clamp index: recompute filtered length after removal
+    const newFiltered = historyFilter
+      ? updated.filter((h) => h.text.toLowerCase().includes(historyFilter.toLowerCase()))
+      : updated;
+    if (historyIndex >= newFiltered.length) setHistoryIndex(Math.max(0, newFiltered.length - 1));
+  }, [filteredHistory, historyItems, historyIndex, historyFilter]);
 
   // Scroll active history item into view
   useEffect(() => {
@@ -602,7 +608,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           ) : (
             filteredHistory.map((h, i) => (
               <div
-                key={`${h.ts}`}
+                key={`${h.ts}-${i}`}
                 className={`history-item${i === historyIndex ? ' history-item--active' : ''}`}
                 onMouseDown={(e) => {
                   e.preventDefault();

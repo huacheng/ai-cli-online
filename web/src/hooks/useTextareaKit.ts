@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 
 const UNDO_MAX = 50;
 
@@ -25,7 +25,7 @@ export function useTextareaUndo() {
     stackRef.current = [];
   }, []);
 
-  return { pushUndo, popUndo, clearUndo };
+  return useMemo(() => ({ pushUndo, popUndo, clearUndo }), [pushUndo, popUndo, clearUndo]);
 }
 
 /**

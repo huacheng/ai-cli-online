@@ -113,11 +113,18 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
 
   const sourceLines = useMemo(() => markdown.split('\n'), [markdown]);
 
-  // Annotations state
+  // Annotations state + baseline (IDs that existed on open, won't be forwarded)
+  const baselineIdsRef = useRef<Set<string>>(new Set());
   const [annotations, setAnnotations] = useState<PlanAnnotations>(() => {
     try {
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
-      return saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
+      const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
+      // Capture initial baseline
+      const ids = new Set<string>();
+      parsed.additions.forEach((a) => ids.add(a.id));
+      parsed.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
+      return parsed;
     } catch { return EMPTY_ANNOTATIONS; }
   });
 
@@ -140,19 +147,33 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [annotations, sessionId, filePath]);
 
-  // Reload annotations when filePath changes
+  // Reload annotations when filePath changes + capture baseline
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
-      setAnnotations(saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS);
+      const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
+      setAnnotations(parsed);
+      // Capture IDs as baseline — these won't be forwarded to Chat
+      const ids = new Set<string>();
+      parsed.additions.forEach((a) => ids.add(a.id));
+      parsed.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
       historyRef.current = [];
-    } catch { setAnnotations(EMPTY_ANNOTATIONS); }
+    } catch {
+      setAnnotations(EMPTY_ANNOTATIONS);
+      baselineIdsRef.current = new Set();
+    }
   }, [sessionId, filePath]);
 
   // Active insert zone editing
   const [activeInsert, setActiveInsert] = useState<number | null>(null);
   const [insertText, setInsertText] = useState('');
   const insertTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Deletion card editing
+  const [editingDelId, setEditingDelId] = useState<string | null>(null);
+  const [editDelText, setEditDelText] = useState('');
+  const editDelRef = useRef<HTMLTextAreaElement>(null);
 
   // Delete float button
   const [deleteFloat, setDeleteFloat] = useState<{ x: number; y: number; tokenIndices: number[]; startLine: number; endLine: number; text: string } | null>(null);
@@ -234,6 +255,17 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }));
   }, [pushHistory]);
 
+  // Edit a deletion annotation's selected text
+  const handleEditDeletion = useCallback((id: string, newText: string) => {
+    pushHistory();
+    setAnnotations((prev) => ({
+      ...prev,
+      deletions: prev.deletions.map((d) =>
+        d.id === id ? { ...d, selectedText: newText } : d
+      ),
+    }));
+  }, [pushHistory]);
+
   // Find closest ancestor (or self) with data-token-index
   const findTokenEl = useCallback((node: Node): Element | null => {
     let el: Element | null = node instanceof Element ? node : node.parentElement;
@@ -288,22 +320,28 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     });
   }, [tokens, findTokenEl]);
 
-  // Listen to selectionchange (fires reliably across browsers, including after mouseup)
+  // Listen to selectionchange with debounce to prevent flicker
+  const selTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     const onSelChange = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !containerRef.current) {
-        setDeleteFloat(null);
-        return;
-      }
-      // Only react if selection is within our container
-      const anchor = sel.anchorNode;
-      if (anchor && containerRef.current.contains(anchor)) {
-        handleSelectionCheck();
-      }
+      if (selTimerRef.current) clearTimeout(selTimerRef.current);
+      selTimerRef.current = setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !containerRef.current) {
+          setDeleteFloat(null);
+          return;
+        }
+        const anchor = sel.anchorNode;
+        if (anchor && containerRef.current.contains(anchor)) {
+          handleSelectionCheck();
+        }
+      }, 120);
     };
     document.addEventListener('selectionchange', onSelChange);
-    return () => document.removeEventListener('selectionchange', onSelChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelChange);
+      if (selTimerRef.current) clearTimeout(selTimerRef.current);
+    };
   }, [handleSelectionCheck]);
 
   // Ctrl+Z for annotation undo
@@ -323,16 +361,29 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Execute: generate summary
-  const handleExecute = useCallback(() => {
-    const summary = generateSummary(annotations, sourceLines);
-    if (summary) onExecute(summary);
-  }, [annotations, sourceLines, onExecute]);
+  // Filter annotations to only include new ones (not in baseline)
+  const getNewAnnotations = useCallback((): PlanAnnotations => ({
+    additions: annotations.additions.filter((a) => !baselineIdsRef.current.has(a.id)),
+    deletions: annotations.deletions.filter((d) => !baselineIdsRef.current.has(d.id)),
+  }), [annotations]);
 
-  // Expose getSummary to parent via ref
+  // Execute: generate summary from NEW annotations only
+  const handleExecute = useCallback(() => {
+    const summary = generateSummary(getNewAnnotations(), sourceLines);
+    if (summary) {
+      onExecute(summary);
+      // Update baseline to include all current IDs (mark as forwarded)
+      const ids = new Set<string>();
+      annotations.additions.forEach((a) => ids.add(a.id));
+      annotations.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
+    }
+  }, [getNewAnnotations, annotations, sourceLines, onExecute]);
+
+  // Expose getSummary to parent via ref (only new annotations)
   useImperativeHandle(ref, () => ({
-    getSummary: () => generateSummary(annotations, sourceLines),
-  }), [annotations, sourceLines]);
+    getSummary: () => generateSummary(getNewAnnotations(), sourceLines),
+  }), [getNewAnnotations, sourceLines]);
 
   // Clear all annotations
   const handleClear = useCallback(() => {
@@ -434,16 +485,58 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                 .filter((d) => d.tokenIndices.includes(i) && d.tokenIndices[0] === i)
                 .map((d) => (
                   <div key={d.id} className="plan-deletion-card">
-                    <span style={{ fontSize: 11, color: '#f7768e' }}>
-                      Deleted: {d.selectedText.slice(0, 40)}{d.selectedText.length > 40 ? '...' : ''}
-                    </span>
-                    <button
-                      className="pane-btn pane-btn--danger"
-                      onClick={() => handleRemoveDeletion(d.id)}
-                      style={{ fontSize: 11, marginLeft: 4 }}
-                    >
-                      undo
-                    </button>
+                    {editingDelId === d.id ? (
+                      <textarea
+                        ref={editDelRef}
+                        className="plan-annotation-textarea"
+                        value={editDelText}
+                        onChange={(e) => setEditDelText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            const trimmed = editDelText.trim();
+                            if (trimmed) handleEditDeletion(d.id, trimmed);
+                            else handleRemoveDeletion(d.id);
+                            setEditingDelId(null);
+                          }
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingDelId(null); }
+                        }}
+                        onBlur={() => {
+                          const trimmed = editDelText.trim();
+                          if (trimmed) handleEditDeletion(d.id, trimmed);
+                          else handleRemoveDeletion(d.id);
+                          setEditingDelId(null);
+                        }}
+                        rows={autoRows(editDelText)}
+                        style={{ fontSize: `${fontSize}px`, flex: 1 }}
+                      />
+                    ) : (
+                      <>
+                        <span
+                          style={{ flex: 1, fontSize: `${fontSize}px`, color: '#f7768e', whiteSpace: 'pre-wrap', cursor: 'text' }}
+                          onDoubleClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          title="Double-click to edit"
+                        >
+                          {d.selectedText}
+                        </span>
+                        <button
+                          className="pane-btn"
+                          onClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          style={{ fontSize: 11, flexShrink: 0, color: '#7aa2f7' }}
+                          title="Edit deletion annotation"
+                        >
+                          &#x270E;
+                        </button>
+                        <button
+                          className="pane-btn pane-btn--danger"
+                          onClick={() => handleRemoveDeletion(d.id)}
+                          style={{ fontSize: 11, flexShrink: 0 }}
+                          title="Remove deletion"
+                        >
+                          &times;
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
 

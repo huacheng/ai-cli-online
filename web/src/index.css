@@ -516,7 +516,7 @@ body.resizing-panes-h * {
   color: #c0caf5;
   font-family: 'JetBrains Mono', monospace;
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: break-word;
   line-height: 1.4;
 }
 
@@ -850,11 +850,10 @@ body.resizing-panes-h * {
   transform: scale(1.15);
 }
 
-/* ── Deleted Block Visual ── */
+/* ── Deleted Block Visual (subtle left border, no full strikethrough) ── */
 .plan-block--deleted {
-  text-decoration: line-through;
-  opacity: 0.4;
-  background: rgba(247, 118, 142, 0.08);
+  border-left: 3px solid rgba(247, 118, 142, 0.5);
+  padding-left: 8px;
   border-radius: 2px;
   position: relative;
 }
