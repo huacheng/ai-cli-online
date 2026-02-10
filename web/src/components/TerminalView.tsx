@@ -116,6 +116,22 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
+    // Auto-copy selection to clipboard
+    terminal.onSelectionChange(() => {
+      const sel = terminal.getSelection();
+      if (sel) navigator.clipboard.writeText(sel).catch(() => {});
+    });
+
+    // Right-click paste from clipboard into terminal
+    const xtermEl = terminal.element;
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      navigator.clipboard.readText().then((text) => {
+        if (text) sendInputRef.current(text);
+      }).catch(() => {});
+    };
+    if (xtermEl) xtermEl.addEventListener('contextmenu', handleContextMenu);
+
     // Fit terminal to container, retrying until container has valid dimensions
     const doFit = () => {
       try {
@@ -183,6 +199,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       if (rafId) cancelAnimationFrame(rafId);
       if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
       if (resizeObserver) resizeObserver.disconnect();
+      if (xtermEl) xtermEl.removeEventListener('contextmenu', handleContextMenu);
       if (terminalRef.current) {
         terminalRef.current.dispose();
         terminalRef.current = null;
@@ -246,7 +263,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
         onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
       >
-        {scrollbackVisible ? '\u2715' : '\u2191'}
+        {scrollbackVisible ? '\u2715' : '\u{1F441}'}
       </button>
       {/* Scrollback overlay with read-only xterm.js viewer */}
       {scrollbackVisible && (
@@ -298,6 +315,12 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     } catch {
       // WebGL not available, fall back to default canvas renderer
     }
+
+    // Auto-copy selection to clipboard
+    terminal.onSelectionChange(() => {
+      const sel = terminal.getSelection();
+      if (sel) navigator.clipboard.writeText(sel).catch(() => {});
+    });
 
     // Handle ESC at xterm level — xterm captures keyboard events even
     // with disableStdin, preventing document-level listeners from firing

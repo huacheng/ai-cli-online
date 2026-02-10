@@ -360,6 +360,13 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   const { totalSize, receivedBytes } = fileStream.state;
   const streamPct = totalSize > 0 ? Math.round((receivedBytes / totalSize) * 100) : 0;
 
+  // Auto-copy selection to clipboard when user selects text in document viewer
+  const handleDocSelectionCopy = useCallback(() => {
+    const sel = window.getSelection();
+    const text = sel?.toString();
+    if (text) navigator.clipboard.writeText(text).catch(() => {});
+  }, []);
+
   // Render document content
   const renderDoc = (scrollRefSetter?: (el: HTMLDivElement | null) => void) => {
     if (!docPath) {
@@ -610,7 +617,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
       {/* Left/Right split body */}
       <div ref={containerRef} className="plan-panel-body" style={{ position: 'relative' }}>
         {/* Left: Document renderer */}
-        <div className="plan-renderer" style={{ width: `${leftWidthPercent}%`, flexShrink: 0 }}>
+        <div className="plan-renderer" style={{ width: `${leftWidthPercent}%`, flexShrink: 0 }} onMouseUp={handleDocSelectionCopy}>
           {renderDoc((el) => { rendererScrollRef.current = el; })}
           {/* Document Picker overlay (scoped to renderer area) */}
           {pickerOpen && (
@@ -692,7 +699,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               &times;
             </button>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'hidden' }} onMouseUp={handleDocSelectionCopy}>
             {renderDoc((el) => { expandedScrollRef.current = el; })}
           </div>
         </div>

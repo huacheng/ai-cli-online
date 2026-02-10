@@ -310,6 +310,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     const rect = range.getBoundingClientRect();
     const container = containerRef.current;
     const containerRect = container.getBoundingClientRect();
+    // Auto-copy selection to clipboard
+    navigator.clipboard.writeText(text).catch(() => {});
+
     setDeleteFloat({
       x: rect.right - containerRect.left + container.scrollLeft + 6,
       y: rect.top - containerRect.top + container.scrollTop - 2,
