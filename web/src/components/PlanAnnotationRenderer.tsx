@@ -38,6 +38,10 @@ function storageKey(sessionId: string, filePath: string) {
   return `plan-annotations-${sessionId}-${filePath}`;
 }
 
+function scrollKey(sessionId: string, filePath: string) {
+  return `plan-scroll-${sessionId}-${filePath}`;
+}
+
 /** Render a single marked token to sanitized HTML (XSS-safe via DOMPurify) */
 function tokenToHtml(token: Token): string {
   const raw = marked.parser([token as Token], { async: false } as never) as unknown as string;
@@ -114,17 +118,17 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
 
   const sourceLines = useMemo(() => markdown.split('\n'), [markdown]);
 
-  // Annotations state + baseline (IDs that existed on open, won't be forwarded)
-  const baselineIdsRef = useRef<Set<string>>(new Set());
+  // Baseline: map annotation ID → original content, to detect edits via content diff
+  const baselineContentRef = useRef<Map<string, string>>(new Map());
   const [annotations, setAnnotations] = useState<PlanAnnotations>(() => {
     try {
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
       const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
-      // Capture initial baseline
-      const ids = new Set<string>();
-      parsed.additions.forEach((a) => ids.add(a.id));
-      parsed.deletions.forEach((d) => ids.add(d.id));
-      baselineIdsRef.current = ids;
+      // Capture initial baseline content
+      const map = new Map<string, string>();
+      parsed.additions.forEach((a) => map.set(a.id, a.content));
+      parsed.deletions.forEach((d) => map.set(d.id, d.selectedText));
+      baselineContentRef.current = map;
       return parsed;
     } catch { return EMPTY_ANNOTATIONS; }
   });
@@ -154,15 +158,15 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
       const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
       setAnnotations(parsed);
-      // Capture IDs as baseline — these won't be forwarded to Chat
-      const ids = new Set<string>();
-      parsed.additions.forEach((a) => ids.add(a.id));
-      parsed.deletions.forEach((d) => ids.add(d.id));
-      baselineIdsRef.current = ids;
+      // Capture baseline content for diff-based detection
+      const map = new Map<string, string>();
+      parsed.additions.forEach((a) => map.set(a.id, a.content));
+      parsed.deletions.forEach((d) => map.set(d.id, d.selectedText));
+      baselineContentRef.current = map;
       historyRef.current = [];
     } catch {
       setAnnotations(EMPTY_ANNOTATIONS);
-      baselineIdsRef.current = new Set();
+      baselineContentRef.current = new Map();
     }
   }, [sessionId, filePath]);
 
@@ -179,6 +183,27 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Delete float button
   const [deleteFloat, setDeleteFloat] = useState<{ x: number; y: number; tokenIndices: number[]; startLine: number; endLine: number; text: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Save scroll position on unmount, restore after content loads
+  useEffect(() => {
+    return () => {
+      const el = containerRef.current;
+      if (el && el.scrollTop > 0) {
+        localStorage.setItem(scrollKey(sessionId, filePath), String(el.scrollTop));
+      }
+    };
+  }, [sessionId, filePath]);
+
+  useEffect(() => {
+    if (!tokens.length) return;
+    const saved = localStorage.getItem(scrollKey(sessionId, filePath));
+    if (saved) {
+      requestAnimationFrame(() => {
+        const el = containerRef.current;
+        if (el) el.scrollTop = Number(saved);
+      });
+    }
+  }, [sessionId, filePath, tokens.length]);
 
   // Focus insert textarea when zone opens
   useEffect(() => {
@@ -367,22 +392,25 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Filter annotations to only include new ones (not in baseline)
-  const getNewAnnotations = useCallback((): PlanAnnotations => ({
-    additions: annotations.additions.filter((a) => !baselineIdsRef.current.has(a.id)),
-    deletions: annotations.deletions.filter((d) => !baselineIdsRef.current.has(d.id)),
-  }), [annotations]);
+  // Filter: include new annotations (not in baseline) or modified ones (content differs)
+  const getNewAnnotations = useCallback((): PlanAnnotations => {
+    const bl = baselineContentRef.current;
+    return {
+      additions: annotations.additions.filter((a) => !bl.has(a.id) || bl.get(a.id) !== a.content),
+      deletions: annotations.deletions.filter((d) => !bl.has(d.id) || bl.get(d.id) !== d.selectedText),
+    };
+  }, [annotations]);
 
-  // Execute: generate summary from NEW annotations only
+  // Execute: generate summary from new/modified annotations
   const handleExecute = useCallback(() => {
     const summary = generateSummary(getNewAnnotations(), sourceLines);
     if (summary) {
       onExecute(summary);
-      // Update baseline to include all current IDs (mark as forwarded)
-      const ids = new Set<string>();
-      annotations.additions.forEach((a) => ids.add(a.id));
-      annotations.deletions.forEach((d) => ids.add(d.id));
-      baselineIdsRef.current = ids;
+      // Update baseline to current content (mark as forwarded)
+      const map = new Map<string, string>();
+      annotations.additions.forEach((a) => map.set(a.id, a.content));
+      annotations.deletions.forEach((d) => map.set(d.id, d.selectedText));
+      baselineContentRef.current = map;
     }
   }, [getNewAnnotations, annotations, sourceLines, onExecute]);
 

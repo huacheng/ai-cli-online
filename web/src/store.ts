@@ -432,7 +432,7 @@ interface AppState {
 
   // Terminal actions (scoped to active tab)
   addTerminal: (direction?: SplitDirection, customSessionId?: string) => string;
-  splitTerminal: (terminalId: string, direction: SplitDirection) => string;
+  splitTerminal: (terminalId: string, direction: SplitDirection, startCwd?: string) => string;
   removeTerminal: (id: string) => void;
 
   setTerminalConnected: (id: string, connected: boolean) => void;
@@ -893,7 +893,7 @@ export const useStore = create<AppState>((set, get) => ({
     return id;
   },
 
-  splitTerminal: (terminalId, direction) => {
+  splitTerminal: (terminalId, direction, startCwd) => {
     const state = get();
     const activeTab = getActiveTab(state);
     if (!activeTab || !activeTab.layout) return '';
@@ -907,6 +907,7 @@ export const useStore = create<AppState>((set, get) => ({
       sessionResumed: false,
       error: null,
       panelMode: 'none' as PanelMode,
+      ...(startCwd ? { startCwd } : {}),
     };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
     const splitId = `s${nextSplitId}`;

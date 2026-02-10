@@ -100,7 +100,9 @@ export function useTerminalWebSocket(
 
     // Token is sent via first-message auth, not in the URL
     // cols/rows are synced via resize message after connection
-    const wsUrl = `${WS_BASE}?sessionId=${encodeURIComponent(sessionId)}`;
+    const startCwd = useStore.getState().terminalsMap[sessionId]?.startCwd;
+    let wsUrl = `${WS_BASE}?sessionId=${encodeURIComponent(sessionId)}`;
+    if (startCwd) wsUrl += `&cwd=${encodeURIComponent(startCwd)}`;
     console.log(`[WS:${sessionId}] Connecting...`);
     const ws = new WebSocket(wsUrl);
 

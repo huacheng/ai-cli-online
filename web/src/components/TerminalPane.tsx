@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { FileBrowser } from './FileBrowser';
 import { PlanPanel } from './PlanPanel';
-import { uploadFiles } from '../api/files';
+import { uploadFiles, fetchCwd } from '../api/files';
 
 import type { TerminalInstance } from '../types';
 import type { TerminalViewHandle } from './TerminalView';
@@ -38,6 +38,14 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const token = useStore((s) => s.token);
 
   const setTerminalPanelMode = useStore((s) => s.setTerminalPanelMode);
+
+  const handleSplit = useCallback(async (direction: 'horizontal' | 'vertical') => {
+    let cwd: string | undefined;
+    if (token) {
+      try { cwd = await fetchCwd(token, terminal.id); } catch { /* use default */ }
+    }
+    splitTerminal(terminal.id, direction, cwd);
+  }, [token, terminal.id, splitTerminal]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const terminalViewRef = useRef<TerminalViewHandle>(null);
@@ -192,7 +200,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           </button>
           <button
             className="pane-btn"
-            onClick={() => splitTerminal(terminal.id, isNarrow ? 'vertical' : 'horizontal')}
+            onClick={() => handleSplit(isNarrow ? 'vertical' : 'horizontal')}
             title={isNarrow ? 'Split vertical (screen too narrow for horizontal)' : 'Split horizontal (left/right)'}
             aria-label="Split horizontal"
           >
@@ -200,7 +208,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           </button>
           <button
             className="pane-btn"
-            onClick={() => splitTerminal(terminal.id, 'vertical')}
+            onClick={() => handleSplit('vertical')}
             title="Split vertical (top/bottom)"
             aria-label="Split vertical"
           >

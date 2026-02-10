@@ -171,6 +171,7 @@ export function setupWebSocket(
     const rows = 24;
     const rawSessionId = url.searchParams.get('sessionId') || undefined;
     const sessionId = rawSessionId && isValidSessionId(rawSessionId) ? rawSessionId : undefined;
+    const clientCwd = url.searchParams.get('cwd') || undefined;
 
     if (rawSessionId && !sessionId) {
       console.log(`[WS] Invalid sessionId rejected: ${rawSessionId}`);
@@ -226,7 +227,7 @@ export function setupWebSocket(
         // Check or create tmux session
         const resumed = await hasSession(sessionName);
         if (!resumed) {
-          await createSession(sessionName, cols, rows, defaultCwd);
+          await createSession(sessionName, cols, rows, clientCwd || defaultCwd);
         } else {
           // resizeSession, captureScrollback, and configureSession are independent — run in parallel
           const [, scrollback] = await Promise.all([

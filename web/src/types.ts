@@ -25,6 +25,7 @@ export interface TerminalInstance {
   sessionResumed: boolean;
   error: string | null;
   panelMode: PanelMode;
+  startCwd?: string;
 }
 
 // Server session info from REST API
