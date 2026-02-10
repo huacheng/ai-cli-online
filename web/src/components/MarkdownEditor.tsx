@@ -2,8 +2,37 @@ import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImper
 import { fetchDraft, saveDraft } from '../api/drafts';
 import { fetchFiles, type FileEntry } from '../api/files';
 import { useStore } from '../store';
+import { useTextareaUndo, handleTabKey, handleCtrlZ } from '../hooks/useTextareaKit';
+
+/* ── Chat History (localStorage) ── */
+
+interface HistoryItem {
+  text: string;
+  ts: number;
+}
+
+const HISTORY_KEY = 'chat-history';
+const HISTORY_MAX = 50;
+
+function loadHistory(): HistoryItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveToHistory(text: string) {
+  const items = loadHistory();
+  // Deduplicate: remove existing entry with same text
+  const filtered = items.filter((h) => h.text !== text);
+  filtered.unshift({ text, ts: Date.now() });
+  if (filtered.length > HISTORY_MAX) filtered.length = HISTORY_MAX;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered));
+}
 
 const SLASH_COMMANDS = [
+  // Local (intercepted, not sent to terminal)
+  { cmd: '/history', desc: 'Browse sent message history', local: true },
   // Claude Code built-in
   { cmd: '/plan', desc: 'Enter plan mode' },
   { cmd: '/help', desc: 'Get help' },
@@ -57,7 +86,7 @@ const SLASH_COMMANDS = [
   { cmd: '/oh-my-claudecode:writer-memory', desc: 'Writer memory system' },
   { cmd: '/oh-my-claudecode:psm', desc: 'Project session manager' },
   { cmd: '/oh-my-claudecode:trace', desc: 'Agent flow trace timeline' },
-  { cmd: '/token-planner', desc: 'Task complexity grading & token routing' },
+  { cmd: '/plan-analyzer', desc: 'Task complexity grading & token routing' },
 ];
 
 export interface MarkdownEditorHandle {
@@ -79,18 +108,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const loadedRef = useRef(false);
 
-  // Undo history stack for programmatic edits (Tab, slash insert, @ insert)
-  const undoStackRef = useRef<string[]>([]);
-  const UNDO_MAX = 50;
-  const pushUndo = useCallback(() => {
-    undoStackRef.current.push(content);
-    if (undoStackRef.current.length > UNDO_MAX) undoStackRef.current.shift();
-  }, [content]);
+  // Shared undo stack for programmatic edits (Tab, slash insert, @ insert)
+  const { pushUndo: _pushUndo, popUndo } = useTextareaUndo();
+  const pushUndo = useCallback(() => _pushUndo(content), [_pushUndo, content]);
 
   // Slash command autocomplete state
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
+
+  // History popup state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [historyFilter, setHistoryFilter] = useState('');
+  const historyDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredHistory = useMemo(() => {
+    if (!historyFilter) return historyItems;
+    const q = historyFilter.toLowerCase();
+    return historyItems.filter((h) => h.text.toLowerCase().includes(q));
+  }, [historyItems, historyFilter]);
 
   // File selector autocomplete state
   const [fileOpen, setFileOpen] = useState(false);
@@ -198,6 +236,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const handleSend = useCallback(() => {
     const text = content.trim();
     if (!text) return;
+    saveToHistory(text);
     onSend(text);
     setContent('');
     saveDraft(token, sessionId, '').catch(() => {});
@@ -215,8 +254,61 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     onContentChange?.(content.trim().length > 0);
   }, [content, onContentChange]);
 
+  // Open history popup
+  const openHistory = useCallback(() => {
+    setHistoryItems(loadHistory());
+    setHistoryIndex(0);
+    setHistoryFilter('');
+    setHistoryOpen(true);
+    setSlashOpen(false);
+    setSlashFilter('');
+    // Clear the /history text from the editor
+    const ta = textareaRef.current;
+    if (ta) {
+      const pos = ta.selectionStart;
+      const before = content.slice(0, pos);
+      const after = content.slice(pos);
+      const match = before.match(/(?:^|\s)(\/history)\s*$/);
+      if (match) {
+        const start = before.length - match[1].length;
+        setContent(content.slice(0, start) + after);
+      }
+    }
+  }, [content]);
+
+  // Select history item → fill editor
+  const selectHistoryItem = useCallback((item: HistoryItem) => {
+    pushUndo();
+    setContent(item.text);
+    setHistoryOpen(false);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) { ta.selectionStart = ta.selectionEnd = item.text.length; ta.focus(); }
+    });
+  }, [pushUndo]);
+
+  // Delete history item
+  const deleteHistoryItem = useCallback((index: number) => {
+    const item = filteredHistory[index];
+    if (!item) return;
+    const updated = historyItems.filter((h) => h.ts !== item.ts || h.text !== item.text);
+    setHistoryItems(updated);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    if (historyIndex >= updated.length) setHistoryIndex(Math.max(0, updated.length - 1));
+  }, [filteredHistory, historyItems, historyIndex]);
+
+  // Scroll active history item into view
+  useEffect(() => {
+    if (!historyOpen || !historyDropdownRef.current) return;
+    const active = historyDropdownRef.current.querySelector('.history-item--active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [historyIndex, historyOpen]);
+
   // Insert slash command at cursor, replacing the /prefix
   const insertSlashCommand = useCallback((cmd: string) => {
+    // Intercept local commands
+    if (cmd === '/history') { openHistory(); return; }
+
     const ta = textareaRef.current;
     if (!ta) return;
     pushUndo();
@@ -253,7 +345,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setSlashOpen(false);
     setSlashFilter('');
     setSlashIndex(0);
-  }, [content, pushUndo]);
+  }, [content, pushUndo, openHistory]);
 
   // Insert file at @ mention, or navigate into directory
   const insertFileAtMention = useCallback((file: FileEntry) => {
@@ -305,6 +397,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const val = e.target.value;
     setContent(val);
 
+    // Close history popup when user types
+    if (historyOpen) {
+      // Use typed content as filter
+      const trimmed = val.trim();
+      if (trimmed) {
+        setHistoryFilter(trimmed);
+        setHistoryIndex(0);
+      } else {
+        setHistoryFilter('');
+      }
+      return;
+    }
+
     // Detect slash command trigger
     const pos = e.target.selectionStart;
     const before = val.slice(0, pos);
@@ -334,10 +439,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         setFileOpen(false);
       }
     }
-  }, []);
+  }, [historyOpen]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Slash command navigation
       if (slashOpen && filteredCommands.length > 0) {
         if (e.key === 'ArrowDown') {
@@ -386,31 +491,44 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
       }
 
+      // History popup navigation
+      if (historyOpen && filteredHistory.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setHistoryIndex((i) => (i + 1) % filteredHistory.length);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setHistoryIndex((i) => (i - 1 + filteredHistory.length) % filteredHistory.length);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          selectHistoryItem(filteredHistory[historyIndex]);
+          return;
+        }
+        if (e.key === 'Delete' || (e.key === 'Backspace' && (e.ctrlKey || e.metaKey))) {
+          e.preventDefault();
+          deleteHistoryItem(historyIndex);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setHistoryOpen(false);
+          return;
+        }
+      }
+
       // Ctrl+Z: pop undo stack (for programmatic edits)
       if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
-        const prev = undoStackRef.current.pop();
-        if (prev != null) {
-          e.preventDefault();
-          setContent(prev);
-        }
+        handleCtrlZ(e, popUndo, setContent);
         return;
       }
 
       // Tab key: insert 2 spaces
       if (e.key === 'Tab') {
-        e.preventDefault();
-        const ta = textareaRef.current;
-        if (ta) {
-          pushUndo();
-          const start = ta.selectionStart;
-          const end = ta.selectionEnd;
-          const newContent = content.slice(0, start) + '  ' + content.slice(end);
-          setContent(newContent);
-          const newPos = start + 2;
-          requestAnimationFrame(() => {
-            ta.selectionStart = ta.selectionEnd = newPos;
-          });
-        }
+        handleTabKey(e, setContent, _pushUndo);
         return;
       }
 
@@ -419,7 +537,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         handleSend();
       }
     },
-    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, content, fileOpen, filteredFiles, fileIndex, insertFileAtMention, pushUndo],
+    [handleSend, slashOpen, filteredCommands, slashIndex, insertSlashCommand, fileOpen, filteredFiles, fileIndex, insertFileAtMention, _pushUndo, popUndo, historyOpen, filteredHistory, historyIndex, selectHistoryItem, deleteHistoryItem],
   );
 
   return (
@@ -468,6 +586,41 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               >
                 <span className="file-icon">{f.type === 'directory' ? '\u{1F4C1}' : '\u{1F4C4}'}</span>
                 <span className="file-name">{f.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* History popup */}
+      {historyOpen && (
+        <div className="history-dropdown" ref={historyDropdownRef}>
+          {filteredHistory.length === 0 ? (
+            <div className="history-item history-empty">No history yet</div>
+          ) : (
+            filteredHistory.map((h, i) => (
+              <div
+                key={`${h.ts}`}
+                className={`history-item${i === historyIndex ? ' history-item--active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectHistoryItem(h);
+                }}
+                onMouseEnter={() => setHistoryIndex(i)}
+              >
+                <span className="history-text">{h.text.length > 120 ? h.text.slice(0, 120) + '...' : h.text}</span>
+                <span className="history-time">{new Date(h.ts).toLocaleString()}</span>
+                <button
+                  className="history-delete"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteHistoryItem(i);
+                  }}
+                  title="Delete (Del key)"
+                >
+                  &times;
+                </button>
               </div>
             ))
           )}

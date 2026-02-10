@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, useImperativeHandle,
 import { marked, type Token } from 'marked';
 import DOMPurify from 'dompurify';
 import { useStore } from '../store';
+import { useTextareaUndo, handleTabKey, handleCtrlZ, autoRows } from '../hooks/useTextareaKit';
 
 /* ── Data Types ── */
 
@@ -192,6 +193,17 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     setAnnotations((prev) => ({
       ...prev,
       additions: prev.additions.filter((a) => a.id !== id),
+    }));
+  }, [pushHistory]);
+
+  // Edit an existing addition annotation
+  const handleEditAddition = useCallback((id: string, newContent: string) => {
+    pushHistory();
+    setAnnotations((prev) => ({
+      ...prev,
+      additions: prev.additions.map((a) =>
+        a.id === id ? { ...a, content: newContent } : a
+      ),
     }));
   }, [pushHistory]);
 
@@ -396,6 +408,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
           onOpen={() => { setActiveInsert(-1); setInsertText(''); }}
           onSubmit={() => handleAddAnnotation(-1)}
           onRemoveAddition={handleRemoveAddition}
+          onEditAddition={handleEditAddition}
           insertText={insertText}
           setInsertText={setInsertText}
           textareaRef={activeInsert === -1 ? insertTextareaRef : undefined}
@@ -442,6 +455,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                 onOpen={() => { setActiveInsert(i); setInsertText(''); }}
                 onSubmit={() => handleAddAnnotation(i)}
                 onRemoveAddition={handleRemoveAddition}
+                onEditAddition={handleEditAddition}
                 insertText={insertText}
                 setInsertText={setInsertText}
                 textareaRef={activeInsert === i ? insertTextareaRef : undefined}
@@ -476,6 +490,7 @@ interface InsertZoneProps {
   onOpen: () => void;
   onSubmit: () => void;
   onRemoveAddition: (id: string) => void;
+  onEditAddition: (id: string, newContent: string) => void;
   insertText: string;
   setInsertText: (text: string) => void;
   textareaRef?: React.Ref<HTMLTextAreaElement>;
@@ -484,20 +499,117 @@ interface InsertZoneProps {
   fontSize?: number;
 }
 
-function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, insertText, setInsertText, textareaRef, expanded, alwaysShow, fontSize = 14 }: InsertZoneProps) {
+function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, onEditAddition, insertText, setInsertText, textareaRef, expanded, alwaysShow, fontSize = 14 }: InsertZoneProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Shared undo stacks
+  const editUndo = useTextareaUndo();
+  const insertUndo = useTextareaUndo();
+
+  // Focus edit textarea when entering edit mode, cursor at end
+  useEffect(() => {
+    if (editingId) {
+      editUndo.clearUndo();
+      requestAnimationFrame(() => {
+        const el = editTextareaRef.current;
+        if (el) {
+          el.focus();
+          el.selectionStart = el.selectionEnd = el.value.length;
+        }
+      });
+    }
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset insert undo stack when insert zone opens
+  useEffect(() => {
+    if (active) insertUndo.clearUndo();
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setEditTextWithUndo = useCallback((next: string) => {
+    setEditText((prev) => {
+      editUndo.pushUndo(prev);
+      return next;
+    });
+  }, [editUndo]);
+
+  const setInsertTextWithUndo = useCallback((next: string) => {
+    insertUndo.pushUndo(insertText);
+    setInsertText(next);
+  }, [insertText, setInsertText, insertUndo]);
+
+  const startEdit = useCallback((a: AddAnnotation) => {
+    setEditingId(a.id);
+    setEditText(a.content);
+  }, []);
+
+  const saveEdit = useCallback(() => {
+    if (!editingId) return;
+    const trimmed = editText.trim();
+    if (trimmed) {
+      onEditAddition(editingId, trimmed);
+    } else {
+      onRemoveAddition(editingId); // empty content = delete
+    }
+    setEditingId(null);
+    setEditText('');
+  }, [editingId, editText, onEditAddition, onRemoveAddition]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditText('');
+  }, []);
+
   return (
     <div className={`plan-insert-zone${alwaysShow ? ' plan-insert-zone--empty' : ''}`} data-zone-index={index}>
       {/* Existing addition annotations */}
       {additions?.map((a) => (
         <div key={a.id} className="plan-annotation-card">
-          <span style={{ flex: 1, fontSize: `${fontSize}px`, color: '#e0af68', whiteSpace: 'pre-wrap' }}>{a.content}</span>
-          <button
-            className="pane-btn pane-btn--danger"
-            onClick={() => onRemoveAddition(a.id)}
-            style={{ fontSize: 11, flexShrink: 0 }}
-          >
-            &times;
-          </button>
+          {editingId === a.id ? (
+            /* Edit mode */
+            <textarea
+              ref={editTextareaRef}
+              className="plan-annotation-textarea"
+              value={editText}
+              onChange={(e) => setEditTextWithUndo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(); return; }
+                if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); return; }
+                if (e.key === 'Tab') { handleTabKey(e, setEditTextWithUndo); return; }
+                if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { handleCtrlZ(e, editUndo.popUndo, setEditText); return; }
+              }}
+              onBlur={saveEdit}
+              rows={autoRows(editText)}
+              style={{ fontSize: `${fontSize}px`, flex: 1, ...(expanded ? { minWidth: 300 } : undefined) }}
+            />
+          ) : (
+            /* Display mode — double-click to edit */
+            <>
+              <span
+                style={{ flex: 1, fontSize: `${fontSize}px`, color: '#e0af68', whiteSpace: 'pre-wrap', cursor: 'text' }}
+                onDoubleClick={() => startEdit(a)}
+                title="Double-click to edit"
+              >
+                {a.content}
+              </span>
+              <button
+                className="pane-btn"
+                onClick={() => startEdit(a)}
+                style={{ fontSize: 11, flexShrink: 0, color: '#7aa2f7' }}
+                title="Edit annotation"
+              >
+                &#x270E;
+              </button>
+              <button
+                className="pane-btn pane-btn--danger"
+                onClick={() => onRemoveAddition(a.id)}
+                style={{ fontSize: 11, flexShrink: 0 }}
+              >
+                &times;
+              </button>
+            </>
+          )}
         </div>
       ))}
 
@@ -508,19 +620,15 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
             ref={textareaRef}
             className="plan-annotation-textarea"
             value={insertText}
-            onChange={(e) => setInsertText(e.target.value)}
+            onChange={(e) => setInsertTextWithUndo(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                onSubmit();
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                onSubmit(); // saves if text, discards if empty
-              }
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSubmit(); return; }
+              if (e.key === 'Escape') { e.preventDefault(); onSubmit(); return; }
+              if (e.key === 'Tab') { handleTabKey(e, setInsertTextWithUndo); return; }
+              if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { handleCtrlZ(e, insertUndo.popUndo, setInsertText); return; }
             }}
             placeholder="Add annotation... (Ctrl+Enter or Esc to save)"
-            rows={2}
+            rows={autoRows(insertText)}
             style={{ fontSize: `${fontSize}px`, ...(expanded ? { minWidth: 300 } : undefined) }}
           />
         </div>

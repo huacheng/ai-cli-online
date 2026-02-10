@@ -429,7 +429,7 @@ body.resizing-panes-h * {
 }
 
 .slash-desc {
-  color: #565f89;
+  color: #7dcfff;
   font-size: 11px;
 }
 
@@ -476,6 +476,78 @@ body.resizing-panes-h * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── History dropdown ── */
+.history-dropdown {
+  flex-shrink: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #1e2030;
+  border-bottom: 1px solid #292e42;
+  z-index: 10;
+  font-size: 12px;
+}
+
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  position: relative;
+}
+
+.history-item:hover,
+.history-item--active {
+  background: #292e42;
+}
+
+.history-empty {
+  color: #565f89;
+  cursor: default;
+  justify-content: center;
+  padding: 12px;
+}
+
+.history-text {
+  flex: 1;
+  color: #c0caf5;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.history-time {
+  flex-shrink: 0;
+  color: #565f89;
+  font-size: 10px;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.history-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #565f89;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s ease, color 0.1s ease;
+}
+
+.history-item:hover .history-delete,
+.history-item--active .history-delete {
+  opacity: 1;
+}
+
+.history-delete:hover {
+  color: #f7768e;
 }
 
 /* ── Tab Bar ── */
