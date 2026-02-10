@@ -428,6 +428,10 @@ body.resizing-panes-h * {
   font-family: 'JetBrains Mono', monospace;
 }
 
+.slash-cmd--local {
+  color: #bb9af7;
+}
+
 .slash-desc {
   color: #7dcfff;
   font-size: 11px;
