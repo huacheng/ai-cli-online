@@ -56,6 +56,37 @@ function fileIcon(f: FileEntry): string {
 
 const CWD_POLL_INTERVAL = 3000;
 
+/** Centered loading indicator with optional progress bar */
+function CenteredLoading({ label, percent }: { label: string; percent?: number }) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      gap: 8,
+    }}>
+      <span style={{ color: '#565f89', fontSize: 13 }}>{label}</span>
+      {percent != null && (
+        <div style={{ width: 120, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            flex: 1, height: 4, backgroundColor: '#292e42', borderRadius: 2, overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%',
+              width: `${percent}%`,
+              backgroundColor: '#7aa2f7',
+              transition: 'width 0.2s',
+            }} />
+          </div>
+          <span style={{ fontSize: 10, color: '#565f89', whiteSpace: 'nowrap' }}>{percent}%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Inline directory browser shown when no document is open */
 function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect: (path: string) => void }) {
   const noop = useCallback(() => {}, []);
@@ -143,7 +174,11 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   const [planExpanded, setPlanExpanded] = useState(false);
   // Auto-detect PLAN.md when planMode activates
   useEffect(() => {
-    if (!planMode) return;
+    if (!planMode) {
+      // Reset stream guard so re-opening will re-request
+      planStreamedRef.current = null;
+      return;
+    }
     let cancelled = false;
     setPlanLoading(true);
     (async () => {
@@ -292,7 +327,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   }, [expanded, docPath, restoreScrollPosition, fileStream.state.status]);
 
   // Progress bar data
-  const { status, totalSize, receivedBytes } = fileStream.state;
+  const { totalSize, receivedBytes } = fileStream.state;
   const streamPct = totalSize > 0 ? Math.round((receivedBytes / totalSize) * 100) : 0;
 
   // Render document content
@@ -333,19 +368,8 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
           />
         );
       }
-      // md/html/pdf — show loading, progress bar is in toolbar
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: '#565f89',
-          fontSize: '13px',
-        }}>
-          Loading...
-        </div>
-      );
+      // md/html/pdf — centered loading with progress
+      return <CenteredLoading label="Loading..." percent={streamPct} />;
     }
 
     // Complete: render by type
@@ -470,24 +494,6 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               </button>
             </>
           )}
-          {/* Progress bar — shown during streaming */}
-          {status === 'streaming' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-              <div style={{
-                flex: 1, height: 4, backgroundColor: '#292e42', borderRadius: 2, overflow: 'hidden',
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${streamPct}%`,
-                  backgroundColor: '#7aa2f7',
-                  transition: 'width 0.2s',
-                }} />
-              </div>
-              <span style={{ fontSize: 10, color: '#565f89', whiteSpace: 'nowrap' }}>
-                {streamPct}%
-              </span>
-            </div>
-          )}
         </div>
 
         {/* 4px gap matching the divider width */}
@@ -578,9 +584,9 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
         <div className="plan-editor-wrap">
           {planMode ? (
             planLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#565f89', fontSize: 13 }}>
-                Loading PLAN.md...
-              </div>
+              <CenteredLoading label="Loading PLAN.md..." />
+            ) : planFilePath && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
+              <CenteredLoading label="Loading PLAN.md..." percent={fileStream.state.totalSize > 0 ? Math.round((fileStream.state.receivedBytes / fileStream.state.totalSize) * 100) : undefined} />
             ) : planFilePath ? (
               <PlanAnnotationRenderer
                 markdown={planMarkdown}

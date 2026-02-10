@@ -490,7 +490,7 @@ export const useStore = create<AppState>((set, get) => ({
         for (const tab of localSaved.tabs) {
           if (tab.status === 'open') {
             for (const id of tab.terminalIds) {
-              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
+              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[id] || 'none') as PanelMode };
             }
           }
         }
@@ -673,7 +673,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Recreate TerminalInstances in terminalsMap
     const newTerminalsMap = { ...state.terminalsMap };
     for (const tid of tab.terminalIds) {
-      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
+      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[tid] || 'none') as PanelMode };
     }
 
     const newTabs = updateTab(state.tabs, tabId, (t) => ({
@@ -971,11 +971,23 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setTerminalPanelMode: (id, mode) => {
-    set((state) => {
-      const existing = state.terminalsMap[id];
-      if (!existing || existing.panelMode === mode) return state;
-      return { terminalsMap: { ...state.terminalsMap, [id]: { ...existing, panelMode: mode } } };
-    });
+    const state = get();
+    const existing = state.terminalsMap[id];
+    if (!existing || existing.panelMode === mode) return;
+
+    // Update terminalsMap
+    const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panelMode: mode } };
+
+    // Also persist into the owning tab's panelModes
+    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
+    let newTabs = state.tabs;
+    if (ownerTab) {
+      const modes = { ...ownerTab.panelModes, [id]: mode };
+      newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelModes: modes }));
+    }
+
+    set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+    persistTabs(toPersistable(get()));
   },
 
   // --- Layout (scoped to active tab) ------------------------------------------
@@ -1117,7 +1129,7 @@ async function restoreFromServer(
     for (const tab of reconciled.tabs) {
       if (tab.status === 'open') {
         for (const id of tab.terminalIds) {
-          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null, panelMode: 'none' as PanelMode };
+          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[id] || 'none') as PanelMode };
         }
       }
     }

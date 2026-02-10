@@ -45,6 +45,7 @@ export interface TabState {
   terminalIds: string[];    // ordered terminal IDs owned by this tab
   layout: LayoutNode | null;
   createdAt: number;        // Date.now() at creation
+  panelModes?: Record<string, PanelMode>;  // per-terminal panel mode (persisted across refresh)
 }
 
 export interface PersistedTabsState {

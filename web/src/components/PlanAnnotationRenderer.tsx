@@ -217,8 +217,18 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
     }));
   }, [pushHistory]);
 
+  // Find closest ancestor (or self) with data-token-index
+  const findTokenEl = useCallback((node: Node): Element | null => {
+    let el: Element | null = node instanceof Element ? node : node.parentElement;
+    while (el && el !== containerRef.current) {
+      if (el.hasAttribute('data-token-index')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }, []);
+
   // Detect text selection for delete float
-  const handleMouseUp = useCallback(() => {
+  const handleSelectionCheck = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !containerRef.current) {
       setDeleteFloat(null);
@@ -227,10 +237,16 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
     const text = sel.toString().trim();
     if (!text) { setDeleteFloat(null); return; }
 
-    // Find token indices from selection
+    // Ensure selection is within our container
     const range = sel.getRangeAt(0);
-    const startEl = range.startContainer.parentElement?.closest('[data-token-index]');
-    const endEl = range.endContainer.parentElement?.closest('[data-token-index]');
+    if (!containerRef.current.contains(range.commonAncestorContainer)) {
+      setDeleteFloat(null);
+      return;
+    }
+
+    // Find token indices from selection
+    const startEl = findTokenEl(range.startContainer);
+    const endEl = findTokenEl(range.endContainer);
     if (!startEl || !endEl) { setDeleteFloat(null); return; }
 
     const startIdx = parseInt(startEl.getAttribute('data-token-index') || '0', 10);
@@ -241,18 +257,37 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
     const startLine = tokenSourceLine(tokens, Math.min(startIdx, endIdx));
     const endLine = tokenSourceLine(tokens, Math.max(startIdx, endIdx) + 1);
 
-    // Position the float button near the selection
+    // Position relative to container, accounting for scroll offset
     const rect = range.getBoundingClientRect();
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
     setDeleteFloat({
-      x: rect.right - containerRect.left + 4,
-      y: rect.top - containerRect.top - 4,
+      x: rect.right - containerRect.left + container.scrollLeft + 6,
+      y: rect.top - containerRect.top + container.scrollTop - 2,
       tokenIndices: indices,
       startLine,
       endLine,
       text,
     });
-  }, [tokens]);
+  }, [tokens, findTokenEl]);
+
+  // Listen to selectionchange (fires reliably across browsers, including after mouseup)
+  useEffect(() => {
+    const onSelChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !containerRef.current) {
+        setDeleteFloat(null);
+        return;
+      }
+      // Only react if selection is within our container
+      const anchor = sel.anchorNode;
+      if (anchor && containerRef.current.contains(anchor)) {
+        handleSelectionCheck();
+      }
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => document.removeEventListener('selectionchange', onSelChange);
+  }, [handleSelectionCheck]);
 
   // Ctrl+Z for annotation undo
   useEffect(() => {
@@ -315,10 +350,10 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
           className="pane-btn"
           onClick={handleExecute}
           disabled={!hasAnnotations}
-          title="Generate summary and fill into editor"
+          title="Save annotations to editor"
           style={hasAnnotations ? { color: '#9ece6a' } : { opacity: 0.4 }}
         >
-          Execute
+          Save
         </button>
         <button
           className="pane-btn"
@@ -341,7 +376,7 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
         ref={containerRef}
         className="plan-anno-content md-preview"
         style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px` }}
-        onMouseUp={handleMouseUp}
+        onMouseUp={handleSelectionCheck}
       >
         {/* Insert zone before first block */}
         <InsertZone

@@ -651,12 +651,7 @@ body.resizing-panes-h * {
 /* ── Plan Insert Zone ── */
 .plan-insert-zone {
   position: relative;
-  min-height: 4px;
-  transition: min-height 0.15s ease;
-}
-
-.plan-insert-zone:hover {
-  min-height: 24px;
+  min-height: 12px;
 }
 
 .plan-insert-btn {
@@ -671,17 +666,19 @@ body.resizing-panes-h * {
   border: 1px solid #414868;
   background: #1e2030;
   color: #7aa2f7;
-  font-size: 14px;
-  line-height: 1;
+  font-size: 15px;
   cursor: pointer;
   padding: 0;
   z-index: 2;
-  transition: all 0.15s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+  /* flex centering for perfect + alignment */
+  align-items: center;
+  justify-content: center;
 }
 
 .plan-insert-zone:hover .plan-insert-btn,
 .plan-insert-zone--empty .plan-insert-btn {
-  display: block;
+  display: flex;
 }
 
 .plan-insert-zone--empty {
@@ -689,9 +686,9 @@ body.resizing-panes-h * {
 }
 
 .plan-insert-zone--empty .plan-insert-btn {
-  width: 32px;
-  height: 32px;
-  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
   border-color: #565f89;
 }
 
@@ -758,27 +755,26 @@ body.resizing-panes-h * {
 /* ── Delete Float Button ── */
 .plan-delete-float {
   position: absolute;
-  z-index: 10;
-  width: 22px;
-  height: 22px;
+  z-index: 1000;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 1px solid #f7768e;
-  background: #1e2030;
+  border: 1.5px solid #f7768e;
+  background: #2a1520;
   color: #f7768e;
   font-size: 16px;
   font-weight: bold;
-  line-height: 1;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: all 0.15s ease;
+  box-shadow: 0 2px 10px rgba(247, 118, 142, 0.25), 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
 .plan-delete-float:hover {
-  background: rgba(247, 118, 142, 0.15);
+  background: rgba(247, 118, 142, 0.2);
   transform: scale(1.15);
 }
 
