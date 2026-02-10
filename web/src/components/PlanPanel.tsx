@@ -27,14 +27,31 @@ interface PlanPanelProps {
   onPlanModeClose?: () => void;
 }
 
-type DocType = 'md' | 'html' | 'pdf' | 'text' | null;
+type DocType = 'md' | 'html' | 'pdf' | 'image' | 'text' | null;
+
+const IMAGE_EXTS: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+};
 
 function getDocType(path: string): DocType {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
   if (ext === '.md') return 'md';
   if (ext === '.html' || ext === '.htm') return 'html';
   if (ext === '.pdf') return 'pdf';
+  if (ext in IMAGE_EXTS) return 'image';
   return 'text';
+}
+
+function getImageMime(path: string): string {
+  const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
+  return IMAGE_EXTS[ext] || 'image/png';
 }
 
 function getFileName(path: string): string {
@@ -296,7 +313,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
     streamTargetRef.current = 'doc';
     fileStream.reset();
     const mode = type === 'text' ? 'lines'
-               : type === 'pdf' ? 'binary'
+               : (type === 'pdf' || type === 'image') ? 'binary'
                : 'content';  // md, html
     fileStream.startStream(mode);
     onRequestFileStream?.(path);
@@ -308,7 +325,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
     streamTargetRef.current = 'doc';
     fileStream.reset();
     const mode = docType === 'text' ? 'lines'
-               : docType === 'pdf' ? 'binary'
+               : (docType === 'pdf' || docType === 'image') ? 'binary'
                : 'content';
     fileStream.startStream(mode);
     onRequestFileStream?.(docPath);
@@ -433,6 +450,20 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
       }
       if (docType === 'pdf' && buffer) {
         return <PdfRenderer data={buffer} scrollRef={scrollRefSetter} />;
+      }
+      if (docType === 'image' && buffer) {
+        const blob = new Blob([buffer.buffer as ArrayBuffer], { type: getImageMime(docPath!) });
+        const url = URL.createObjectURL(blob);
+        return (
+          <div ref={scrollRefSetter} style={{ height: '100%', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+            <img
+              src={url}
+              alt={getFileName(docPath!)}
+              onLoad={() => URL.revokeObjectURL(url)}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4 }}
+            />
+          </div>
+        );
       }
     }
 
