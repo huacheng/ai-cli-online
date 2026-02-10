@@ -1,4 +1,5 @@
 import * as pty from 'node-pty';
+import { TMUX_SOCKET_PATH } from './tmux.js';
 
 export type DataCallback = (data: string) => void;
 export type ExitCallback = (code: number, signal: number) => void;
@@ -28,7 +29,7 @@ export class PtySession {
   private alive = true;
 
   constructor(sessionName: string, cols: number, rows: number) {
-    this.proc = pty.spawn('tmux', ['attach-session', '-t', `=${sessionName}`], {
+    this.proc = pty.spawn('tmux', ['-S', TMUX_SOCKET_PATH, 'attach-session', '-t', `=${sessionName}`], {
       name: 'xterm-256color',
       cols,
       rows,

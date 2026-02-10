@@ -1,13 +1,30 @@
 import { execFile as execFileCb, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import { createHash } from 'crypto';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
 
 const _execFile = promisify(execFileCb);
 const EXEC_TIMEOUT = 5000; // 5s safety timeout for all tmux calls
 
-/** execFile wrapper with default timeout to prevent indefinite hangs */
-function execFile(file: string, args: string[], options?: Record<string, unknown>) {
-  return _execFile(file, args, { timeout: EXEC_TIMEOUT, ...options });
+// ---------------------------------------------------------------------------
+// Stable tmux socket path — survives PrivateTmp remounts across service restarts.
+// With KillMode=process, the tmux server daemon outlives the Node.js process,
+// and this fixed socket path ensures the restarted service reconnects to it.
+// ---------------------------------------------------------------------------
+
+const TMUX_SOCKET_DIR = join(process.env.HOME || '/home/ubuntu', '.tmux-sockets');
+export const TMUX_SOCKET_PATH = join(TMUX_SOCKET_DIR, 'ai-cli-online');
+
+try {
+  mkdirSync(TMUX_SOCKET_DIR, { recursive: true, mode: 0o700 });
+} catch {
+  /* directory may already exist */
+}
+
+/** execFile wrapper: all tmux commands use the fixed socket via -S */
+function tmuxExec(args: string[], options?: Record<string, unknown>) {
+  return _execFile('tmux', ['-S', TMUX_SOCKET_PATH, ...args], { timeout: EXEC_TIMEOUT, ...options });
 }
 
 export interface TmuxSessionInfo {
@@ -42,7 +59,7 @@ export function buildSessionName(token: string, sessionId?: string): string {
 /** Check if a tmux session exists */
 export async function hasSession(name: string): Promise<boolean> {
   try {
-    await execFile('tmux', ['has-session', '-t', `=${name}`]);
+    await tmuxExec(['has-session', '-t', `=${name}`]);
     return true;
   } catch {
     return false;
@@ -52,7 +69,7 @@ export async function hasSession(name: string): Promise<boolean> {
 /** Configure tmux session options for web terminal usage.
  *  Note: set-option does NOT support the = exact-match prefix, so use bare name. */
 export async function configureSession(name: string): Promise<void> {
-  await execFile('tmux', [
+  await tmuxExec([
     'set-option', '-t', name, 'history-limit', '50000', ';',
     'set-option', '-t', name, 'status', 'off', ';',
     'set-option', '-t', name, 'mouse', 'off',
@@ -66,7 +83,7 @@ export async function createSession(
   rows: number,
   cwd: string,
 ): Promise<void> {
-  await execFile('tmux', [
+  await tmuxExec([
     'new-session',
     '-d',
     '-s', name,
@@ -85,7 +102,7 @@ export async function createSession(
  */
 export async function captureScrollback(name: string): Promise<string> {
   try {
-    const { stdout } = await execFile('tmux', [
+    const { stdout } = await tmuxExec([
       'capture-pane',
       '-t', `=${name}:`,
       '-p',
@@ -102,7 +119,7 @@ export async function captureScrollback(name: string): Promise<string> {
 /** Resize tmux window to match terminal dimensions */
 export async function resizeSession(name: string, cols: number, rows: number): Promise<void> {
   try {
-    await execFile('tmux', [
+    await tmuxExec([
       'resize-window',
       '-t', `=${name}`,
       '-x', String(cols),
@@ -116,7 +133,7 @@ export async function resizeSession(name: string, cols: number, rows: number): P
 /** Kill a tmux session */
 export async function killSession(name: string): Promise<void> {
   try {
-    await execFile('tmux', ['kill-session', '-t', `=${name}`]);
+    await tmuxExec(['kill-session', '-t', `=${name}`]);
     console.log(`[tmux] Killed session: ${name}`);
   } catch {
     // Session may already be gone
@@ -127,7 +144,7 @@ export async function killSession(name: string): Promise<void> {
 export async function listSessions(token: string): Promise<TmuxSessionInfo[]> {
   const prefix = tokenToSessionName(token) + '-';
   try {
-    const { stdout } = await execFile('tmux', [
+    const { stdout } = await tmuxExec([
       'list-sessions',
       '-F',
       '#{session_name}:#{session_created}',
@@ -155,7 +172,7 @@ export async function listSessions(token: string): Promise<TmuxSessionInfo[]> {
 export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
   const cutoff = Math.floor(Date.now() / 1000) - ttlHours * 3600;
   try {
-    const { stdout } = await execFile('tmux', [
+    const { stdout } = await tmuxExec([
       'list-sessions',
       '-F',
       '#{session_name}:#{session_created}:#{session_attached}',
@@ -188,7 +205,7 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
 /** 获取 tmux session 当前活动 pane 的工作目录 */
 export async function getCwd(sessionName: string): Promise<string> {
   // Use list-panes instead of display-message: display-message ignores the = exact-match prefix
-  const { stdout } = await execFile('tmux', [
+  const { stdout } = await tmuxExec([
     'list-panes', '-t', `=${sessionName}`, '-F', '#{pane_current_path}',
   ], { encoding: 'utf-8' });
   return stdout.trim();
@@ -197,7 +214,7 @@ export async function getCwd(sessionName: string): Promise<string> {
 /** 获取 tmux pane 当前运行的命令名称 */
 export async function getPaneCommand(sessionName: string): Promise<string> {
   try {
-    const { stdout } = await execFile('tmux', [
+    const { stdout } = await tmuxExec([
       'list-panes', '-t', `=${sessionName}`, '-F', '#{pane_current_command}',
     ], { encoding: 'utf-8' });
     return stdout.trim();
