@@ -470,7 +470,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        height: '28px',
+        height: '30px',
         flexShrink: 0,
         backgroundColor: '#16161e',
         borderBottom: '1px solid #292e42',
@@ -517,7 +517,6 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                   setExpanded(true);
                 }}
                 title="Expand document view"
-                style={{ fontSize: '12px' }}
               >
                 &#x26F6;
               </button>
@@ -525,7 +524,6 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                 className="pane-btn"
                 onClick={handleRefresh}
                 title="Refresh document"
-                style={{ fontSize: '12px' }}
               >
                 &#x21BB;
               </button>
@@ -560,7 +558,6 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                   className="pane-btn"
                   onClick={handlePlanRefresh}
                   title="Refresh PLAN.md"
-                  style={{ fontSize: '12px' }}
                 >
                   &#x21BB;
                 </button>
@@ -568,7 +565,6 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                   className="pane-btn"
                   onClick={() => setPlanExpanded(true)}
                   title="Expand plan view"
-                  style={{ fontSize: '12px' }}
                 >
                   &#x26F6;
                 </button>
@@ -680,7 +676,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
         <div className="doc-expanded-overlay">
           <div className="doc-expanded-header">
             <span style={{
-              fontSize: '12px',
+              fontSize: '14px',
               color: '#a9b1d6',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -709,7 +705,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
       {planExpanded && planFilePath && (
         <div className="doc-expanded-overlay">
           <div className="doc-expanded-header">
-            <span style={{ fontSize: '12px', color: '#bb9af7' }}>
+            <span style={{ fontSize: '14px', color: '#bb9af7' }}>
               Plan: {planFilePath.split('/').pop()}
             </span>
             <button

@@ -120,21 +120,22 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '2px 8px',
+        padding: '3px 10px',
         backgroundColor: '#16161e',
         borderBottom: '1px solid #292e42',
         flexShrink: 0,
-        height: '24px',
+        height: '28px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{
             display: 'inline-block',
-            width: '6px',
-            height: '6px',
+            width: '7px',
+            height: '7px',
             borderRadius: '50%',
             backgroundColor: terminal.connected ? '#9ece6a' : '#f7768e',
+            boxShadow: terminal.connected ? '0 0 4px rgba(158,206,106,0.5)' : '0 0 4px rgba(247,118,142,0.5)',
           }} />
-          <span style={{ fontSize: '11px', color: '#565f89' }}>
+          <span style={{ fontSize: '14px', color: '#565f89' }}>
             {terminal.id}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')

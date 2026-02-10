@@ -255,7 +255,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           border: 'none',
           borderRadius: 4,
           padding: '2px 8px',
-          fontSize: 12,
+          fontSize: 14,
           cursor: 'pointer',
           opacity: 0.8,
           lineHeight: '20px',
@@ -263,7 +263,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
         onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
       >
-        {scrollbackVisible ? '\u2715' : '\u{1F441}'}
+        {scrollbackVisible ? '\u2715' : <span style={{ fontSize: 16 }}>{'\u{1F441}'}</span>}
       </button>
       {/* Scrollback overlay with read-only xterm.js viewer */}
       {scrollbackVisible && (
