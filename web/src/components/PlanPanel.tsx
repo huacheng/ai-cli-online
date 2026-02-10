@@ -13,6 +13,7 @@ import { useFileBrowser } from '../hooks/useFileBrowser';
 import { FileListHeader, FileListStatus } from './FileListShared';
 import { fetchFiles, touchFile } from '../api/files';
 import type { FileEntry } from '../api/files';
+import { formatSize, fileIcon } from '../utils';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -38,21 +39,6 @@ function getDocType(path: string): DocType {
 
 function getFileName(path: string): string {
   return path.split('/').pop() || path;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function fileIcon(f: FileEntry): string {
-  if (f.type === 'directory') return '\u{1F4C1}';
-  const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
-  if (ext === '.pdf') return '\u{1F4D5}';
-  if (ext === '.html' || ext === '.htm') return '\u{1F310}';
-  if (ext === '.md') return '\u{1F4DD}';
-  return '\u{1F4C4}';
 }
 
 const CWD_POLL_INTERVAL = 3000;
@@ -118,7 +104,7 @@ function InlineDocBrowser({ sessionId, onSelect }: { sessionId: string; onSelect
             }}
           >
             <span style={{ width: 20, flexShrink: 0, marginRight: 6, color: file.type === 'directory' ? '#7aa2f7' : '#565f89' }}>
-              {fileIcon(file)}
+              {fileIcon(file.name, file.type)}
             </span>
             <span style={{
               flex: 1,

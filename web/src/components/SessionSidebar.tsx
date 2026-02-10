@@ -138,7 +138,7 @@ function TabItem({ tabId }: { tabId: string }) {
                 color: '#c0caf5',
                 borderRadius: '3px',
                 padding: '1px 4px',
-                fontSize: '13px',
+                fontSize: '14px',
                 outline: 'none',
               }}
             />
@@ -147,7 +147,7 @@ function TabItem({ tabId }: { tabId: string }) {
               onDoubleClick={handleDoubleClick}
               style={{
                 color: '#c0caf5',
-                fontSize: '13px',
+                fontSize: '14px',
                 fontWeight: 500,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -290,7 +290,7 @@ function OrphanedSessionItem({ sessionId, active, createdAt }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           color: '#c0caf5',
-          fontSize: '13px',
+          fontSize: '14px',
           fontWeight: 500,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -428,7 +428,7 @@ export function SessionSidebar() {
           {tabs.length === 0 ? (
             <div style={{
               color: '#565f89',
-              fontSize: '13px',
+              fontSize: '14px',
               textAlign: 'center',
               padding: '12px',
             }}>

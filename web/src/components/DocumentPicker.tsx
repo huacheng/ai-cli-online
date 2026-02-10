@@ -1,20 +1,6 @@
 import { useFileBrowser } from '../hooks/useFileBrowser';
 import { FileListHeader, FileListStatus } from './FileListShared';
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function fileIcon(name: string, type: string): string {
-  if (type === 'directory') return '\u{1F4C1}';
-  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
-  if (ext === '.pdf') return '\u{1F4D5}';
-  if (ext === '.html' || ext === '.htm') return '\u{1F310}';
-  if (ext === '.md') return '\u{1F4DD}';
-  return '\u{1F4C4}';
-}
+import { formatSize, fileIcon } from '../utils';
 
 interface DocumentPickerProps {
   sessionId: string;

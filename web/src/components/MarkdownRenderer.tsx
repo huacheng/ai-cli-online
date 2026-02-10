@@ -1,12 +1,12 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useStore } from '../store';
+import { useMermaidRender } from '../hooks/useMermaidRender';
 
 /** Lazy-load mermaid from CDN to avoid npm dependency conflicts */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let mermaidPromise: Promise<any> | null = null;
-let mermaidIdCounter = 0;
 
 export function loadMermaid() {
   if (mermaidPromise) return mermaidPromise;
@@ -79,63 +79,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     });
   }, [content]);
 
-  // After HTML is inserted, find mermaid code blocks and render them
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || !html) return;
-
-    const codeBlocks = el.querySelectorAll<HTMLElement>(
-      'code.language-mermaid, code.language-gantt'
-    );
-    if (codeBlocks.length === 0) return;
-
-    let cancelled = false;
-
-    (async () => {
-      let mermaid;
-      try {
-        mermaid = await loadMermaid();
-      } catch {
-        // CDN load failed — leave code blocks as-is
-        return;
-      }
-      if (cancelled) return;
-
-      for (const codeEl of codeBlocks) {
-        if (cancelled) break;
-        const pre = codeEl.parentElement;
-        if (!pre || pre.tagName !== 'PRE') continue;
-
-        const definition = codeEl.textContent || '';
-        if (!definition.trim()) continue;
-
-        const id = `mermaid-${++mermaidIdCounter}`;
-        try {
-          const { svg } = await mermaid.render(id, definition);
-          if (cancelled) break;
-
-          // Replace <pre><code> with rendered SVG
-          const wrapper = document.createElement('div');
-          wrapper.className = 'mermaid-diagram';
-          wrapper.innerHTML = svg;
-          pre.replaceWith(wrapper);
-        } catch {
-          // Render error inline so user sees syntax issues
-          if (cancelled) break;
-          pre.style.borderLeft = '3px solid #f7768e';
-          pre.style.paddingLeft = '8px';
-          const errSpan = document.createElement('div');
-          errSpan.style.color = '#f7768e';
-          errSpan.style.fontSize = '11px';
-          errSpan.style.marginTop = '4px';
-          errSpan.textContent = 'Mermaid syntax error';
-          pre.appendChild(errSpan);
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [html]);
+  useMermaidRender(containerRef, html);
 
   if (!content) {
     return (

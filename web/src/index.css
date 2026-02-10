@@ -878,3 +878,21 @@ body.resizing-panes-h * {
   max-width: 100%;
   height: auto;
 }
+
+/* ── Mermaid Syntax Error ── */
+.mermaid-error {
+  border-left: 3px solid #f7768e;
+  padding-left: 8px;
+}
+
+.mermaid-error__msg {
+  color: #f7768e;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* ── Small pane button variant ── */
+.pane-btn--sm {
+  font-size: 11px;
+  flex-shrink: 0;
+}
