@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { marked, type Token } from 'marked';
 import DOMPurify from 'dompurify';
 import { useStore } from '../store';
@@ -87,6 +87,11 @@ export function generateSummary(
 
 /* ── Component ── */
 
+export interface PlanAnnotationRendererHandle {
+  /** Generate summary from current annotations; returns empty string if none */
+  getSummary: () => string;
+}
+
 interface Props {
   markdown: string;
   filePath: string;
@@ -96,7 +101,7 @@ interface Props {
   expanded?: boolean;
 }
 
-export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onClear, expanded }: Props) {
+export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onClear, expanded }, ref) {
   const fontSize = useStore((s) => s.fontSize);
 
   // Parse markdown into tokens
@@ -312,6 +317,11 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
     if (summary) onExecute(summary);
   }, [annotations, sourceLines, onExecute]);
 
+  // Expose getSummary to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSummary: () => generateSummary(annotations, sourceLines),
+  }), [annotations, sourceLines]);
+
   // Clear all annotations
   const handleClear = useCallback(() => {
     pushHistory();
@@ -391,6 +401,7 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
           textareaRef={activeInsert === -1 ? insertTextareaRef : undefined}
           expanded={expanded}
           alwaysShow={tokens.length === 0}
+          fontSize={fontSize}
         />
 
         {tokens.map((token, i) => {
@@ -435,6 +446,7 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
                 setInsertText={setInsertText}
                 textareaRef={activeInsert === i ? insertTextareaRef : undefined}
                 expanded={expanded}
+                fontSize={fontSize}
               />
             </div>
           );
@@ -453,7 +465,7 @@ export function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecut
       </div>
     </div>
   );
-}
+});
 
 /* ── Insert Zone Sub-component ── */
 
@@ -469,15 +481,16 @@ interface InsertZoneProps {
   textareaRef?: React.Ref<HTMLTextAreaElement>;
   expanded?: boolean;
   alwaysShow?: boolean;
+  fontSize?: number;
 }
 
-function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, insertText, setInsertText, textareaRef, expanded, alwaysShow }: InsertZoneProps) {
+function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, insertText, setInsertText, textareaRef, expanded, alwaysShow, fontSize = 14 }: InsertZoneProps) {
   return (
     <div className={`plan-insert-zone${alwaysShow ? ' plan-insert-zone--empty' : ''}`} data-zone-index={index}>
       {/* Existing addition annotations */}
       {additions?.map((a) => (
         <div key={a.id} className="plan-annotation-card">
-          <span style={{ flex: 1, fontSize: 12, color: '#c0caf5', whiteSpace: 'pre-wrap' }}>{a.content}</span>
+          <span style={{ flex: 1, fontSize: `${fontSize}px`, color: '#e0af68', whiteSpace: 'pre-wrap' }}>{a.content}</span>
           <button
             className="pane-btn pane-btn--danger"
             onClick={() => onRemoveAddition(a.id)}
@@ -508,7 +521,7 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
             }}
             placeholder="Add annotation... (Ctrl+Enter or Esc to save)"
             rows={2}
-            style={expanded ? { minWidth: 300 } : undefined}
+            style={{ fontSize: `${fontSize}px`, ...(expanded ? { minWidth: 300 } : undefined) }}
           />
         </div>
       ) : (

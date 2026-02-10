@@ -5,6 +5,7 @@ import { DocumentPicker } from './DocumentPicker';
 import { PdfRenderer } from './PdfRenderer';
 import { VirtualTextRenderer } from './VirtualTextRenderer';
 import { PlanAnnotationRenderer } from './PlanAnnotationRenderer';
+import type { PlanAnnotationRendererHandle } from './PlanAnnotationRenderer';
 import { useFileStream } from '../hooks/useFileStream';
 import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
 import { useHorizontalResize } from '../hooks/useHorizontalResize';
@@ -165,6 +166,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
 
   // Editor ref + content tracking
   const editorRef = useRef<MarkdownEditorHandle>(null);
+  const planAnnotationRef = useRef<PlanAnnotationRendererHandle>(null);
   const [editorHasContent, setEditorHasContent] = useState(false);
 
   // Track which consumer owns the current file stream ('doc' or 'plan')
@@ -239,10 +241,32 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
     }
   }, [planMode, fileStream.state.status, fileStream.state.content, planFilePath]);
 
-  // Handle Execute from annotation renderer — fill into editor
+  // Handle Save from annotation renderer — switch to Chat mode and fill editor
+  const pendingSummaryRef = useRef<string | null>(null);
   const handlePlanExecute = useCallback((summary: string) => {
-    editorRef.current?.fillContent(summary);
-  }, []);
+    pendingSummaryRef.current = summary;
+    onPlanModeClose?.(); // switch to Chat mode so MarkdownEditor mounts
+  }, [onPlanModeClose]);
+
+  // Fill pending summary into editor once it mounts (planMode switched to false)
+  useEffect(() => {
+    if (!planMode && pendingSummaryRef.current && editorRef.current) {
+      editorRef.current.fillContent(pendingSummaryRef.current);
+      pendingSummaryRef.current = null;
+    }
+  }, [planMode]);
+
+  // Refresh PLAN.md: re-request file stream
+  const handlePlanRefresh = useCallback(() => {
+    if (!planFilePath || !connected) return;
+    planStreamedRef.current = null;
+    streamTargetRef.current = 'plan';
+    setPlanMarkdown('');
+    fileStream.reset();
+    fileStream.startStream('content');
+    onRequestFileStream?.(planFilePath);
+    planStreamedRef.current = planFilePath;
+  }, [planFilePath, connected, fileStream, onRequestFileStream]);
 
   // Scroll position memory: filePath → scrollTop
   const scrollPositionsRef = useRef(new Map<string, number>());
@@ -527,6 +551,14 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <button
                   className="pane-btn"
+                  onClick={handlePlanRefresh}
+                  title="Refresh PLAN.md"
+                  style={{ fontSize: '12px' }}
+                >
+                  &#x21BB;
+                </button>
+                <button
+                  className="pane-btn"
                   onClick={() => setPlanExpanded(true)}
                   title="Expand plan view"
                   style={{ fontSize: '12px' }}
@@ -535,7 +567,14 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                 </button>
                 <button
                   className="pane-btn pane-btn--danger"
-                  onClick={() => { onPlanModeClose?.(); }}
+                  onClick={() => {
+                    // Auto-save annotations to Chat editor if any exist
+                    const summary = planAnnotationRef.current?.getSummary();
+                    if (summary) {
+                      pendingSummaryRef.current = summary;
+                    }
+                    onPlanModeClose?.();
+                  }}
                   title="Close Plan mode"
                 >
                   &times;Plan
@@ -595,6 +634,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               <CenteredLoading label="Loading PLAN.md..." percent={fileStream.state.totalSize > 0 ? Math.round((fileStream.state.receivedBytes / fileStream.state.totalSize) * 100) : undefined} />
             ) : planFilePath ? (
               <PlanAnnotationRenderer
+                ref={planAnnotationRef}
                 markdown={planMarkdown}
                 filePath={planFilePath}
                 sessionId={sessionId}
