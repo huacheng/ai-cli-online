@@ -11,7 +11,7 @@ const RECONNECT_MAX = 8000;
 const PING_INTERVAL = 10000;
 const PONG_TIMEOUT = 4000;
 const CONNECT_TIMEOUT = 5000;
-const INPUT_BATCH_MS = 5;
+const INPUT_BATCH_MS = 10;
 const MAX_INPUT_BUFFER = 64 * 1024;
 
 /** Binary protocol type prefixes (must match server) */
