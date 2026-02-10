@@ -5,55 +5,72 @@ import type { RefObject } from 'react';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let mermaidPromise: Promise<any> | null = null;
 
+const CDN_URLS = [
+  'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',
+  'https://unpkg.com/mermaid@11/dist/mermaid.esm.min.mjs',
+];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function initMermaid(mermaid: any) {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#7aa2f7',
+      primaryTextColor: '#c0caf5',
+      primaryBorderColor: '#414868',
+      lineColor: '#565f89',
+      secondaryColor: '#bb9af7',
+      tertiaryColor: '#24283b',
+      background: '#1a1b26',
+      mainBkg: '#24283b',
+      nodeBorder: '#414868',
+      clusterBkg: '#1e2030',
+      titleColor: '#c0caf5',
+      edgeLabelBackground: '#1e2030',
+      // Gantt-specific
+      gridColor: '#292e42',
+      doneTaskBkgColor: '#9ece6a',
+      doneTaskBorderColor: '#73a942',
+      activeTaskBkgColor: '#7aa2f7',
+      activeTaskBorderColor: '#5d87d6',
+      critBkgColor: '#f7768e',
+      critBorderColor: '#d35d72',
+      taskBkgColor: '#414868',
+      taskBorderColor: '#565f89',
+      taskTextColor: '#c0caf5',
+      taskTextDarkColor: '#1a1b26',
+      sectionBkgColor: '#1e2030',
+      sectionBkgColor2: '#24283b',
+      altSectionBkgColor: '#1e2030',
+      todayLineColor: '#e0af68',
+    },
+    gantt: {
+      titleTopMargin: 15,
+      barHeight: 24,
+      barGap: 6,
+      topPadding: 40,
+      numberSectionStyles: 4,
+      useWidth: 800,
+    },
+  });
+  return mermaid;
+}
+
 export function loadMermaid() {
   if (mermaidPromise) return mermaidPromise;
   mermaidPromise = (async () => {
-    // Dynamic import from ESM CDN
-    const mod = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
-    const mermaid = mod.default;
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'dark',
-      themeVariables: {
-        primaryColor: '#7aa2f7',
-        primaryTextColor: '#c0caf5',
-        primaryBorderColor: '#414868',
-        lineColor: '#565f89',
-        secondaryColor: '#bb9af7',
-        tertiaryColor: '#24283b',
-        background: '#1a1b26',
-        mainBkg: '#24283b',
-        nodeBorder: '#414868',
-        clusterBkg: '#1e2030',
-        titleColor: '#c0caf5',
-        edgeLabelBackground: '#1e2030',
-        // Gantt-specific
-        gridColor: '#292e42',
-        doneTaskBkgColor: '#9ece6a',
-        doneTaskBorderColor: '#73a942',
-        activeTaskBkgColor: '#7aa2f7',
-        activeTaskBorderColor: '#5d87d6',
-        critBkgColor: '#f7768e',
-        critBorderColor: '#d35d72',
-        taskBkgColor: '#414868',
-        taskBorderColor: '#565f89',
-        taskTextColor: '#c0caf5',
-        taskTextDarkColor: '#1a1b26',
-        sectionBkgColor: '#1e2030',
-        sectionBkgColor2: '#24283b',
-        altSectionBkgColor: '#1e2030',
-        todayLineColor: '#e0af68',
-      },
-      gantt: {
-        titleTopMargin: 15,
-        barHeight: 24,
-        barGap: 6,
-        topPadding: 40,
-        numberSectionStyles: 4,
-        useWidth: 800,
-      },
-    });
-    return mermaid;
+    for (const url of CDN_URLS) {
+      try {
+        const mod = await import(/* @vite-ignore */ url);
+        return initMermaid(mod.default);
+      } catch (e) {
+        console.warn(`[mermaid] CDN failed: ${url}`, e);
+      }
+    }
+    // All CDNs failed — reset so next call retries
+    mermaidPromise = null;
+    throw new Error('All mermaid CDN sources failed');
   })();
   return mermaidPromise;
 }
@@ -80,7 +97,18 @@ export function useMermaidRender(
       let mermaid;
       try {
         mermaid = await loadMermaid();
-      } catch {
+      } catch (e) {
+        console.error('[mermaid] Failed to load library:', e);
+        if (cancelled) return;
+        for (const codeEl of codeBlocks) {
+          const pre = codeEl.parentElement;
+          if (!pre || pre.tagName !== 'PRE') continue;
+          pre.classList.add('mermaid-error');
+          const errDiv = document.createElement('div');
+          errDiv.className = 'mermaid-error__msg';
+          errDiv.textContent = 'Failed to load Mermaid library';
+          pre.appendChild(errDiv);
+        }
         return;
       }
       if (cancelled) return;
