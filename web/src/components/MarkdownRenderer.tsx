@@ -8,7 +8,7 @@ import { useStore } from '../store';
 let mermaidPromise: Promise<any> | null = null;
 let mermaidIdCounter = 0;
 
-function loadMermaid() {
+export function loadMermaid() {
   if (mermaidPromise) return mermaidPromise;
   mermaidPromise = (async () => {
     // Dynamic import from ESM CDN

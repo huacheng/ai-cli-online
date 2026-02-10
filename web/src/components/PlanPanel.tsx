@@ -691,6 +691,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
                 setExpanded(false);
               }}
               title="Close expanded view (ESC)"
+              style={{ fontSize: '14px' }}
             >
               &times;
             </button>
@@ -712,6 +713,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
               className="pane-btn pane-btn--danger"
               onClick={() => setPlanExpanded(false)}
               title="Close expanded view (ESC)"
+              style={{ fontSize: '14px' }}
             >
               &times;
             </button>
