@@ -107,6 +107,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const loadedRef = useRef(false);
+  const filledRef = useRef(false); // set by fillContent to prevent draft overwrite
 
   // Shared undo stack for programmatic edits (Tab, slash insert, @ insert)
   const { pushUndo: _pushUndo, popUndo } = useTextareaUndo();
@@ -165,7 +166,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     let cancelled = false;
     fetchDraft(token, sessionId).then((draft) => {
-      if (!cancelled && draft) {
+      if (!cancelled && draft && !filledRef.current) {
         setContent(draft);
       }
       loadedRef.current = true;
@@ -247,6 +248,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const fillContent = useCallback((text: string) => {
     pushUndo();
     setContent(text);
+    filledRef.current = true; // prevent pending draft fetch from overwriting
   }, [pushUndo]);
 
   useImperativeHandle(ref, () => ({ send: handleSend, fillContent }), [handleSend, fillContent]);

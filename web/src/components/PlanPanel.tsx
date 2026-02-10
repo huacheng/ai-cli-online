@@ -165,7 +165,7 @@ export function PlanPanel({ sessionId, token, connected, onClose, onSend, onRequ
   const [copied, setCopied] = useState(false);
 
   // Horizontal resize (extracted hook)
-  const { leftWidthPercent, containerRef, onDividerMouseDown } = useHorizontalResize(50);
+  const { leftWidthPercent, containerRef, onDividerMouseDown } = useHorizontalResize(50, 20, 80, `plan-hresize-${sessionId}`);
 
   // Editor ref + content tracking
   const editorRef = useRef<MarkdownEditorHandle>(null);

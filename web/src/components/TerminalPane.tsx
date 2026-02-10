@@ -52,7 +52,21 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [docHeightPercent, setDocHeightPercent] = useState(50);
+  const [docHeightPercent, setDocHeightPercent] = useState(() => {
+    const saved = localStorage.getItem(`doc-height-${terminal.id}`);
+    if (saved) {
+      const n = Number(saved);
+      if (Number.isFinite(n) && n >= 20 && n <= 80) return n;
+    }
+    return 50;
+  });
+
+  // Persist doc height to localStorage so it survives tab switches and page refresh
+  const prevDocHeightRef = useRef(docHeightPercent);
+  if (docHeightPercent !== prevDocHeightRef.current) {
+    prevDocHeightRef.current = docHeightPercent;
+    try { localStorage.setItem(`doc-height-${terminal.id}`, String(Math.round(docHeightPercent))); } catch { /* full */ }
+  }
 
   // Panel mode from store (persists across tab switches)
   const docOpen = terminal.panelMode !== 'none';

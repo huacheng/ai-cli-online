@@ -1,8 +1,18 @@
 import { useCallback, useRef, useState } from 'react';
 
-/** Drag-to-resize a horizontal split, returning left width percent and mouse handler. */
-export function useHorizontalResize(initial = 50, min = 20, max = 80) {
-  const [leftWidthPercent, setLeftWidthPercent] = useState(initial);
+/** Drag-to-resize a horizontal split, returning left width percent and mouse handler.
+ *  When `storageKey` is provided, the value persists to localStorage across unmount/remount. */
+export function useHorizontalResize(initial = 50, min = 20, max = 80, storageKey?: string) {
+  const [leftWidthPercent, setLeftWidthPercent] = useState(() => {
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const n = Number(saved);
+        if (Number.isFinite(n) && n >= min && n <= max) return n;
+      }
+    }
+    return initial;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
 
   const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -34,7 +44,14 @@ export function useHorizontalResize(initial = 50, min = 20, max = 80) {
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [min, max]);
+  }, [min, max, storageKey]);
+
+  // Persist to localStorage whenever value changes (debounced implicitly by rAF in drag)
+  const prevRef = useRef(leftWidthPercent);
+  if (storageKey && leftWidthPercent !== prevRef.current) {
+    prevRef.current = leftWidthPercent;
+    try { localStorage.setItem(storageKey, String(Math.round(leftWidthPercent))); } catch { /* full */ }
+  }
 
   return { leftWidthPercent, containerRef, onDividerMouseDown };
 }
