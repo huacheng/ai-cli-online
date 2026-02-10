@@ -67,7 +67,7 @@ async function main() {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://unpkg.com"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "https:", "data:"],
+        imgSrc: ["'self'", "https:", "data:", "blob:"],
         connectSrc: ["'self'", "wss:", "ws:"],
       },
     },
