@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PlanAnnotationRenderer } from './PlanAnnotationRenderer';
-import type { PlanAnnotationRendererHandle, PlanAnnotations } from './PlanAnnotationRenderer';
-import { generateMultiFileSummary } from './PlanAnnotationRenderer';
+import type { PlanAnnotationRendererHandle } from './PlanAnnotationRenderer';
 import { PlanFileBrowser } from './PlanFileBrowser';
 import { useFileStream } from '../hooks/useFileStream';
 import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
@@ -14,7 +13,6 @@ interface PlanPanelProps {
   connected: boolean;
   onRequestFileStream?: (path: string) => void;
   onCancelFileStream?: () => void;
-  onClose: () => void;
   onForwardToChat?: (summary: string) => void;
   onSendToTerminal?: (text: string) => void;
 }
@@ -50,7 +48,7 @@ function CenteredLoading({ label, percent }: { label: string; percent?: number }
   );
 }
 
-export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onClose, onForwardToChat, onSendToTerminal }: PlanPanelProps) {
+export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onForwardToChat, onSendToTerminal }: PlanPanelProps) {
   // File stream hook
   const fileStream = useFileStream();
 
@@ -189,53 +187,16 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     if (summary) onForwardToChat?.(summary);
   }, [onForwardToChat]);
 
-  // Handle close — aggregate all files' un-forwarded annotations + forward to chat
-  const handlePlanClose = useCallback(() => {
-    // Cache current file content
+  // Handle close file — deselect current file (does NOT close the Plan panel)
+  const handleCloseFile = useCallback(() => {
+    savePlanScrollPosition();
     if (planSelectedFile && planMarkdown) {
       planContentCacheRef.current.set(planSelectedFile, planMarkdown);
     }
-
-    // Try single-file summary first (current file via ref)
-    const singleSummary = planAnnotationRef.current?.getSummary();
-
-    // Collect multi-file annotations from all cached files
-    const cache = planContentCacheRef.current;
-    const fileAnnotations: Array<{ filePath: string; annotations: PlanAnnotations; sourceLines: string[] }> = [];
-    for (const [fp, content] of cache.entries()) {
-      if (fp === planSelectedFile) continue;
-      const key = `plan-annotations-${sessionId}-${fp}`;
-      try {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          const annotations: PlanAnnotations = JSON.parse(saved);
-          if (annotations.additions.length > 0 || annotations.deletions.length > 0) {
-            fileAnnotations.push({ filePath: fp, annotations, sourceLines: content.split('\n') });
-          }
-        }
-      } catch { /* skip corrupt */ }
-    }
-
-    if (fileAnnotations.length > 0) {
-      if (singleSummary && planSelectedFile) {
-        const currentKey = `plan-annotations-${sessionId}-${planSelectedFile}`;
-        try {
-          const saved = localStorage.getItem(currentKey);
-          if (saved) {
-            const annotations: PlanAnnotations = JSON.parse(saved);
-            const currentContent = planMarkdown || cache.get(planSelectedFile) || '';
-            fileAnnotations.unshift({ filePath: planSelectedFile, annotations, sourceLines: currentContent.split('\n') });
-          }
-        } catch { /* ignore */ }
-      }
-      const multiSummary = generateMultiFileSummary(fileAnnotations);
-      if (multiSummary) onForwardToChat?.(multiSummary);
-    } else if (singleSummary) {
-      onForwardToChat?.(singleSummary);
-    }
-
-    onClose();
-  }, [onClose, onForwardToChat, planSelectedFile, planMarkdown, sessionId]);
+    setPlanSelectedFile(null);
+    setPlanMarkdown('');
+    planStreamedRef.current = null;
+  }, [planSelectedFile, planMarkdown, savePlanScrollPosition]);
 
   // Refresh current plan file
   const handlePlanRefresh = useCallback(() => {
@@ -331,7 +292,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               onExecute={handlePlanSave}
               onSend={onSendToTerminal}
               onRefresh={handlePlanRefresh}
-              onClose={handlePlanClose}
+              onClose={handleCloseFile}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>

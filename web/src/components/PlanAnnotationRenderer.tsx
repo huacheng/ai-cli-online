@@ -627,13 +627,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Toolbar — single merged header */}
       <div className="plan-anno-toolbar">
-        {/* File path (truncated from left with ...) */}
-        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, direction: 'rtl', textAlign: 'left' }} title={filePath}>
-          {(() => {
-            const parts = filePath.split('/');
-            const planIdx = parts.findIndex(p => p === 'PLAN');
-            return planIdx >= 0 ? parts.slice(planIdx).join('/') : parts.slice(-2).join('/');
-          })()}
+        {/* File name */}
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }} title={filePath}>
+          {filePath.split('/').pop() || filePath}
         </span>
         {/* Refresh */}
         {onRefresh && (
@@ -723,12 +719,12 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
             </div>
           )}
         </div>
-        {/* Close button */}
+        {/* Close file button — batch send + deselect file */}
         {onClose && (
           <button
             className="pane-btn pane-btn--danger"
-            onClick={onClose}
-            title="Close Plan (forward annotations to Chat)"
+            onClick={() => { handleExecute(); onClose(); }}
+            title="Send annotations &amp; close file"
           >
             &times;
           </button>

@@ -155,11 +155,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     }
   }, []);
 
-  // Plan close (×) -> forward + toggle off
-  const handlePlanClose = useCallback(() => {
-    togglePlan(terminal.id);
-  }, [togglePlan, terminal.id]);
-
   // Chat vertical divider drag
   const handleChatDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -322,7 +317,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 connected={terminal.connected}
                 onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
                 onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
-                onClose={handlePlanClose}
                 onForwardToChat={handlePlanForwardToChat}
                 onSendToTerminal={handlePlanSendToTerminal}
               />
@@ -399,13 +393,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                     </button>
                     <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
                   </div>
-                  <button
-                    className="pane-btn pane-btn--danger"
-                    onClick={() => toggleChat(terminal.id)}
-                    title="Close Chat panel"
-                  >
-                    &times;
-                  </button>
                 </div>
                 {/* Editor */}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
