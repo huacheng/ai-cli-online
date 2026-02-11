@@ -8,13 +8,14 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config } from 'dotenv';
 import { existsSync, readFileSync, createReadStream } from 'fs';
+import { spawn } from 'child_process';
 import { copyFile, unlink, stat, mkdir, readFile, writeFile } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 import { setupWebSocket, getActiveSessionNames, clearWsIntervals } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
-import { listFiles, validatePath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
+import { listFiles, validatePath, validateNewPath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
@@ -280,6 +281,33 @@ async function main() {
     }
   });
 
+  // Download CWD as tar.gz
+  app.get('/api/sessions/:sessionId/download-cwd', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const cwd = await getCwd(sessionName);
+      const dirName = basename(cwd);
+      res.setHeader('Content-Type', 'application/gzip');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(dirName)}.tar.gz"`);
+      const tar = spawn('tar', ['czf', '-', '-C', cwd, '.'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      tar.stdout.pipe(res);
+      tar.stderr.on('data', (data: Buffer) => console.error(`[tar stderr] ${data}`));
+      tar.on('error', (err) => {
+        console.error('[api:download-cwd] tar error:', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Failed to create archive' });
+      });
+      tar.on('close', (code) => {
+        if (code !== 0 && !res.headersSent) {
+          res.status(500).json({ error: 'Archive creation failed' });
+        }
+      });
+    } catch (err) {
+      console.error(`[api:download-cwd] ${sessionName}:`, err);
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to download' });
+    }
+  });
+
   // --- Draft API ---
 
   // Get draft for a session
@@ -329,8 +357,7 @@ async function main() {
         return;
       }
       const cwd = await getCwd(sessionName);
-      const fullPath = join(cwd, name);
-      const resolved = await validatePath(fullPath, cwd);
+      const resolved = await validateNewPath(join(cwd, name), cwd);
       if (!resolved) {
         res.status(400).json({ error: 'Invalid path' });
         return;
@@ -362,8 +389,7 @@ async function main() {
         return;
       }
       const cwd = await getCwd(sessionName);
-      const fullPath = join(cwd, dirPath);
-      const resolved = await validatePath(fullPath, cwd);
+      const resolved = await validateNewPath(join(cwd, dirPath), cwd);
       if (!resolved) {
         res.status(400).json({ error: 'Invalid path' });
         return;

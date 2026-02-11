@@ -16,6 +16,7 @@ interface PlanPanelProps {
   onCancelFileStream?: () => void;
   onClose: () => void;
   onForwardToChat?: (summary: string) => void;
+  onSendToTerminal?: (text: string) => void;
 }
 
 /** Centered loading indicator with optional progress bar */
@@ -49,7 +50,7 @@ function CenteredLoading({ label, percent }: { label: string; percent?: number }
   );
 }
 
-export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onClose, onForwardToChat }: PlanPanelProps) {
+export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onClose, onForwardToChat, onSendToTerminal }: PlanPanelProps) {
   // File stream hook
   const fileStream = useFileStream();
 
@@ -305,6 +306,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               filePath={planSelectedFile}
               sessionId={sessionId}
               onExecute={handlePlanSave}
+              onSend={onSendToTerminal}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>

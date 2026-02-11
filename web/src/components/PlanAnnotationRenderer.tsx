@@ -125,11 +125,11 @@ interface Props {
   filePath: string;
   sessionId: string;
   onExecute: (summary: string) => void;
-  onClear?: () => void;
+  onSend?: (summary: string) => void;
   expanded?: boolean;
 }
 
-export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onClear, expanded }, ref) {
+export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onSend, expanded }, ref) {
   const fontSize = useStore((s) => s.fontSize);
 
   // Parse markdown into tokens
@@ -197,6 +197,20 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       baselineIdsRef.current = new Set();
     }
   }, [sessionId, filePath]);
+
+  // Baseline version counter — increment to force re-computation of sent/unsent counts
+  const [baselineVer, setBaselineVer] = useState(0);
+
+  // Annotation counts: total / sent / unsent
+  const annCounts = useMemo(() => {
+    const bl = baselineIdsRef.current;
+    const total = annotations.additions.length + annotations.deletions.length;
+    let sent = 0;
+    annotations.additions.forEach(a => { if (bl.has(a.id)) sent++; });
+    annotations.deletions.forEach(d => { if (bl.has(d.id)) sent++; });
+    return { total, sent, unsent: total - sent };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotations, baselineVer]);
 
   // Active insert zone editing
   const [activeInsert, setActiveInsert] = useState<number | null>(null);
@@ -487,22 +501,28 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [annotations]);
 
-  // Execute: generate summary from new/modified annotations
+  // Execute: generate summary from new/modified annotations (Save to chat)
   const handleExecute = useCallback(() => {
     const summary = generateSummary(getNewAnnotations(), sourceLines);
     if (summary) {
-      onExecute(summary);
-      // Update baseline to current IDs (mark as forwarded)
+      const fileName = filePath.split('/').pop() || '';
+      onExecute(`## ${fileName}\n\n${summary}`);
       const ids = new Set<string>();
       annotations.additions.forEach((a) => ids.add(a.id));
       annotations.deletions.forEach((d) => ids.add(d.id));
       baselineIdsRef.current = ids;
+      setBaselineVer(v => v + 1);
     }
-  }, [getNewAnnotations, annotations, sourceLines, onExecute]);
+  }, [getNewAnnotations, annotations, sourceLines, onExecute, filePath]);
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
-    getSummary: () => generateSummary(getNewAnnotations(), sourceLines),
+    getSummary: () => {
+      const summary = generateSummary(getNewAnnotations(), sourceLines);
+      if (!summary) return '';
+      const fileName = filePath.split('/').pop() || '';
+      return `## ${fileName}\n\n${summary}`;
+    },
     handleEscape: () => {
       if (activeInsert != null) {
         handleAddAnnotation(activeInsert);
@@ -516,14 +536,53 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         if (containerRef.current) containerRef.current.scrollTop = top;
       });
     },
-  }), [getNewAnnotations, sourceLines, activeInsert, handleAddAnnotation]);
+  }), [getNewAnnotations, sourceLines, filePath, activeInsert, handleAddAnnotation]);
 
-  // Clear all annotations
-  const handleClear = useCallback(() => {
+  // Dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-    setAnnotations(EMPTY_ANNOTATIONS);
-    onClear?.();
-  }, [onClear]);
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
+
+  // Send a single annotation to terminal
+  const handleSendSingle = useCallback((annId: string, type: 'add' | 'del') => {
+    if (!onSend) return;
+    const fileName = filePath.split('/').pop() || '';
+    let text = `## ${fileName}\n\n`;
+    if (type === 'add') {
+      const a = annotations.additions.find(x => x.id === annId);
+      if (!a) return;
+      const ctx = sourceLines[a.sourceLine - 1]?.trim().slice(0, 50) ?? '';
+      text += `[增加批注] 在第${a.sourceLine}行 ("${ctx}") 之后添加:\n${a.content}`;
+    } else {
+      const d = annotations.deletions.find(x => x.id === annId);
+      if (!d) return;
+      const lineText = sourceLines.slice(d.startLine - 1, d.endLine).join(' ').trim();
+      text += `[删除批注] 删除第${d.startLine}-${d.endLine}行: "${lineText.slice(0, 60)}"`;
+    }
+    onSend(text);
+    baselineIdsRef.current.add(annId);
+    setBaselineVer(v => v + 1);
+  }, [onSend, filePath, annotations, sourceLines]);
+
+  // Delete annotation from dropdown
+  const handleDropdownDelete = useCallback((annId: string, type: 'add' | 'del') => {
+    if (type === 'add') {
+      handleRemoveAddition(annId);
+    } else {
+      handleRemoveDeletion(annId);
+    }
+  }, [handleRemoveAddition, handleRemoveDeletion]);
 
   // Check if a token index is marked for deletion
   const deletedIndices = useMemo(() => {
@@ -552,29 +611,94 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Toolbar */}
       <div className="plan-anno-toolbar">
+        {/* Plan: FileName */}
+        <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
+          Plan: {filePath.split('/').pop() || ''}
+        </span>
+        {/* Send all to Chat */}
         <button
           className="pane-btn"
           onClick={handleExecute}
           disabled={!hasAnnotations}
-          title="Save annotations to editor"
+          title="Send all annotations to Chat editor"
           style={hasAnnotations ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}
         >
-          Save
+          Send
         </button>
-        <button
-          className="pane-btn"
-          onClick={handleClear}
-          disabled={!hasAnnotations}
-          title="Clear all annotations"
-          style={hasAnnotations ? {} : { opacity: 0.4 }}
-        >
-          Clear
-        </button>
-        {hasAnnotations && (
-          <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 4 }}>
-            +{annotations.additions.length} &minus;{annotations.deletions.length}
-          </span>
-        )}
+        {/* Dropdown: first annotation preview + ▼ */}
+        <div ref={dropdownRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <div
+            className={`plan-anno-dropdown-trigger${dropdownOpen ? ' plan-anno-dropdown-trigger--active' : ''}`}
+            onClick={() => setDropdownOpen(v => !v)}
+            title={annCounts.total > 0 ? `${annCounts.total} annotations (${annCounts.unsent} unsent)` : 'No annotations'}
+          >
+            <span className="plan-anno-dropdown-trigger__text">
+              {(() => {
+                const firstAdd = annotations.additions[0];
+                const firstDel = annotations.deletions[0];
+                const text = firstAdd ? firstAdd.content : firstDel ? firstDel.selectedText : '';
+                if (!text) return '';
+                return text.slice(0, 40) + (text.length > 40 ? '...' : '');
+              })()}
+            </span>
+            <span className="plan-anno-dropdown-trigger__arrow">&#x25BC;</span>
+          </div>
+          {dropdownOpen && (
+            <div className="plan-anno-dropdown">
+              {/* Batch send header — forwards to Chat editor */}
+              {annCounts.unsent > 0 && (
+                <div className="plan-anno-dropdown__header">
+                  <button
+                    className="pane-btn"
+                    onClick={handleExecute}
+                    style={{ color: 'var(--accent-blue)', fontSize: 11 }}
+                  >
+                    Send All Unsent ({annCounts.unsent})
+                  </button>
+                </div>
+              )}
+              <div className="plan-anno-dropdown__list">
+                {annotations.additions.map(a => {
+                  const isSent = baselineIdsRef.current.has(a.id);
+                  return (
+                    <div key={a.id} className="plan-anno-dropdown__item plan-anno-dropdown__item--add">
+                      <span className="plan-anno-dropdown__type" style={{ color: 'var(--accent-yellow)' }}>+</span>
+                      <span className="plan-anno-dropdown__text">{a.content.slice(0, 60)}{a.content.length > 60 ? '...' : ''}</span>
+                      <button
+                        className="pane-btn pane-btn--sm"
+                        onClick={() => !isSent && handleSendSingle(a.id, 'add')}
+                        disabled={isSent}
+                        title={isSent ? 'Already sent' : 'Send to terminal'}
+                        style={isSent ? { opacity: 0.3 } : { color: 'var(--accent-blue)' }}
+                      >Send</button>
+                      <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleDropdownDelete(a.id, 'add')} title="Delete">&times;</button>
+                    </div>
+                  );
+                })}
+                {annotations.deletions.map(d => {
+                  const isSent = baselineIdsRef.current.has(d.id);
+                  return (
+                    <div key={d.id} className="plan-anno-dropdown__item plan-anno-dropdown__item--del">
+                      <span className="plan-anno-dropdown__type" style={{ color: 'var(--accent-red)' }}>&minus;</span>
+                      <span className="plan-anno-dropdown__text">{d.selectedText.slice(0, 60)}{d.selectedText.length > 60 ? '...' : ''}</span>
+                      <button
+                        className="pane-btn pane-btn--sm"
+                        onClick={() => !isSent && handleSendSingle(d.id, 'del')}
+                        disabled={isSent}
+                        title={isSent ? 'Already sent' : 'Send to terminal'}
+                        style={isSent ? { opacity: 0.3 } : { color: 'var(--accent-blue)' }}
+                      >Send</button>
+                      <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleDropdownDelete(d.id, 'del')} title="Delete">&times;</button>
+                    </div>
+                  );
+                })}
+                {annCounts.total === 0 && (
+                  <div className="plan-anno-dropdown__empty">No annotations</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content + TOC */}

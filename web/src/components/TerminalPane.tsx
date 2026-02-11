@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { PlanPanel } from './PlanPanel';
 import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
-import { uploadFiles, fetchCwd } from '../api/files';
+import { uploadFiles, fetchCwd, downloadCwd } from '../api/files';
 
 import type { TerminalInstance } from '../types';
 import type { TerminalViewHandle } from './TerminalView';
@@ -52,6 +52,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [downloading, setDownloading] = useState(false);
   const [editorHasContent, setEditorHasContent] = useState(false);
   const outerRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
@@ -124,6 +125,29 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     return () => { if (sendTimerRef.current) clearTimeout(sendTimerRef.current); };
   }, []);
 
+  // Download CWD as tar.gz
+  const handleDownloadCwd = useCallback(async () => {
+    if (!token) return;
+    setDownloading(true);
+    try {
+      await downloadCwd(token, terminal.id);
+    } catch (err) {
+      console.error('[download-cwd] Failed:', err);
+      alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setDownloading(false);
+    }
+  }, [token, terminal.id]);
+
+  // Plan Send -> send annotations directly to terminal PTY
+  const handlePlanSendToTerminal = useCallback((text: string) => {
+    if (terminalViewRef.current) {
+      const merged = text.replace(/\r?\n/g, ' ').trimEnd();
+      terminalViewRef.current.sendInput(merged);
+      setTimeout(() => terminalViewRef.current?.sendInput('\r'), 50);
+    }
+  }, []);
+
   // Plan close -> forward annotations to chat editor
   const handlePlanForwardToChat = useCallback((summary: string) => {
     if (summary && editorRef.current) {
@@ -141,14 +165,14 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     e.preventDefault();
     const container = outerRef.current;
     if (!container) return;
-    // Measure from after the title bar (28px)
+    // Measure from after the title bar (24px)
     const rect = container.getBoundingClientRect();
-    const containerHeight = rect.height - 28; // subtract title bar
+    const containerHeight = rect.height - 24; // subtract title bar
 
     document.body.classList.add('resizing-panes-v');
 
     const onMouseMove = (ev: MouseEvent) => {
-      const localY = ev.clientY - rect.top - 28;
+      const localY = ev.clientY - rect.top - 24;
       const terminalPct = (localY / containerHeight) * 100;
       const clamped = Math.min(85, Math.max(40, terminalPct));
       setChatHeightPercent(100 - clamped);
@@ -175,9 +199,9 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     document.body.classList.add('resizing-panes');
 
     const onMouseMove = (ev: MouseEvent) => {
-      const termPct = ((ev.clientX - rect.left) / containerWidth) * 100;
-      const clamped = Math.min(80, Math.max(20, termPct));
-      setPlanWidthPercent(100 - clamped);
+      const planPct = ((ev.clientX - rect.left) / containerWidth) * 100;
+      const clamped = Math.min(80, Math.max(20, planPct));
+      setPlanWidthPercent(clamped);
     };
 
     const onMouseUp = () => {
@@ -238,6 +262,17 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             {uploading ? `${uploadProgress}%` : '\u2191'}
           </button>
+          {/* Download CWD button */}
+          <button
+            className="pane-btn"
+            onClick={handleDownloadCwd}
+            disabled={downloading}
+            style={downloading ? { color: 'var(--accent-yellow)' } : undefined}
+            title={downloading ? 'Downloading...' : 'Download CWD as tar.gz'}
+            aria-label="Download CWD"
+          >
+            {downloading ? '...' : '\u2193'}
+          </button>
           {/* Chat panel toggle */}
           <button
             className={`pane-btn${chatOpen ? ' pane-btn--active' : ''}`}
@@ -275,10 +310,41 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         </div>
       </div>
 
-      {/* Main area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-        {/* Top row: Terminal | Plan */}
-        <div ref={topRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 80 }}>
+      {/* Main area: Plan (left) | Right column (Terminal + Chat) */}
+      <div ref={topRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+        {/* Plan panel (left side) + Horizontal divider */}
+        {planOpen && (
+          <>
+            <div style={{ width: `${planWidthPercent}%`, minWidth: 200, flexShrink: 0, overflow: 'hidden' }}>
+              <PlanPanel
+                sessionId={terminal.id}
+                token={token || ''}
+                connected={terminal.connected}
+                onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
+                onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
+                onClose={handlePlanClose}
+                onForwardToChat={handlePlanForwardToChat}
+                onSendToTerminal={handlePlanSendToTerminal}
+              />
+            </div>
+            <div
+              className="md-editor-divider-h"
+              onMouseDown={handlePlanDividerMouseDown}
+              style={{
+                width: '2px',
+                flexShrink: 0,
+                cursor: 'col-resize',
+                backgroundColor: 'var(--border)',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--accent-blue)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--border)'; }}
+            />
+          </>
+        )}
+
+        {/* Right column: Terminal + Chat */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           {/* Terminal */}
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minWidth: 80 }}>
             <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
@@ -301,89 +367,60 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             )}
           </div>
 
-          {/* Horizontal divider + Plan panel (right side) */}
-          {planOpen && (
+          {/* Vertical divider + Chat panel (bottom) */}
+          {chatOpen && (
             <>
               <div
-                className="md-editor-divider-h"
-                onMouseDown={handlePlanDividerMouseDown}
-                style={{
-                  width: '2px',
-                  flexShrink: 0,
-                  cursor: 'col-resize',
-                  backgroundColor: 'var(--border)',
-                  transition: 'background-color 0.15s',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--accent-blue)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--border)'; }}
+                className="md-editor-divider"
+                onMouseDown={handleChatDividerMouseDown}
               />
-              <div style={{ width: `${planWidthPercent}%`, minWidth: 200, flexShrink: 0, overflow: 'hidden' }}>
-                <PlanPanel
-                  sessionId={terminal.id}
-                  token={token || ''}
-                  connected={terminal.connected}
-                  onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
-                  onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
-                  onClose={handlePlanClose}
-                  onForwardToChat={handlePlanForwardToChat}
-                />
+              <div style={{ height: `${chatHeightPercent}%`, minHeight: 80, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
+                {/* Chat toolbar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0 8px',
+                  height: '22px',
+                  flexShrink: 0,
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500 }}>Chat:</span>
+                    <button
+                      className="pane-btn"
+                      onClick={() => editorRef.current?.send()}
+                      disabled={!editorHasContent}
+                      title="Send to terminal (Ctrl+Enter)"
+                      style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: 'var(--accent-green)' }}
+                    >
+                      Send
+                    </button>
+                    <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
+                  </div>
+                  <button
+                    className="pane-btn pane-btn--danger"
+                    onClick={() => toggleChat(terminal.id)}
+                    title="Close Chat panel"
+                  >
+                    &times;
+                  </button>
+                </div>
+                {/* Editor */}
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <MarkdownEditor
+                    ref={editorRef}
+                    onSend={handleEditorSend}
+                    onContentChange={setEditorHasContent}
+                    sessionId={terminal.id}
+                    token={token || ''}
+                  />
+                </div>
               </div>
             </>
           )}
         </div>
-
-        {/* Vertical divider + Chat panel (bottom) */}
-        {chatOpen && (
-          <>
-            <div
-              className="md-editor-divider"
-              onMouseDown={handleChatDividerMouseDown}
-            />
-            <div style={{ height: `${chatHeightPercent}%`, minHeight: 80, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
-              {/* Chat toolbar */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 8px',
-                height: '22px',
-                flexShrink: 0,
-                backgroundColor: 'var(--bg-secondary)',
-                borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    className="pane-btn"
-                    onClick={() => editorRef.current?.send()}
-                    disabled={!editorHasContent}
-                    title="Send to terminal (Ctrl+Enter)"
-                    style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: 'var(--accent-green)' }}
-                  >
-                    Send
-                  </button>
-                  <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
-                </div>
-                <button
-                  className="pane-btn pane-btn--danger"
-                  onClick={() => toggleChat(terminal.id)}
-                  title="Close Chat panel"
-                >
-                  &times;
-                </button>
-              </div>
-              {/* Editor */}
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <MarkdownEditor
-                  ref={editorRef}
-                  onSend={handleEditorSend}
-                  onContentChange={setEditorHasContent}
-                  sessionId={terminal.id}
-                  token={token || ''}
-                />
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       {/* Error bar */}

@@ -311,13 +311,13 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 ```
 [Title bar: 连接状态 | Upload | Chat | Plan | 分割按钮]
-[Main area]
-  ├─ [Top row: flex-direction: row]
-  │   ├─ [Xterm 终端: flex: 1]
-  │   ├─ [水平分隔条: 4px, col-resize]     ← 仅 planOpen 时
-  │   └─ [Plan 面板: planWidthPercent%]     ← 仅 planOpen 时
-  └─ [垂直分隔条: 4px, row-resize]          ← 仅 chatOpen 时
-  └─ [Chat 面板: chatHeightPercent%]         ← 仅 chatOpen 时
+[Main area: flex-direction: row]
+  ├─ [Plan 面板: planWidthPercent%]         ← 仅 planOpen 时
+  ├─ [水平分隔条: 2px, col-resize]          ← 仅 planOpen 时
+  └─ [Right column: flex: 1, column]
+      ├─ [Xterm 终端: flex: 1]
+      ├─ [垂直分隔条: 4px, row-resize]      ← 仅 chatOpen 时
+      └─ [Chat 面板: chatHeightPercent%]     ← 仅 chatOpen 时
 ```
 
 ### Xterm 终端 (TerminalView)
@@ -330,7 +330,7 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 ### Plan 批注面板 (PlanPanel)
 
-内联面板（非全屏覆盖层），位于终端右侧，宽度可拖拽调整（20%-80%，持久化 localStorage）。
+内联面板（非全屏覆盖层），位于终端左侧全高显示，宽度可拖拽调整（20%-80%，持久化 localStorage）。
 
 - **PlanFileBrowser**: 左侧文件树，浏览 PLAN/ 目录下的 `.md` 文件，支持新建文件
 - **PlanAnnotationRenderer**: 中间批注编辑器，Markdown 内容逐行渲染 + 内联批注

@@ -91,6 +91,25 @@ export async function mkdirPath(token: string, sessionId: string, path: string):
   return res.json();
 }
 
+export async function downloadCwd(token: string, sessionId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download-cwd`,
+    { headers: authHeaders(token) },
+  );
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const disposition = res.headers.get('Content-Disposition');
+  const match = disposition?.match(/filename="(.+)"/);
+  a.download = match ? decodeURIComponent(match[1]) : 'cwd.tar.gz';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadFile(token: string, sessionId: string, filePath: string): Promise<void> {
   const res = await fetch(
     `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download?path=${encodeURIComponent(filePath)}`,

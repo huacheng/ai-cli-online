@@ -73,3 +73,17 @@ export async function validatePath(requested: string, baseCwd: string): Promise<
     return null;
   }
 }
+
+/** Validate a path that may not exist yet (for touch/mkdir). Uses realpath on baseCwd only. */
+export async function validateNewPath(requested: string, baseCwd: string): Promise<string | null> {
+  try {
+    const realBase = await realpath(baseCwd);
+    const resolved = resolve(realBase, requested);
+    if (resolved !== realBase && !resolved.startsWith(realBase + '/')) {
+      return null;
+    }
+    return resolved;
+  } catch {
+    return null;
+  }
+}
