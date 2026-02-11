@@ -100,8 +100,7 @@ export function generateMultiFileSummary(
   for (const { filePath, annotations, sourceLines } of fileAnnotations) {
     const summary = generateSummary(annotations, sourceLines);
     if (!summary) continue;
-    const fileName = filePath.split('/').pop() || filePath;
-    sections.push(`## ${fileName}\n\n${summary}`);
+    sections.push(`## ${filePath}\n\n${summary}`);
   }
   if (sections.length === 0) return '';
   return '请根据以下用户批注修改 PLAN/ 目录下的文件:\n\n' + sections.join('\n\n');
@@ -507,8 +506,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const handleExecute = useCallback(() => {
     const summary = generateSummary(getNewAnnotations(), sourceLines);
     if (summary) {
-      const fileName = filePath.split('/').pop() || '';
-      onExecute(`## ${fileName}\n\n${summary}`);
+      onExecute(`## ${filePath}\n\n${summary}`);
       const ids = new Set<string>();
       annotations.additions.forEach((a) => ids.add(a.id));
       annotations.deletions.forEach((d) => ids.add(d.id));
@@ -522,8 +520,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     getSummary: () => {
       const summary = generateSummary(getNewAnnotations(), sourceLines);
       if (!summary) return '';
-      const fileName = filePath.split('/').pop() || '';
-      return `## ${fileName}\n\n${summary}`;
+      return `## ${filePath}\n\n${summary}`;
     },
     handleEscape: () => {
       if (activeInsert != null) {
@@ -559,8 +556,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Send a single annotation to terminal
   const handleSendSingle = useCallback((annId: string, type: 'add' | 'del') => {
     if (!onSend) return;
-    const fileName = filePath.split('/').pop() || '';
-    let text = `## ${fileName}\n\n`;
+    let text = `## ${filePath}\n\n`;
     if (type === 'add') {
       const a = annotations.additions.find(x => x.id === annId);
       if (!a) return;
@@ -1038,6 +1034,15 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
             rows={autoRows(insertText)}
             style={{ fontSize: `${fontSize}px`, ...(expanded ? { minWidth: 300 } : undefined) }}
           />
+        </div>
+      ) : alwaysShow && !additions?.length ? (
+        /* Empty file placeholder — double-click to start annotating */
+        <div
+          className="plan-empty-placeholder"
+          onDoubleClick={onOpen}
+          title="Double-click or Ctrl+Enter to edit"
+        >
+          Write down your plans here. Double-click or Ctrl+Enter to edit.
         </div>
       ) : (
         /* + button (hover reveal) */

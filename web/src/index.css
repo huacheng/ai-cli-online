@@ -795,20 +795,25 @@ body.resizing-panes-h * {
   justify-content: center;
 }
 
-.plan-insert-zone:hover .plan-insert-btn,
-.plan-insert-zone--empty .plan-insert-btn {
+.plan-insert-zone:hover .plan-insert-btn {
   display: flex;
 }
 
-.plan-insert-zone--empty {
-  min-height: 48px;
+.plan-empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+  padding: 16px;
 }
-
-.plan-insert-zone--empty .plan-insert-btn {
-  width: 24px;
-  height: 24px;
-  font-size: 16px;
-  border-color: var(--text-secondary);
+.plan-empty-placeholder:hover {
+  color: var(--accent-blue);
 }
 
 .plan-insert-btn:hover {
