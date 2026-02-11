@@ -387,7 +387,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                   borderBottom: '1px solid var(--border)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500 }}>Chat:</span>
+                    <span style={{ fontSize: '11px', color: 'var(--accent-blue)', fontWeight: 500 }}>Chat</span>
                     <button
                       className="pane-btn"
                       onClick={() => editorRef.current?.send()}

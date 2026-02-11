@@ -126,10 +126,12 @@ interface Props {
   sessionId: string;
   onExecute: (summary: string) => void;
   onSend?: (summary: string) => void;
+  onRefresh?: () => void;
+  onClose?: () => void;
   expanded?: boolean;
 }
 
-export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onSend, expanded }, ref) {
+export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onSend, onRefresh, onClose, expanded }, ref) {
   const fontSize = useStore((s) => s.fontSize);
 
   // Parse markdown into tokens
@@ -609,12 +611,20 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Toolbar */}
+      {/* Toolbar — single merged header */}
       <div className="plan-anno-toolbar">
-        {/* Plan: FileName */}
-        <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
-          Plan: {filePath.split('/').pop() || ''}
+        {/* File path (truncated from left with ...) */}
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, direction: 'rtl', textAlign: 'left' }} title={filePath}>
+          {(() => {
+            const parts = filePath.split('/');
+            const planIdx = parts.findIndex(p => p === 'PLAN');
+            return planIdx >= 0 ? parts.slice(planIdx).join('/') : parts.slice(-2).join('/');
+          })()}
         </span>
+        {/* Refresh */}
+        {onRefresh && (
+          <button className="pane-btn" onClick={onRefresh} title="Refresh current file">&#x21BB;</button>
+        )}
         {/* Send all to Chat */}
         <button
           className="pane-btn"
@@ -699,6 +709,16 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
             </div>
           )}
         </div>
+        {/* Close button */}
+        {onClose && (
+          <button
+            className="pane-btn pane-btn--danger"
+            onClick={onClose}
+            title="Close Plan (forward annotations to Chat)"
+          >
+            &times;
+          </button>
+        )}
       </div>
 
       {/* Content + TOC */}
@@ -720,6 +740,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
           onSubmit={() => handleAddAnnotation(-1)}
           onRemoveAddition={handleRemoveAddition}
           onEditAddition={handleEditAddition}
+          onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
+          isSent={(id) => baselineIdsRef.current.has(id)}
           insertText={insertText}
           setInsertText={setInsertText}
           textareaRef={activeInsert === -1 ? insertTextareaRef : undefined}
@@ -780,6 +802,20 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                         >
                           {d.selectedText}
                         </span>
+                        {onSend && (() => {
+                          const sent = baselineIdsRef.current.has(d.id);
+                          return (
+                            <button
+                              className="pane-btn pane-btn--sm"
+                              onClick={() => !sent && handleSendSingle(d.id, 'del')}
+                              disabled={sent}
+                              title={sent ? 'Already sent' : 'Send to terminal'}
+                              style={sent ? { opacity: 0.3 } : { color: 'var(--accent-green)' }}
+                            >
+                              Send
+                            </button>
+                          );
+                        })()}
                         <button
                           className="pane-btn pane-btn--sm"
                           onClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
@@ -809,6 +845,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                 onSubmit={() => handleAddAnnotation(i)}
                 onRemoveAddition={handleRemoveAddition}
                 onEditAddition={handleEditAddition}
+                onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
+                isSent={(id) => baselineIdsRef.current.has(id)}
                 insertText={insertText}
                 setInsertText={setInsertText}
                 textareaRef={activeInsert === i ? insertTextareaRef : undefined}
@@ -847,6 +885,8 @@ interface InsertZoneProps {
   onSubmit: () => void;
   onRemoveAddition: (id: string) => void;
   onEditAddition: (id: string, newContent: string) => void;
+  onSendSingle?: (id: string) => void;
+  isSent?: (id: string) => boolean;
   insertText: string;
   setInsertText: (text: string) => void;
   textareaRef?: React.Ref<HTMLTextAreaElement>;
@@ -855,7 +895,7 @@ interface InsertZoneProps {
   fontSize?: number;
 }
 
-function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, onEditAddition, insertText, setInsertText, textareaRef, expanded, alwaysShow, fontSize = 14 }: InsertZoneProps) {
+function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAddition, onEditAddition, onSendSingle, isSent, insertText, setInsertText, textareaRef, expanded, alwaysShow, fontSize = 14 }: InsertZoneProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -948,6 +988,20 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
               >
                 {a.content}
               </span>
+              {onSendSingle && (() => {
+                const sent = isSent?.(a.id) ?? false;
+                return (
+                  <button
+                    className="pane-btn pane-btn--sm"
+                    onClick={() => !sent && onSendSingle(a.id)}
+                    disabled={sent}
+                    title={sent ? 'Already sent' : 'Send to terminal'}
+                    style={sent ? { opacity: 0.3 } : { color: 'var(--accent-green)' }}
+                  >
+                    Send
+                  </button>
+                );
+              })()}
               <button
                 className="pane-btn pane-btn--sm"
                 onClick={() => startEdit(a)}

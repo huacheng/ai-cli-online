@@ -248,6 +248,36 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     planStreamedRef.current = planSelectedFile;
   }, [planSelectedFile, connected, fileStream, onRequestFileStream]);
 
+  // File browser width (resizable)
+  const [fbWidth, setFbWidth] = useState(() => {
+    const saved = localStorage.getItem(`plan-fb-width-${sessionId}`);
+    if (saved) { const n = Number(saved); if (Number.isFinite(n) && n >= 60 && n <= 300) return n; }
+    return 130;
+  });
+  const prevFbWidthRef = useRef(fbWidth);
+  if (fbWidth !== prevFbWidthRef.current) {
+    prevFbWidthRef.current = fbWidth;
+    try { localStorage.setItem(`plan-fb-width-${sessionId}`, String(Math.round(fbWidth))); } catch { /* full */ }
+  }
+
+  const handleFbDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = fbWidth;
+    document.body.classList.add('resizing-panes');
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      setFbWidth(Math.min(300, Math.max(60, startW + delta)));
+    };
+    const onMouseUp = () => {
+      document.body.classList.remove('resizing-panes');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [fbWidth]);
+
   return (
     <div style={{
       display: 'flex',
@@ -256,41 +286,34 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       backgroundColor: 'var(--bg-primary)',
       overflow: 'hidden',
     }}>
-      {/* Plan toolbar */}
-      <div className="doc-expanded-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-          <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500 }}>
-            Plan: PLAN/{planSelectedFile ? planSelectedFile.split('/').pop() : ''}
-          </span>
-          <button
-            className="pane-btn"
-            onClick={handlePlanRefresh}
-            title="Refresh current file"
-          >
-            &#x21BB;
-          </button>
-        </div>
-        <button
-          className="pane-btn pane-btn--danger"
-          onClick={handlePlanClose}
-          title="Close Plan (forward annotations to Chat)"
-        >
-          &times;
-        </button>
-      </div>
-
-      {/* Two-column body: file browser + annotation editor */}
+      {/* Single-level body: file browser + divider + annotation editor */}
       <div className="plan-overlay-body">
         {/* Left: File browser */}
         {planDir && (
-          <PlanFileBrowser
-            sessionId={sessionId}
-            token={token}
-            planDir={planDir}
-            selectedFile={planSelectedFile}
-            onSelectFile={handlePlanFileSelect}
-            onCreateFile={handlePlanFileCreate}
-          />
+          <>
+            <div style={{ width: fbWidth, flexShrink: 0, overflow: 'hidden' }}>
+              <PlanFileBrowser
+                sessionId={sessionId}
+                token={token}
+                planDir={planDir}
+                selectedFile={planSelectedFile}
+                onSelectFile={handlePlanFileSelect}
+                onCreateFile={handlePlanFileCreate}
+              />
+            </div>
+            <div
+              onMouseDown={handleFbDividerMouseDown}
+              style={{
+                width: 2,
+                flexShrink: 0,
+                cursor: 'col-resize',
+                backgroundColor: 'var(--border)',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--accent-blue)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--border)'; }}
+            />
+          </>
         )}
 
         {/* Center: Annotation editor */}
@@ -307,6 +330,8 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               sessionId={sessionId}
               onExecute={handlePlanSave}
               onSend={onSendToTerminal}
+              onRefresh={handlePlanRefresh}
+              onClose={handlePlanClose}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>

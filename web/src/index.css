@@ -755,7 +755,7 @@ body.resizing-panes-h * {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  height: 32px;
+  height: 28px;
   flex-shrink: 0;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
@@ -785,8 +785,9 @@ body.resizing-panes-h * {
   background: var(--bg-secondary);
   color: var(--accent-blue);
   font-size: 15px;
+  line-height: 1;
   cursor: pointer;
-  padding: 0;
+  padding: 0 0 1px 0;
   z-index: 2;
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
   /* flex centering for perfect + alignment */
@@ -944,9 +945,7 @@ body.resizing-panes-h * {
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 130px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
+  width: 100%;
   background: var(--bg-secondary);
   overflow: hidden;
 }
@@ -963,9 +962,13 @@ body.resizing-panes-h * {
 
 .plan-file-browser__title {
   font-size: 11px;
-  color: var(--accent-purple);
+  color: var(--accent-blue);
   font-weight: 600;
   letter-spacing: 0.3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .plan-file-browser__list {
