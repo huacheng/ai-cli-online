@@ -19,6 +19,8 @@ function App() {
   const fontSize = useStore((s) => s.fontSize);
   const setFontSize = useStore((s) => s.setFontSize);
   const tabsLoading = useStore((s) => s.tabsLoading);
+  const theme = useStore((s) => s.theme);
+  const toggleTheme = useStore((s) => s.toggleTheme);
 
   // Initialize token from URL/localStorage on mount
   useEffect(() => {
@@ -40,22 +42,22 @@ function App() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#1a1b26' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
       {/* Header */}
       <header style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '6px 16px',
-        backgroundColor: '#16161e',
-        borderBottom: '1px solid #292e42',
+        backgroundColor: 'var(--bg-secondary)',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{
             fontSize: '15px',
             fontWeight: 'bold',
-            color: '#7aa2f7',
+            color: 'var(--accent-blue)',
             letterSpacing: '0.5px',
           }}>
             AI-Cli Online
@@ -80,7 +82,7 @@ function App() {
             >
               A−
             </button>
-            <span style={{ fontSize: '11px', color: '#a9b1d6', minWidth: '20px', textAlign: 'center' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-primary)', minWidth: '20px', textAlign: 'center' }}>
               {fontSize}
             </span>
             <button
@@ -94,6 +96,14 @@ function App() {
             </button>
           </span>
           <NetworkIndicator />
+          <button
+            className="header-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '☀' : '🌙'}
+          </button>
           <button
             className="header-btn"
             onClick={toggleSidebar}
@@ -137,7 +147,7 @@ function NetworkIndicator() {
 
   if (latency === null) {
     return (
-      <span style={{ fontSize: '10px', color: '#414868' }} title="Measuring latency...">
+      <span style={{ fontSize: '10px', color: 'var(--scrollbar-thumb-hover)' }} title="Measuring latency...">
         --ms
       </span>
     );
@@ -146,13 +156,13 @@ function NetworkIndicator() {
   let color: string;
   let bars: number;
   if (latency < 50) {
-    color = '#9ece6a'; bars = 4;
+    color = 'var(--accent-green)'; bars = 4;
   } else if (latency < 150) {
-    color = '#e0af68'; bars = 3;
+    color = 'var(--accent-yellow)'; bars = 3;
   } else if (latency < 300) {
-    color = '#ff9e64'; bars = 2;
+    color = 'var(--accent-orange)'; bars = 2;
   } else {
-    color = '#f7768e'; bars = 1;
+    color = 'var(--accent-red)'; bars = 1;
   }
 
   return (
@@ -174,7 +184,7 @@ function NetworkIndicator() {
             display: 'inline-block',
             width: '2.5px',
             height: `${3 + i * 2}px`,
-            backgroundColor: i <= bars ? color : '#292e42',
+            backgroundColor: i <= bars ? color : 'var(--border)',
             borderRadius: '1px',
             transition: 'background-color 0.3s ease',
           }}

@@ -12,11 +12,11 @@ export interface TerminalViewHandle {
   cancelFileStream: () => void;
 }
 
-const TERMINAL_THEME = {
+const DARK_XTERM_THEME = {
   background: '#1a1b26',
   foreground: '#a9b1d6',
   cursor: '#c0caf5',
-  selectionBackground: '#33467c',
+  selectionBackground: 'rgba(122, 162, 247, 0.3)',
   black: '#15161e',
   red: '#f7768e',
   green: '#9ece6a',
@@ -35,6 +35,29 @@ const TERMINAL_THEME = {
   brightWhite: '#c0caf5',
 };
 
+const LIGHT_XTERM_THEME = {
+  background: '#f5f5f5',
+  foreground: '#333333',
+  cursor: '#111111',
+  selectionBackground: 'rgba(37, 99, 235, 0.2)',
+  black: '#000000',
+  red: '#dc2626',
+  green: '#16a34a',
+  yellow: '#ca8a04',
+  blue: '#2563eb',
+  magenta: '#7c3aed',
+  cyan: '#0891b2',
+  white: '#333333',
+  brightBlack: '#666666',
+  brightRed: '#dc2626',
+  brightGreen: '#16a34a',
+  brightYellow: '#ca8a04',
+  brightBlue: '#2563eb',
+  brightMagenta: '#7c3aed',
+  brightCyan: '#0891b2',
+  brightWhite: '#111111',
+};
+
 const FONT_FAMILY = "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace";
 
 interface TerminalViewProps {
@@ -50,6 +73,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
   const [scrollbackData, setScrollbackData] = useState('');
 
   const fontSize = useStore((s) => s.fontSize);
+  const theme = useStore((s) => s.theme);
 
   const handleScrollbackContent = useCallback((data: string) => {
     setScrollbackData(data);
@@ -90,7 +114,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       scrollback: 10000,
       fontSize: useStore.getState().fontSize,
       fontFamily: FONT_FAMILY,
-      theme: TERMINAL_THEME,
+      theme: useStore.getState().theme === 'dark' ? DARK_XTERM_THEME : LIGHT_XTERM_THEME,
       allowProposedApi: true,
     });
 
@@ -277,6 +301,13 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     sendResizeRef.current(terminal.cols, terminal.rows);
   }, [fontSize]);
 
+  // Dynamically update theme when store value changes
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = theme === 'dark' ? DARK_XTERM_THEME : LIGHT_XTERM_THEME;
+    }
+  }, [theme]);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div
@@ -284,7 +315,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         style={{
           width: '100%',
           height: '100%',
-          backgroundColor: '#1a1b26',
+          backgroundColor: 'var(--bg-primary)',
           contain: 'strict',
           willChange: 'transform',
           isolation: 'isolate',
@@ -308,8 +339,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           top: 4,
           right: 4,
           zIndex: 10,
-          background: scrollbackVisible ? '#7aa2f7' : 'rgba(65, 72, 104, 0.7)',
-          color: '#c0caf5',
+          background: scrollbackVisible ? 'var(--accent-blue)' : 'rgba(65, 72, 104, 0.7)',
+          color: 'var(--text-bright)',
           border: 'none',
           borderRadius: 4,
           padding: '2px 8px',
@@ -342,6 +373,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
   onCloseRef.current = onClose;
 
   const fontSize = useStore((s) => s.fontSize);
+  const theme = useStore((s) => s.theme);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
 
@@ -355,7 +387,7 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       scrollback: 50000,
       fontSize,
       fontFamily: FONT_FAMILY,
-      theme: TERMINAL_THEME,
+      theme: theme === 'dark' ? DARK_XTERM_THEME : LIGHT_XTERM_THEME,
     });
     terminalRef.current = terminal;
 
@@ -450,6 +482,13 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
     }
   }, [fontSize]);
 
+  // Update theme in-place without recreating the terminal
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = theme === 'dark' ? DARK_XTERM_THEME : LIGHT_XTERM_THEME;
+    }
+  }, [theme]);
+
   const HEADER_H = 28;
 
   return (
@@ -458,17 +497,17 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
         position: 'absolute',
         inset: 0,
         zIndex: 5,
-        backgroundColor: '#1a1b26',
+        backgroundColor: 'var(--bg-primary)',
       }}
     >
       <div style={{
         height: HEADER_H,
         boxSizing: 'border-box',
         padding: '0 12px',
-        background: '#24283b',
-        color: '#7aa2f7',
+        background: 'var(--bg-tertiary)',
+        color: 'var(--accent-blue)',
         fontSize: 12,
-        borderBottom: '1px solid #414868',
+        borderBottom: '1px solid var(--scrollbar-thumb-hover)',
         display: 'flex',
         alignItems: 'center',
       }}>

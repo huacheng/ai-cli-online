@@ -1,8 +1,8 @@
 import { memo, useRef, useState, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
-import { FileBrowser } from './FileBrowser';
 import { PlanPanel } from './PlanPanel';
+import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { uploadFiles, fetchCwd } from '../api/files';
 
 import type { TerminalInstance } from '../types';
@@ -13,7 +13,6 @@ interface TerminalPaneProps {
   canClose: boolean;
 }
 
-const DOC_MIN_HEIGHT = 100;
 const NARROW_THRESHOLD = 600;
 
 /** Shared matchMedia hook — single listener, only fires when crossing the threshold */
@@ -36,8 +35,12 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const isNarrow = useIsNarrow();
   const splitTerminal = useStore((s) => s.splitTerminal);
   const token = useStore((s) => s.token);
+  const toggleChat = useStore((s) => s.toggleChat);
+  const togglePlan = useStore((s) => s.togglePlan);
+  const toggleTheme = useStore((s) => s.toggleTheme);
+  const theme = useStore((s) => s.theme);
 
-  const setTerminalPanelMode = useStore((s) => s.setTerminalPanelMode);
+  const { chatOpen, planOpen } = terminal.panels;
 
   const handleSplit = useCallback(async (direction: 'horizontal' | 'vertical') => {
     let cwd: string | undefined;
@@ -49,11 +52,16 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const terminalViewRef = useRef<TerminalViewHandle>(null);
-  const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [docHeightPercent, setDocHeightPercent] = useState(() => {
-    const saved = localStorage.getItem(`doc-height-${terminal.id}`);
+  const [editorHasContent, setEditorHasContent] = useState(false);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const topRowRef = useRef<HTMLDivElement>(null);
+
+  // Plan width percent (horizontal resize)
+  const [planWidthPercent, setPlanWidthPercent] = useState(() => {
+    const saved = localStorage.getItem(`plan-width-${terminal.id}`);
     if (saved) {
       const n = Number(saved);
       if (Number.isFinite(n) && n >= 20 && n <= 80) return n;
@@ -61,17 +69,29 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     return 50;
   });
 
-  // Persist doc height to localStorage so it survives tab switches and page refresh
-  const prevDocHeightRef = useRef(docHeightPercent);
-  if (docHeightPercent !== prevDocHeightRef.current) {
-    prevDocHeightRef.current = docHeightPercent;
-    try { localStorage.setItem(`doc-height-${terminal.id}`, String(Math.round(docHeightPercent))); } catch { /* full */ }
+  // Persist plan width
+  const prevPlanWidthRef = useRef(planWidthPercent);
+  if (planWidthPercent !== prevPlanWidthRef.current) {
+    prevPlanWidthRef.current = planWidthPercent;
+    try { localStorage.setItem(`plan-width-${terminal.id}`, String(Math.round(planWidthPercent))); } catch { /* full */ }
   }
 
-  // Panel mode from store (persists across tab switches)
-  const docOpen = terminal.panelMode !== 'none';
-  const planMode = terminal.panelMode === 'plan';
-  const outerRef = useRef<HTMLDivElement>(null);
+  // Chat height percent (vertical resize)
+  const [chatHeightPercent, setChatHeightPercent] = useState(() => {
+    const saved = localStorage.getItem(`doc-height-${terminal.id}`);
+    if (saved) {
+      const n = Number(saved);
+      if (Number.isFinite(n) && n >= 15 && n <= 60) return n;
+    }
+    return 35;
+  });
+
+  // Persist chat height
+  const prevChatHeightRef = useRef(chatHeightPercent);
+  if (chatHeightPercent !== prevChatHeightRef.current) {
+    prevChatHeightRef.current = chatHeightPercent;
+    try { localStorage.setItem(`doc-height-${terminal.id}`, String(Math.round(chatHeightPercent))); } catch { /* full */ }
+  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -92,12 +112,11 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     }
   };
 
-  // Send editor text to terminal PTY as a single string (strip newlines, ensure trailing \r for Enter)
+  // Send editor text to terminal PTY
   const sendTimerRef = useRef<number>(undefined);
   const handleEditorSend = useCallback((text: string) => {
     if (terminalViewRef.current) {
       const merged = text.replace(/\r?\n/g, ' ').trimEnd();
-      // PTY raw mode: \r = Enter (carriage return), send text then \r separately to ensure Enter fires
       terminalViewRef.current.sendInput(merged);
       sendTimerRef.current = window.setTimeout(() => terminalViewRef.current?.sendInput('\r'), 50);
     }
@@ -108,25 +127,64 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     return () => { if (sendTimerRef.current) clearTimeout(sendTimerRef.current); };
   }, []);
 
-  // Drag resize for plan panel (vertical divider)
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+  // Plan close -> forward annotations to chat editor
+  const handlePlanForwardToChat = useCallback((summary: string) => {
+    if (summary && editorRef.current) {
+      editorRef.current.fillContent(summary);
+    }
+  }, []);
+
+  // Plan close (×) -> forward + toggle off
+  const handlePlanClose = useCallback(() => {
+    togglePlan(terminal.id);
+  }, [togglePlan, terminal.id]);
+
+  // Chat vertical divider drag
+  const handleChatDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const container = outerRef.current;
     if (!container) return;
+    // Measure from after the title bar (28px)
     const rect = container.getBoundingClientRect();
-    const containerHeight = rect.height;
+    const containerHeight = rect.height - 28; // subtract title bar
 
     document.body.classList.add('resizing-panes-v');
 
     const onMouseMove = (ev: MouseEvent) => {
-      const terminalPct = ((ev.clientY - rect.top) / containerHeight) * 100;
-      // Plan panel is bottom part; clamp terminal between 20% and 80%
-      const clamped = Math.min(80, Math.max(20, terminalPct));
-      setDocHeightPercent(100 - clamped);
+      const localY = ev.clientY - rect.top - 28;
+      const terminalPct = (localY / containerHeight) * 100;
+      const clamped = Math.min(85, Math.max(40, terminalPct));
+      setChatHeightPercent(100 - clamped);
     };
 
     const onMouseUp = () => {
       document.body.classList.remove('resizing-panes-v');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
+
+  // Plan horizontal divider drag
+  const handlePlanDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = topRowRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const containerWidth = rect.width;
+
+    document.body.classList.add('resizing-panes');
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const termPct = ((ev.clientX - rect.left) / containerWidth) * 100;
+      const clamped = Math.min(80, Math.max(20, termPct));
+      setPlanWidthPercent(100 - clamped);
+    };
+
+    const onMouseUp = () => {
+      document.body.classList.remove('resizing-panes');
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -143,8 +201,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '3px 10px',
-        backgroundColor: '#16161e',
-        borderBottom: '1px solid #292e42',
+        backgroundColor: 'var(--bg-secondary)',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
         height: '28px',
       }}>
@@ -154,10 +212,9 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             width: '7px',
             height: '7px',
             borderRadius: '50%',
-            backgroundColor: terminal.connected ? '#9ece6a' : '#f7768e',
-            boxShadow: terminal.connected ? '0 0 4px rgba(158,206,106,0.5)' : '0 0 4px rgba(247,118,142,0.5)',
+            backgroundColor: terminal.connected ? 'var(--accent-green)' : 'var(--accent-red)',
           }} />
-          <span style={{ fontSize: '14px', color: '#565f89' }}>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
             {terminal.id}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')
@@ -178,39 +235,38 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             className="pane-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            style={uploading ? { color: '#e0af68' } : undefined}
+            style={uploading ? { color: 'var(--accent-yellow)' } : undefined}
             title={uploading ? `Uploading ${uploadProgress}%` : 'Upload files'}
             aria-label="Upload files"
           >
             {uploading ? `${uploadProgress}%` : '\u2191'}
           </button>
-          {/* Download / File Browser button */}
-          <button
-            className="pane-btn"
-            onClick={() => setFileBrowserOpen((v) => !v)}
-            style={fileBrowserOpen ? { color: '#7aa2f7' } : undefined}
-            title="Browse files"
-            aria-label="Browse files"
-          >
-            {'\u2193'}
-          </button>
           {/* Chat panel toggle */}
           <button
-            className={`pane-btn${terminal.panelMode === 'chat' ? ' pane-btn--active' : ''}`}
-            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'chat' ? 'none' : 'chat')}
+            className={`pane-btn${chatOpen ? ' pane-btn--active' : ''}`}
+            onClick={() => toggleChat(terminal.id)}
             title="Toggle Chat panel"
             aria-label="Toggle Chat panel"
           >
             Chat
           </button>
-          {/* Plan mode toggle (fullscreen overlay) */}
+          {/* Plan panel toggle */}
           <button
-            className={`pane-btn${terminal.panelMode === 'plan' ? ' pane-btn--active' : ''}`}
-            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'plan' ? 'chat' : 'plan')}
-            title="Toggle Plan annotation mode"
-            aria-label="Toggle Plan annotation mode"
+            className={`pane-btn${planOpen ? ' pane-btn--active' : ''}`}
+            onClick={() => togglePlan(terminal.id)}
+            title="Toggle Plan annotation panel"
+            aria-label="Toggle Plan annotation panel"
           >
             Plan
+          </button>
+          {/* Theme toggle */}
+          <button
+            className="pane-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '\u2600' : '\u263E'}
           </button>
           <button
             className="pane-btn"
@@ -231,63 +287,123 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         </div>
       </div>
 
-      {/* Terminal + FileBrowser overlay */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: '80px' }}>
-        <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
-        {!terminal.connected && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(26, 27, 38, 0.85)',
-            zIndex: 2,
-            pointerEvents: 'none',
-          }}>
-            <span style={{ color: '#565f89', fontSize: '13px', fontStyle: 'italic' }}>
-              Connecting...
-            </span>
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        {/* Top row: Terminal | Plan */}
+        <div ref={topRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 80 }}>
+          {/* Terminal */}
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minWidth: 80 }}>
+            <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
+            {!terminal.connected && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(26, 27, 38, 0.85)',
+                zIndex: 2,
+                pointerEvents: 'none',
+              }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '13px', fontStyle: 'italic' }}>
+                  Connecting...
+                </span>
+              </div>
+            )}
           </div>
-        )}
-        {fileBrowserOpen && (
-          <FileBrowser
-            sessionId={terminal.id}
-            onClose={() => setFileBrowserOpen(false)}
-          />
+
+          {/* Horizontal divider + Plan panel (right side) */}
+          {planOpen && (
+            <>
+              <div
+                className="md-editor-divider-h"
+                onMouseDown={handlePlanDividerMouseDown}
+                style={{
+                  width: '4px',
+                  flexShrink: 0,
+                  cursor: 'col-resize',
+                  backgroundColor: 'var(--border)',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--accent-blue)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--border)'; }}
+              />
+              <div style={{ width: `${planWidthPercent}%`, minWidth: 200, flexShrink: 0, overflow: 'hidden' }}>
+                <PlanPanel
+                  sessionId={terminal.id}
+                  token={token || ''}
+                  connected={terminal.connected}
+                  onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
+                  onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
+                  onClose={handlePlanClose}
+                  onForwardToChat={handlePlanForwardToChat}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Vertical divider + Chat panel (bottom) */}
+        {chatOpen && (
+          <>
+            <div
+              className="md-editor-divider"
+              onMouseDown={handleChatDividerMouseDown}
+            />
+            <div style={{ height: `${chatHeightPercent}%`, minHeight: 80, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
+              {/* Chat toolbar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 8px',
+                height: '26px',
+                flexShrink: 0,
+                backgroundColor: 'var(--bg-secondary)',
+                borderBottom: '1px solid var(--border)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="pane-btn"
+                    onClick={() => editorRef.current?.send()}
+                    disabled={!editorHasContent}
+                    title="Send to terminal (Ctrl+Enter)"
+                    style={!editorHasContent ? { opacity: 0.4, cursor: 'default' } : { color: 'var(--accent-green)' }}
+                  >
+                    Send
+                  </button>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
+                </div>
+                <button
+                  className="pane-btn pane-btn--danger"
+                  onClick={() => toggleChat(terminal.id)}
+                  title="Close Chat panel"
+                >
+                  &times;
+                </button>
+              </div>
+              {/* Editor */}
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <MarkdownEditor
+                  ref={editorRef}
+                  onSend={handleEditorSend}
+                  onContentChange={setEditorHasContent}
+                  sessionId={terminal.id}
+                  token={token || ''}
+                />
+              </div>
+            </div>
+          </>
         )}
       </div>
-
-      {/* Resize divider + Doc panel */}
-      {docOpen && (
-        <>
-          <div
-            className="md-editor-divider"
-            onMouseDown={handleDividerMouseDown}
-          />
-          <div style={{ height: `${docHeightPercent}%`, minHeight: DOC_MIN_HEIGHT, flexShrink: 0, overflow: 'hidden' }}>
-            <PlanPanel
-              onSend={handleEditorSend}
-              onClose={() => setTerminalPanelMode(terminal.id, 'none')}
-              sessionId={terminal.id}
-              token={token || ''}
-              connected={terminal.connected}
-              onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
-              onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
-              planMode={planMode}
-              onPlanModeClose={() => setTerminalPanelMode(terminal.id, 'chat')}
-            />
-          </div>
-        </>
-      )}
 
       {/* Error bar */}
       {terminal.error && (
         <div style={{
           padding: '2px 8px',
           backgroundColor: '#3b2029',
-          borderTop: '1px solid #f7768e',
-          color: '#f7768e',
+          borderTop: '1px solid var(--accent-red)',
+          color: 'var(--accent-red)',
           fontSize: '11px',
           flexShrink: 0,
         }}>

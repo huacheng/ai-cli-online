@@ -15,20 +15,20 @@ export function LoginForm() {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#1a1b26',
+      backgroundColor: 'var(--bg-primary)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '16px',
-      background: 'radial-gradient(ellipse at 50% 0%, rgba(122, 162, 247, 0.08) 0%, #1a1b26 70%)',
+      background: 'radial-gradient(ellipse at 50% 0%, rgba(122, 162, 247, 0.08) 0%, var(--bg-primary) 70%)',
     }}>
       <div className="login-card" style={{
-        backgroundColor: '#24283b',
+        backgroundColor: 'var(--bg-tertiary)',
         borderRadius: '12px',
         padding: '40px 36px',
         width: '100%',
         maxWidth: '400px',
-        border: '1px solid #292e42',
+        border: '1px solid var(--border)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           {/* Terminal icon */}
@@ -42,7 +42,7 @@ export function LoginForm() {
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '24px',
-            color: '#1a1b26',
+            color: 'var(--bg-primary)',
             fontWeight: 'bold',
             boxShadow: '0 4px 16px rgba(122, 162, 247, 0.3)',
           }}>
@@ -51,13 +51,13 @@ export function LoginForm() {
           <h1 style={{
             fontSize: '22px',
             fontWeight: 'bold',
-            color: '#c0caf5',
+            color: 'var(--text-bright)',
             marginBottom: '6px',
             letterSpacing: '0.5px',
           }}>
             AI-Cli Online
           </h1>
-          <p style={{ color: '#565f89', fontSize: '13px' }}>Terminal in your browser</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Terminal in your browser</p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -67,7 +67,7 @@ export function LoginForm() {
               style={{
                 display: 'block',
                 fontSize: '12px',
-                color: '#7aa2f7',
+                color: 'var(--accent-blue)',
                 marginBottom: '8px',
                 fontWeight: 500,
                 textTransform: 'uppercase',
@@ -88,9 +88,9 @@ export function LoginForm() {
               style={{
                 width: '100%',
                 padding: '11px 14px',
-                backgroundColor: '#1a1b26',
-                color: '#c0caf5',
-                border: '1px solid #292e42',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-bright)',
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none',
@@ -107,8 +107,8 @@ export function LoginForm() {
               padding: '11px',
               background: inputToken.trim()
                 ? 'linear-gradient(135deg, #7aa2f7 0%, #7dcfff 100%)'
-                : '#292e42',
-              color: inputToken.trim() ? '#1a1b26' : '#565f89',
+                : 'var(--bg-hover)',
+              color: inputToken.trim() ? 'var(--bg-primary)' : 'var(--text-secondary)',
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
@@ -124,16 +124,16 @@ export function LoginForm() {
         <div style={{
           marginTop: '28px',
           textAlign: 'center',
-          color: '#414868',
+          color: 'var(--scrollbar-thumb-hover)',
           fontSize: '11px',
         }}>
           <p>
             Token is configured in{' '}
             <code style={{
-              backgroundColor: '#1a1b26',
+              backgroundColor: 'var(--bg-primary)',
               padding: '2px 6px',
               borderRadius: '4px',
-              border: '1px solid #292e42',
+              border: '1px solid var(--border)',
               fontSize: '11px',
             }}>
               server/.env

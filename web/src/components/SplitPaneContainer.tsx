@@ -19,14 +19,14 @@ export function SplitPaneContainer() {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        backgroundColor: '#1a1b26',
+        backgroundColor: 'var(--bg-primary)',
       }}>
         <button
           onClick={() => addTerminal()}
           style={{
             background: 'none',
-            border: '1px dashed #292e42',
-            color: '#565f89',
+            border: '1px dashed var(--border)',
+            color: 'var(--text-secondary)',
             padding: '16px 32px',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -146,14 +146,14 @@ const SplitRenderer = memo(function SplitRenderer({ node, canClose }: { node: Sp
           style={{
             flex: `0 0 ${DIVIDER_SIZE}px`,
             cursor: isHorizontal ? 'col-resize' : 'row-resize',
-            backgroundColor: '#292e42',
+            backgroundColor: 'var(--border)',
             transition: 'background-color 0.15s',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor = '#7aa2f7';
+            (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--accent-blue)';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor = '#292e42';
+            (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--border)';
           }}
         />,
       );

@@ -80,7 +80,7 @@ function TabItem({ tabId }: { tabId: string }) {
         style={{
           padding: '8px 12px',
           cursor: isOpen ? 'pointer' : 'default',
-          borderLeft: isActive ? '3px solid #7aa2f7' : '3px solid transparent',
+          borderLeft: isActive ? '3px solid var(--accent-blue)' : '3px solid transparent',
           backgroundColor: isActive ? 'rgba(122, 162, 247, 0.08)' : 'transparent',
           display: 'flex',
           alignItems: 'center',
@@ -159,7 +159,7 @@ function TabItem({ tabId }: { tabId: string }) {
             </div>
           )}
           <div style={{
-            color: '#565f89',
+            color: 'var(--text-secondary)',
             fontSize: '11px',
             marginTop: '2px',
           }}>
@@ -215,7 +215,7 @@ function TabItem({ tabId }: { tabId: string }) {
               title={`Connected: ${term.connected}`}
             >
               <span style={{ fontFamily: 'monospace' }}>{term.id}</span>
-              <span style={{ marginLeft: '8px', color: term.connected ? '#9ece6a' : '#f7768e' }}>
+              <span style={{ marginLeft: '8px', color: term.connected ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                 {term.connected ? '●' : '○'}
               </span>
               <button
@@ -282,14 +282,14 @@ function OrphanedSessionItem({ sessionId, active, createdAt }: {
         width: 8,
         height: 8,
         borderRadius: '50%',
-        backgroundColor: active ? '#9ece6a' : '#565f89',
+        backgroundColor: active ? 'var(--accent-green)' : 'var(--text-secondary)',
         flexShrink: 0,
       }} />
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          color: '#c0caf5',
+          color: 'var(--text-bright)',
           fontSize: '14px',
           fontWeight: 500,
           overflow: 'hidden',
@@ -299,7 +299,7 @@ function OrphanedSessionItem({ sessionId, active, createdAt }: {
           {sessionId}
         </div>
         <div style={{
-          color: '#565f89',
+          color: 'var(--text-secondary)',
           fontSize: '11px',
           marginTop: '2px',
         }}>
@@ -373,8 +373,8 @@ export function SessionSidebar() {
       style={{
         width: sidebarOpen ? 280 : 0,
         height: '100%',
-        backgroundColor: '#16161e',
-        borderLeft: sidebarOpen ? '1px solid #292e42' : 'none',
+        backgroundColor: 'var(--bg-secondary)',
+        borderLeft: sidebarOpen ? '1px solid var(--border)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -388,10 +388,10 @@ export function SessionSidebar() {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '8px 12px',
-        borderBottom: '1px solid #292e42',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
-        <span style={{ color: '#7aa2f7', fontSize: '14px', fontWeight: 'bold' }}>
+        <span style={{ color: 'var(--accent-blue)', fontSize: '14px', fontWeight: 'bold' }}>
           Tabs & Sessions
         </span>
         <button
@@ -417,17 +417,17 @@ export function SessionSidebar() {
         <div>
           <div style={{
             padding: '8px 12px',
-            color: '#7aa2f7',
+            color: 'var(--accent-blue)',
             fontSize: '12px',
             fontWeight: 'bold',
             backgroundColor: 'rgba(122, 162, 247, 0.05)',
-            borderBottom: '1px solid #292e42',
+            borderBottom: '1px solid var(--border)',
           }}>
             TABS
           </div>
           {tabs.length === 0 ? (
             <div style={{
-              color: '#565f89',
+              color: 'var(--text-secondary)',
               fontSize: '14px',
               textAlign: 'center',
               padding: '12px',
@@ -444,11 +444,11 @@ export function SessionSidebar() {
           <div style={{ marginTop: '16px' }}>
             <div style={{
               padding: '8px 12px',
-              color: '#e0af68',
+              color: 'var(--accent-yellow)',
               fontSize: '12px',
               fontWeight: 'bold',
               backgroundColor: 'rgba(224, 175, 104, 0.05)',
-              borderBottom: '1px solid #292e42',
+              borderBottom: '1px solid var(--border)',
             }}>
               ORPHANED SESSIONS
             </div>

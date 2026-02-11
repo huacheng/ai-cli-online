@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImper
 import { fetchDraft, saveDraft } from '../api/drafts';
 import { fetchFiles, type FileEntry } from '../api/files';
 import { useStore } from '../store';
-import { useTextareaUndo, handleTabKey, handleCtrlZ } from '../hooks/useTextareaKit';
+import { useTextareaUndo, handleTabKey } from '../hooks/useTextareaKit';
 
 /* ── Chat History (localStorage) ── */
 
@@ -92,6 +92,7 @@ const SLASH_COMMANDS = [
 export interface MarkdownEditorHandle {
   send: () => void;
   fillContent: (text: string) => void;
+  insertAtCursor: (text: string) => void;
 }
 
 interface MarkdownEditorProps {
@@ -251,12 +252,98 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     filledRef.current = true; // prevent pending draft fetch from overwriting
   }, [pushUndo]);
 
-  useImperativeHandle(ref, () => ({ send: handleSend, fillContent }), [handleSend, fillContent]);
+  const insertAtCursor = useCallback((text: string) => {
+    const ta = textareaRef.current;
+    pushUndo();
+    const cur = contentRef.current;
+    if (ta) {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const newContent = cur.slice(0, start) + text + cur.slice(end);
+      setContent(newContent);
+      const newPos = start + text.length;
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = newPos;
+        ta.focus();
+      });
+    } else {
+      setContent(cur + text);
+    }
+  }, [pushUndo]);
+
+  useImperativeHandle(ref, () => ({ send: handleSend, fillContent, insertAtCursor }), [handleSend, fillContent, insertAtCursor]);
 
   // Notify parent of content emptiness changes
   useEffect(() => {
     onContentChange?.(content.trim().length > 0);
   }, [content, onContentChange]);
+
+  // ── Clipboard: auto-copy on select + right-click paste ──
+  const pasteFloatElRef = useRef<HTMLDivElement | null>(null);
+  const pasteFloatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insertAtCursorRef = useRef(insertAtCursor);
+  insertAtCursorRef.current = insertAtCursor;
+
+  const removePasteFloat = useCallback(() => {
+    if (pasteFloatTimerRef.current) { clearTimeout(pasteFloatTimerRef.current); pasteFloatTimerRef.current = null; }
+    if (pasteFloatElRef.current) { pasteFloatElRef.current.remove(); pasteFloatElRef.current = null; }
+  }, []);
+
+  const showPasteFloat = useCallback((x: number, y: number) => {
+    removePasteFloat();
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:#24283b;border:1px solid #414868;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
+    const ta = document.createElement('textarea');
+    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
+    ta.placeholder = 'Ctrl+V';
+    ta.addEventListener('paste', (ev) => {
+      ev.preventDefault();
+      const text = ev.clipboardData?.getData('text/plain');
+      if (text) insertAtCursorRef.current(text);
+      removePasteFloat();
+    });
+    ta.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') removePasteFloat(); });
+    el.appendChild(ta);
+    document.body.appendChild(el);
+    pasteFloatElRef.current = el;
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
+      if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
+      ta.focus();
+    });
+    pasteFloatTimerRef.current = setTimeout(removePasteFloat, 8000);
+  }, [removePasteFloat]);
+
+  useEffect(() => {
+    const dismiss = () => { if (pasteFloatElRef.current) removePasteFloat(); };
+    document.addEventListener('click', dismiss);
+    return () => { document.removeEventListener('click', dismiss); removePasteFloat(); };
+  }, [removePasteFloat]);
+
+  const handleEditorMouseUp = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const { selectionStart, selectionEnd } = ta;
+    if (selectionStart !== selectionEnd) {
+      const selected = ta.value.substring(selectionStart, selectionEnd);
+      if (selected) navigator.clipboard.writeText(selected).catch(() => {});
+    }
+  }, []);
+
+  const handleEditorContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    removePasteFloat();
+    if (!navigator.clipboard?.readText) {
+      showPasteFloat(e.clientX, e.clientY);
+      return;
+    }
+    navigator.clipboard.readText().then((text) => {
+      if (text) insertAtCursorRef.current(text);
+    }).catch(() => {
+      showPasteFloat(e.clientX, e.clientY);
+    });
+  }, [removePasteFloat, showPasteFloat]);
 
   // Open history popup
   const openHistory = useCallback(() => {
@@ -530,12 +617,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
       }
 
-      // Ctrl+Z: pop undo stack (for programmatic edits)
-      if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
-        handleCtrlZ(e, popUndo, setContent);
-        return;
-      }
-
       // Tab key: insert 2 spaces
       if (e.key === 'Tab') {
         handleTabKey(e, setContent, _pushUndo);
@@ -555,7 +636,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      backgroundColor: '#1a1b26',
+      backgroundColor: 'var(--bg-primary)',
       overflow: 'hidden',
     }}>
       {/* Slash command dropdown */}
@@ -644,6 +725,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         value={content}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onMouseUp={handleEditorMouseUp}
+        onContextMenu={handleEditorContextMenu}
         placeholder="Type / for commands, @ for files, Ctrl+Enter to send"
         spellCheck={false}
         style={{ flex: 1, fontSize: `${fontSize}px` }}

@@ -17,14 +17,17 @@ export interface SplitNode {
 export type LayoutNode = LeafNode | SplitNode;
 
 // Terminal instance for connection state tracking
-export type PanelMode = 'none' | 'chat' | 'plan';
+export interface PanelState {
+  chatOpen: boolean;
+  planOpen: boolean;
+}
 
 export interface TerminalInstance {
   id: string;
   connected: boolean;
   sessionResumed: boolean;
   error: string | null;
-  panelMode: PanelMode;
+  panels: PanelState;
   startCwd?: string;
 }
 
@@ -46,7 +49,7 @@ export interface TabState {
   terminalIds: string[];    // ordered terminal IDs owned by this tab
   layout: LayoutNode | null;
   createdAt: number;        // Date.now() at creation
-  panelModes?: Record<string, PanelMode>;  // per-terminal panel mode (persisted across refresh)
+  panelStates?: Record<string, PanelState>;  // per-terminal panel state (persisted across refresh)
 }
 
 export interface PersistedTabsState {

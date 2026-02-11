@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, useImperativeHandle,
 import { marked, type Token } from 'marked';
 import DOMPurify from 'dompurify';
 import { useStore } from '../store';
-import { useTextareaUndo, handleTabKey, handleCtrlZ, autoRows } from '../hooks/useTextareaKit';
+import { useTextareaUndo, handleTabKey, autoRows } from '../hooks/useTextareaKit';
 import { useMermaidRender } from '../hooks/useMermaidRender';
 import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
 
@@ -112,6 +112,12 @@ export function generateMultiFileSummary(
 export interface PlanAnnotationRendererHandle {
   /** Generate summary from current annotations; returns empty string if none */
   getSummary: () => string;
+  /** Handle ESC key: submit active annotation if any, return true if handled */
+  handleEscape: () => boolean;
+  /** Get current scroll position of the content area */
+  getScrollTop: () => number;
+  /** Set scroll position of the content area */
+  setScrollTop: (top: number) => void;
 }
 
 interface Props {
@@ -165,15 +171,6 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     } catch { return EMPTY_ANNOTATIONS; }
   });
 
-  // Undo stack for annotations
-  const historyRef = useRef<PlanAnnotations[]>([]);
-  const HISTORY_MAX = 30;
-
-  const pushHistory = useCallback(() => {
-    historyRef.current.push(JSON.parse(JSON.stringify(annotations)));
-    if (historyRef.current.length > HISTORY_MAX) historyRef.current.shift();
-  }, [annotations]);
-
   // Persist annotations to localStorage (debounced)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
@@ -195,7 +192,6 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       parsed.additions.forEach((a) => ids.add(a.id));
       parsed.deletions.forEach((d) => ids.add(d.id));
       baselineIdsRef.current = ids;
-      historyRef.current = [];
     } catch {
       setAnnotations(EMPTY_ANNOTATIONS);
       baselineIdsRef.current = new Set();
@@ -251,7 +247,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       setInsertText('');
       return;
     }
-    pushHistory();
+
     const line = tokenSourceLine(tokens, afterIndex + 1);
     setAnnotations((prev) => ({
       ...prev,
@@ -264,32 +260,32 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }));
     setActiveInsert(null);
     setInsertText('');
-  }, [insertText, pushHistory, tokens]);
+  }, [insertText, tokens]);
 
   // Remove an addition annotation
   const handleRemoveAddition = useCallback((id: string) => {
-    pushHistory();
+
     setAnnotations((prev) => ({
       ...prev,
       additions: prev.additions.filter((a) => a.id !== id),
     }));
-  }, [pushHistory]);
+  }, []);
 
   // Edit an existing addition annotation — assign new ID so it's detected as new vs baseline
   const handleEditAddition = useCallback((id: string, newContent: string) => {
-    pushHistory();
+
     setAnnotations((prev) => ({
       ...prev,
       additions: prev.additions.map((a) =>
         a.id === id ? { ...a, id: uid(), content: newContent } : a
       ),
     }));
-  }, [pushHistory]);
+  }, []);
 
   // Mark deletion from selection
   const handleMarkDeletion = useCallback(() => {
     if (!deleteFloat) return;
-    pushHistory();
+
     setAnnotations((prev) => ({
       ...prev,
       deletions: [...prev.deletions, {
@@ -302,27 +298,27 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }));
     setDeleteFloat(null);
     window.getSelection()?.removeAllRanges();
-  }, [deleteFloat, pushHistory]);
+  }, [deleteFloat]);
 
   // Remove a deletion annotation
   const handleRemoveDeletion = useCallback((id: string) => {
-    pushHistory();
+
     setAnnotations((prev) => ({
       ...prev,
       deletions: prev.deletions.filter((d) => d.id !== id),
     }));
-  }, [pushHistory]);
+  }, []);
 
   // Edit a deletion annotation's selected text — assign new ID so it's detected as new vs baseline
   const handleEditDeletion = useCallback((id: string, newText: string) => {
-    pushHistory();
+
     setAnnotations((prev) => ({
       ...prev,
       deletions: prev.deletions.map((d) =>
         d.id === id ? { ...d, id: uid(), selectedText: newText } : d
       ),
     }));
-  }, [pushHistory]);
+  }, []);
 
   // Find closest ancestor (or self) with data-token-index
   const findTokenEl = useCallback((node: Node): Element | null => {
@@ -405,24 +401,82 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [handleSelectionCheck]);
 
-  useMermaidRender(containerRef, tokens);
+  // ── Right-click paste into active annotation textarea ──
+  const pasteFloatElRef = useRef<HTMLDivElement | null>(null);
+  const pasteFloatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ctrl+Z for annotation undo
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        // Only handle if no textarea is focused (editor has its own undo)
-        if (document.activeElement?.tagName === 'TEXTAREA') return;
-        const prev = historyRef.current.pop();
-        if (prev) {
-          e.preventDefault();
-          setAnnotations(prev);
-        }
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+  const handlePasteIntoAnnotation = useCallback((text: string) => {
+    const ta = insertTextareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const current = ta.value;
+    const newText = current.slice(0, start) + text + current.slice(end);
+    setInsertText(newText);
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = start + text.length;
+      ta.focus();
+    });
   }, []);
+
+  const pasteIntoAnnotationRef = useRef(handlePasteIntoAnnotation);
+  pasteIntoAnnotationRef.current = handlePasteIntoAnnotation;
+
+  const removePasteFloat = useCallback(() => {
+    if (pasteFloatTimerRef.current) { clearTimeout(pasteFloatTimerRef.current); pasteFloatTimerRef.current = null; }
+    if (pasteFloatElRef.current) { pasteFloatElRef.current.remove(); pasteFloatElRef.current = null; }
+  }, []);
+
+  const showAnnosPasteFloat = useCallback((x: number, y: number) => {
+    removePasteFloat();
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:#24283b;border:1px solid #414868;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
+    const ta = document.createElement('textarea');
+    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
+    ta.placeholder = 'Ctrl+V';
+    ta.addEventListener('paste', (ev) => {
+      ev.preventDefault();
+      const text = ev.clipboardData?.getData('text/plain');
+      if (text) pasteIntoAnnotationRef.current(text);
+      removePasteFloat();
+    });
+    ta.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') removePasteFloat(); });
+    el.appendChild(ta);
+    document.body.appendChild(el);
+    pasteFloatElRef.current = el;
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
+      if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
+      ta.focus();
+    });
+    pasteFloatTimerRef.current = setTimeout(removePasteFloat, 8000);
+  }, [removePasteFloat]);
+
+  useEffect(() => {
+    const dismiss = () => { if (pasteFloatElRef.current) removePasteFloat(); };
+    document.addEventListener('click', dismiss);
+    return () => { document.removeEventListener('click', dismiss); removePasteFloat(); };
+  }, [removePasteFloat]);
+
+  const handleContentContextMenu = useCallback((e: React.MouseEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT') return; // let browser handle natively
+    if (!insertTextareaRef.current) return; // no active annotation zone
+    e.preventDefault();
+    removePasteFloat();
+    if (!navigator.clipboard?.readText) {
+      showAnnosPasteFloat(e.clientX, e.clientY);
+      return;
+    }
+    navigator.clipboard.readText().then((text) => {
+      if (text) pasteIntoAnnotationRef.current(text);
+    }).catch(() => {
+      showAnnosPasteFloat(e.clientX, e.clientY);
+    });
+  }, [removePasteFloat, showAnnosPasteFloat]);
+
+  useMermaidRender(containerRef, tokens);
 
   // Filter: include annotations whose ID is not in baseline (new or edited → new ID)
   const getNewAnnotations = useCallback((): PlanAnnotations => {
@@ -446,17 +500,30 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }
   }, [getNewAnnotations, annotations, sourceLines, onExecute]);
 
-  // Expose getSummary to parent via ref (only new annotations)
+  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     getSummary: () => generateSummary(getNewAnnotations(), sourceLines),
-  }), [getNewAnnotations, sourceLines]);
+    handleEscape: () => {
+      if (activeInsert != null) {
+        handleAddAnnotation(activeInsert);
+        return true;
+      }
+      return false;
+    },
+    getScrollTop: () => containerRef.current?.scrollTop ?? 0,
+    setScrollTop: (top: number) => {
+      requestAnimationFrame(() => {
+        if (containerRef.current) containerRef.current.scrollTop = top;
+      });
+    },
+  }), [getNewAnnotations, sourceLines, activeInsert, handleAddAnnotation]);
 
   // Clear all annotations
   const handleClear = useCallback(() => {
-    pushHistory();
+
     setAnnotations(EMPTY_ANNOTATIONS);
     onClear?.();
-  }, [pushHistory, onClear]);
+  }, [onClear]);
 
   // Check if a token index is marked for deletion
   const deletedIndices = useMemo(() => {
@@ -518,6 +585,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         className="plan-anno-content md-preview"
         style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
         onMouseUp={handleSelectionCheck}
+        onContextMenu={handleContentContextMenu}
       >
         {/* Insert zone before first block */}
         <InsertZone
@@ -741,7 +809,6 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(); return; }
                 if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); return; }
                 if (e.key === 'Tab') { handleTabKey(e, setEditTextWithUndo); return; }
-                if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { handleCtrlZ(e, editUndo.popUndo, setEditText); return; }
               }}
               onBlur={saveEdit}
               rows={autoRows(editText)}
@@ -788,7 +855,6 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSubmit(); return; }
               if (e.key === 'Escape') { e.preventDefault(); onSubmit(); return; }
               if (e.key === 'Tab') { handleTabKey(e, setInsertTextWithUndo); return; }
-              if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { handleCtrlZ(e, insertUndo.popUndo, setInsertText); return; }
             }}
             placeholder="Add annotation... (Ctrl+Enter or Esc to save)"
             rows={autoRows(insertText)}

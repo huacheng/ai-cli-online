@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   TerminalInstance,
-  PanelMode,
+  PanelState,
   LayoutNode,
   SplitDirection,
   ServerSession,
@@ -438,7 +438,8 @@ interface AppState {
   setTerminalConnected: (id: string, connected: boolean) => void;
   setTerminalResumed: (id: string, resumed: boolean) => void;
   setTerminalError: (id: string, error: string | null) => void;
-  setTerminalPanelMode: (id: string, mode: PanelMode) => void;
+  toggleChat: (id: string) => void;
+  togglePlan: (id: string) => void;
 
   setSplitSizes: (splitId: string, sizes: number[]) => void;
 
@@ -449,6 +450,11 @@ interface AppState {
   // Font size
   fontSize: number;
   setFontSize: (size: number) => void;
+
+  // Theme
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
 
   // Sidebar
   sidebarOpen: boolean;
@@ -490,7 +496,7 @@ export const useStore = create<AppState>((set, get) => ({
         for (const tab of localSaved.tabs) {
           if (tab.status === 'open') {
             for (const id of tab.terminalIds) {
-              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[id] || 'none') as PanelMode };
+              terminalsMap[id] = { id, connected: false, sessionResumed: false, error: null, panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false } };
             }
           }
         }
@@ -574,7 +580,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
-      panelMode: 'none' as PanelMode,
+      panels: { chatOpen: false, planOpen: false },
     };
     const leaf: LayoutNode = { type: 'leaf', terminalId: termId };
     const tab: TabState = {
@@ -673,7 +679,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Recreate TerminalInstances in terminalsMap
     const newTerminalsMap = { ...state.terminalsMap };
     for (const tid of tab.terminalIds) {
-      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[tid] || 'none') as PanelMode };
+      newTerminalsMap[tid] = { id: tid, connected: false, sessionResumed: false, error: null, panels: tab.panelStates?.[tid] || { chatOpen: false, planOpen: false } };
     }
 
     const newTabs = updateTab(state.tabs, tabId, (t) => ({
@@ -787,7 +793,7 @@ export const useStore = create<AppState>((set, get) => ({
         connected: false,
         sessionResumed: false,
         error: null,
-        panelMode: 'none' as PanelMode,
+        panels: { chatOpen: false, planOpen: false },
       };
       const leaf: LayoutNode = { type: 'leaf', terminalId: id };
       const tab: TabState = {
@@ -830,7 +836,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
-      panelMode: 'none' as PanelMode,
+      panels: { chatOpen: false, planOpen: false },
     };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
 
@@ -906,7 +912,7 @@ export const useStore = create<AppState>((set, get) => ({
       connected: false,
       sessionResumed: false,
       error: null,
-      panelMode: 'none' as PanelMode,
+      panels: { chatOpen: false, planOpen: false },
       ...(startCwd ? { startCwd } : {}),
     };
     const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
@@ -971,20 +977,38 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  setTerminalPanelMode: (id, mode) => {
+  toggleChat: (id) => {
     const state = get();
     const existing = state.terminalsMap[id];
-    if (!existing || existing.panelMode === mode) return;
+    if (!existing) return;
 
-    // Update terminalsMap
-    const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panelMode: mode } };
+    const newPanels: PanelState = { ...existing.panels, chatOpen: !existing.panels.chatOpen };
+    const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
 
-    // Also persist into the owning tab's panelModes
     const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
     let newTabs = state.tabs;
     if (ownerTab) {
-      const modes = { ...ownerTab.panelModes, [id]: mode };
-      newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelModes: modes }));
+      const states = { ...ownerTab.panelStates, [id]: newPanels };
+      newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
+    }
+
+    set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+    persistTabs(toPersistable(get()));
+  },
+
+  togglePlan: (id) => {
+    const state = get();
+    const existing = state.terminalsMap[id];
+    if (!existing) return;
+
+    const newPanels: PanelState = { ...existing.panels, planOpen: !existing.panels.planOpen };
+    const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
+
+    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
+    let newTabs = state.tabs;
+    if (ownerTab) {
+      const states = { ...ownerTab.panelStates, [id]: newPanels };
+      newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
     }
 
     set({ terminalsMap: newTerminalsMap, tabs: newTabs });
@@ -1027,6 +1051,27 @@ export const useStore = create<AppState>((set, get) => ({
 
   latency: null,
   setLatency: (latency) => set({ latency }),
+
+  // --- Theme -----------------------------------------------------------------
+
+  theme: (() => {
+    try {
+      const saved = localStorage.getItem('ai-cli-online-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch { /* ignore */ }
+    return 'dark';
+  })() as 'dark' | 'light',
+
+  setTheme: (theme) => {
+    set({ theme });
+    try { localStorage.setItem('ai-cli-online-theme', theme); } catch { /* ignore */ }
+    document.documentElement.setAttribute('data-theme', theme);
+  },
+
+  toggleTheme: () => {
+    const next = get().theme === 'dark' ? 'light' : 'dark';
+    get().setTheme(next);
+  },
 
   // --- Sidebar ----------------------------------------------------------------
 
@@ -1073,6 +1118,11 @@ export const useStore = create<AppState>((set, get) => ({
     setTimeout(() => get().fetchSessions(), 500);
   },
 }));
+
+// Initialize data-theme attribute on document
+if (typeof document !== 'undefined') {
+  document.documentElement.setAttribute('data-theme', useStore.getState().theme);
+}
 
 // ---------------------------------------------------------------------------
 // Async server restore (called from setToken Phase 2)
@@ -1130,7 +1180,7 @@ async function restoreFromServer(
     for (const tab of reconciled.tabs) {
       if (tab.status === 'open') {
         for (const id of tab.terminalIds) {
-          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null, panelMode: (tab.panelModes?.[id] || 'none') as PanelMode };
+          terminalsMap[id] = currentMap[id] || { id, connected: false, sessionResumed: false, error: null, panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false } };
         }
       }
     }
