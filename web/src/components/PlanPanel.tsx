@@ -52,7 +52,11 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   // File stream hook
   const fileStream = useFileStream();
 
-  // Plan mode state — directory-based (PLAN/ directory with multiple .md files)
+  // /aicli-task-review command install prompt
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const projectCwdRef = useRef('');
+
+  // Plan mode state — directory-based (TASK/ directory with multiple .md files)
   const [planDir, setPlanDir] = useState<string | null>(null);
   const [planSelectedFile, setPlanSelectedFile] = useState<string | null>(null);
   const [planMarkdown, setPlanMarkdown] = useState('');
@@ -72,18 +76,18 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       try {
         const res = await fetchFiles(token, sessionId);
         if (cancelled) return;
-        const planDirEntry = res.files.find((f: FileEntry) => f.name === 'PLAN' && f.type === 'directory');
+        const planDirEntry = res.files.find((f: FileEntry) => f.name === 'TASK' && f.type === 'directory');
         if (planDirEntry) {
-          const dirPath = res.cwd + '/PLAN';
+          const dirPath = res.cwd + '/TASK';
           const innerRes = await fetchFiles(token, sessionId, dirPath);
           if (cancelled) return;
-          const indexFile = innerRes.files.find((f: FileEntry) => f.name.toLowerCase() === 'index.md');
+          const indexFile = innerRes.files.find((f: FileEntry) => f.name === '.index.md');
           if (indexFile) {
             setPlanDir(dirPath);
             setPlanSelectedFile(dirPath + '/' + indexFile.name);
           } else {
             try {
-              const result = await touchFile(token, sessionId, 'PLAN/INDEX.md');
+              const result = await touchFile(token, sessionId, 'TASK/.index.md');
               if (cancelled) return;
               setPlanDir(dirPath);
               if (result.ok) setPlanSelectedFile(result.path);
@@ -93,10 +97,10 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
           }
         } else {
           try {
-            const mkResult = await mkdirPath(token, sessionId, 'PLAN');
+            const mkResult = await mkdirPath(token, sessionId, 'TASK');
             if (cancelled) return;
             setPlanDir(mkResult.path);
-            const touchResult = await touchFile(token, sessionId, 'PLAN/INDEX.md');
+            const touchResult = await touchFile(token, sessionId, 'TASK/.index.md');
             if (cancelled) return;
             if (touchResult.ok) {
               setPlanSelectedFile(touchResult.path);
@@ -111,6 +115,26 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       } finally {
         if (!cancelled) setPlanLoading(false);
       }
+
+      // Check if /aicli-task-review command is installed
+      try {
+        const res = await fetchFiles(token, sessionId);
+        if (cancelled) return;
+        const home = res.home || '';
+        projectCwdRef.current = res.cwd;
+        if (home) {
+          const cmdDir = `${home}/.claude/commands`;
+          try {
+            const cmdFiles = await fetchFiles(token, sessionId, cmdDir);
+            if (cancelled) return;
+            const hasTaskReview = cmdFiles.files.some((f: FileEntry) => f.name === 'aicli-task-review.md');
+            if (!hasTaskReview) setShowInstallPrompt(true);
+          } catch {
+            // directory doesn't exist — needs install
+            if (!cancelled) setShowInstallPrompt(true);
+          }
+        }
+      } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,6 +198,16 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     setPlanMarkdown('');
     planStreamedRef.current = null;
   }, [planSelectedFile, planMarkdown, savePlanScrollPosition]);
+
+  // Handle file deletion — clear selection if deleted file is currently selected
+  const handlePlanFileDelete = useCallback((fullPath: string) => {
+    if (planSelectedFile && (planSelectedFile === fullPath || planSelectedFile.startsWith(fullPath + '/'))) {
+      setPlanSelectedFile(null);
+      setPlanMarkdown('');
+      planStreamedRef.current = null;
+    }
+    planContentCacheRef.current.delete(fullPath);
+  }, [planSelectedFile]);
 
   // Handle new file creation from PlanFileBrowser
   const handlePlanFileCreate = useCallback((fullPath: string) => {
@@ -247,6 +281,42 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       backgroundColor: 'var(--bg-primary)',
       overflow: 'hidden',
     }}>
+      {/* Install prompt for /aicli-task-review command */}
+      {showInstallPrompt && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '4px 10px',
+          backgroundColor: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          fontSize: 12,
+          flexShrink: 0,
+        }}>
+          <span style={{ color: 'var(--accent-yellow)', flex: 1 }}>/aicli-task-review command not installed</span>
+          <button
+            className="pane-btn"
+            style={{ color: 'var(--accent-green)', fontSize: 11 }}
+            onClick={() => {
+              const cwd = projectCwdRef.current;
+              if (cwd && onSendToTerminal) {
+                onSendToTerminal(`mkdir -p ~/.claude/commands && cp ${cwd}/.commands/*.md ~/.claude/commands/`);
+              }
+              setShowInstallPrompt(false);
+            }}
+          >
+            Install
+          </button>
+          <button
+            className="pane-btn"
+            style={{ fontSize: 11 }}
+            onClick={() => setShowInstallPrompt(false)}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* Single-level body: file browser + divider + annotation editor */}
       <div className="plan-overlay-body">
         {/* Left: File browser */}
@@ -260,6 +330,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
                 selectedFile={planSelectedFile}
                 onSelectFile={handlePlanFileSelect}
                 onCreateFile={handlePlanFileCreate}
+                onDeleteFile={handlePlanFileDelete}
               />
             </div>
             <div
@@ -280,7 +351,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
         {/* Center: Annotation editor */}
         <div className="plan-overlay-center">
           {planLoading ? (
-            <CenteredLoading label="Loading PLAN/..." />
+            <CenteredLoading label="Loading TASK/..." />
           ) : planSelectedFile && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
             <CenteredLoading label={`Loading ${planSelectedFile.split('/').pop()}...`} percent={fileStream.state.totalSize > 0 ? Math.round((fileStream.state.receivedBytes / fileStream.state.totalSize) * 100) : undefined} />
           ) : planSelectedFile ? (
@@ -289,10 +360,12 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               markdown={planMarkdown}
               filePath={planSelectedFile}
               sessionId={sessionId}
+              token={token}
               onExecute={handlePlanSave}
               onSend={onSendToTerminal}
               onRefresh={handlePlanRefresh}
               onClose={handleCloseFile}
+              readOnly={planSelectedFile.endsWith('/.index.md')}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>

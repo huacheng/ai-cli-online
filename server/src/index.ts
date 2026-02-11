@@ -9,14 +9,14 @@ import multer from 'multer';
 import { config } from 'dotenv';
 import { existsSync, readFileSync, createReadStream } from 'fs';
 import { spawn } from 'child_process';
-import { copyFile, unlink, stat, mkdir, readFile, writeFile } from 'fs/promises';
+import { copyFile, unlink, stat, mkdir, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 import { setupWebSocket, getActiveSessionNames, clearWsIntervals } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
 import { listFiles, validatePath, validateNewPath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
-import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, closeDb } from './db.js';
+import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, getAnnotation, saveAnnotation, cleanupOldAnnotations, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -195,13 +195,23 @@ async function main() {
     try {
       const cwd = await getCwd(sessionName);
       const subPath = (req.query.path as string) || '';
-      const targetDir = subPath ? await validatePath(subPath, cwd) : cwd;
+      let targetDir: string | null = null;
+      if (subPath) {
+        targetDir = await validatePath(subPath, cwd);
+        // Fallback: allow absolute paths under HOME (e.g., ~/.claude/commands)
+        if (!targetDir) {
+          const home = process.env.HOME || '/root';
+          targetDir = await validatePath(subPath, home);
+        }
+      } else {
+        targetDir = cwd;
+      }
       if (!targetDir) {
         res.status(400).json({ error: 'Invalid path' });
         return;
       }
       const { files, truncated } = await listFiles(targetDir);
-      res.json({ cwd: targetDir, files, truncated });
+      res.json({ cwd: targetDir, home: process.env.HOME || '/root', files, truncated });
     } catch (err) {
       console.error(`[api:files] ${sessionName}:`, err);
       res.status(404).json({ error: 'Session not found or directory not accessible' });
@@ -331,6 +341,38 @@ async function main() {
     res.json({ ok: true });
   });
 
+  // --- Annotations API ---
+
+  // Get annotation for a file
+  app.get('/api/sessions/:sessionId/annotations', (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    const filePath = req.query.path as string;
+    if (!filePath) {
+      res.status(400).json({ error: 'path query parameter required' });
+      return;
+    }
+    const result = getAnnotation(sessionName, filePath);
+    res.json(result || { content: null, updatedAt: 0 });
+  });
+
+  // Save (upsert) annotation for a file
+  app.put('/api/sessions/:sessionId/annotations', (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    const { path: filePath, content, updatedAt } = req.body as { path?: string; content?: string; updatedAt?: number };
+    if (!filePath || typeof filePath !== 'string') {
+      res.status(400).json({ error: 'path must be a string' });
+      return;
+    }
+    if (typeof content !== 'string') {
+      res.status(400).json({ error: 'content must be a string' });
+      return;
+    }
+    saveAnnotation(sessionName, filePath, content, updatedAt || Date.now());
+    res.json({ ok: true });
+  });
+
   // --- Pane command API ---
 
   // Get current pane command (to detect if claude is running)
@@ -399,6 +441,36 @@ async function main() {
     } catch (err) {
       console.error(`[api:mkdir] ${sessionName}:`, err);
       res.status(500).json({ error: 'Failed to create directory' });
+    }
+  });
+
+  // --- Delete file/directory API ---
+
+  app.delete('/api/sessions/:sessionId/rm', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const { path: rmPath } = req.body as { path?: string };
+      if (!rmPath || typeof rmPath !== 'string' || rmPath.includes('..')) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const cwd = await getCwd(sessionName);
+      const resolved = await validatePath(rmPath, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const fileStat = await stat(resolved);
+      if (fileStat.isDirectory()) {
+        await rm(resolved, { recursive: true });
+      } else {
+        await unlink(resolved);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(`[api:rm] ${sessionName}:`, err);
+      res.status(500).json({ error: 'Failed to delete' });
     }
   });
 
@@ -604,6 +676,7 @@ async function main() {
     cleanupTimer = setInterval(() => {
       cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e));
       try { cleanupOldDrafts(7); } catch (e) { console.error('[cleanup:drafts]', e); }
+      try { cleanupOldAnnotations(7); } catch (e) { console.error('[cleanup:annotations]', e); }
     }, CLEANUP_INTERVAL);
     console.log(`Session TTL: ${SESSION_TTL_HOURS}h (cleanup every hour)`);
   }

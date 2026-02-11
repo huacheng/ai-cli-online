@@ -1,5 +1,38 @@
 # AI-CLI-Online 变更日志
 
+## v2.6.0 (2026-02-11)
+
+### 新功能
+
+- **2D 网格面板布局** — TerminalPane 重构为 [Plan | Xterm] + [Chat] 三区域同时显示，Plan 左侧全高、Chat 底部，分隔条可拖拽调整比例（持久化 localStorage）
+- **Plan/Chat 面板开关统一** — Xterm Header 按钮独立控制 Plan 和 Chat 面板的显隐，两者可同时打开
+- **Plan 文件浏览器** (PlanFileBrowser) — 左侧目录树浏览 TASK/ 目录下的 `.md` 文件，支持新建文件、删除文件、路径尾部优先显示、父目录名标注
+- **批注发送 /aicli-task-review 命令** — 批注 Send 按钮生成 `/aicli-task-review` 斜杠命令（含文件路径 + JSON 批注），直接发送到终端由 Claude 处理
+- **批注服务端持久化** — 批注从 localStorage 迁移到 SQLite（`annotations` 表），通过 REST API（`GET/PUT /api/sessions/:sessionId/annotations`）读写，支持跨浏览器同步
+- **Markdown 目录导航** (MarkdownToc) — 从 Markdown heading 提取锚点，右侧目录面板快速跳转
+- **文件删除 API** — `DELETE /api/sessions/:sessionId/rm` 支持删除文件和递归删除目录
+- **CWD 打包下载** — `GET /api/sessions/:sessionId/download-cwd` tar.gz 流式下载当前工作目录
+- **空文件占位提示** — Plan 面板空文件显示占位提示
+- **Light/Dark 主题系统** — CSS 变量双主题，19 个语义变量，xterm.js 终端同步切换，VSCode 风格配色
+
+### 修复
+
+- **files API 路径校验** — `validatePath` 对 `~/.claude/commands` 等 HOME 下路径误拒（不在 CWD 下），增加 HOME 目录回退校验
+- **编辑批注时间隙按钮误弹** — 编辑批注时抑制其他行 InsertZone (+) 按钮的 hover 弹出
+- **右键粘贴 fallback** — 从 `execCommand('paste')` 改为 paste 事件捕获，兼容性更好
+- **CSP img-src 缺少 blob:** — 导致图片渲染被浏览器拦截
+
+### 重构
+
+- **/task-review → /aicli-task-review** — 自定义斜杠命令重命名，增加 `aicli-` 前缀避免与其他项目命令重名
+- **UI 大重构** — 删除 DocumentPicker、FileBrowser、FileListShared、MarkdownRenderer、PdfRenderer、VirtualTextRenderer、useFileBrowser、useHorizontalResize 等旧组件，代码量 -1910 +2607 行
+- **硬编码颜色迁移** — 所有组件颜色统一使用 CSS 变量 `var(--xxx)`，分割线细化
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.6.0
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.6.0
+
 ## v2.4.0 (2026-02-10)
 
 ### 新功能

@@ -5,6 +5,7 @@ export type { FileEntry };
 
 export interface FilesResponse {
   cwd: string;
+  home?: string;
   files: FileEntry[];
 }
 
@@ -89,6 +90,18 @@ export async function mkdirPath(token: string, sessionId: string, path: string):
   );
   if (!res.ok) throw new Error('Failed to create directory');
   return res.json();
+}
+
+export async function deleteItem(token: string, sessionId: string, path: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/rm`,
+    {
+      method: 'DELETE',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    },
+  );
+  if (!res.ok) throw new Error('Failed to delete');
 }
 
 export async function downloadCwd(token: string, sessionId: string): Promise<void> {

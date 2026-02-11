@@ -32,6 +32,25 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS annotations (
+    session_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '{}',
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (session_name, file_path)
+  )
+`);
+
+// --- Annotations statements ---
+const stmtAnnGet = db.prepare('SELECT content, updated_at FROM annotations WHERE session_name = ? AND file_path = ?');
+const stmtAnnUpsert = db.prepare(`
+  INSERT INTO annotations (session_name, file_path, content, updated_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(session_name, file_path) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+`);
+const stmtAnnDelete = db.prepare('DELETE FROM annotations WHERE session_name = ? AND file_path = ?');
+const stmtAnnCleanup = db.prepare('DELETE FROM annotations WHERE updated_at < ?');
+
 // --- Drafts statements ---
 const stmtGet = db.prepare('SELECT content FROM drafts WHERE session_name = ?');
 const stmtUpsert = db.prepare(`
@@ -79,6 +98,27 @@ export function deleteDraft(sessionName: string): void {
 export function cleanupOldDrafts(maxAgeDays = 7): number {
   const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
   const result = stmtCleanup.run(cutoff);
+  return result.changes;
+}
+
+// --- Annotation functions ---
+
+export function getAnnotation(sessionName: string, filePath: string): { content: string; updatedAt: number } | null {
+  const row = stmtAnnGet.get(sessionName, filePath) as { content: string; updated_at: number } | undefined;
+  return row ? { content: row.content, updatedAt: row.updated_at } : null;
+}
+
+export function saveAnnotation(sessionName: string, filePath: string, content: string, updatedAt: number): void {
+  if (!content || content === '{}' || content === '{"additions":[],"deletions":[]}') {
+    stmtAnnDelete.run(sessionName, filePath);
+  } else {
+    stmtAnnUpsert.run(sessionName, filePath, content, updatedAt);
+  }
+}
+
+export function cleanupOldAnnotations(maxAgeDays = 7): number {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const result = stmtAnnCleanup.run(cutoff);
   return result.changes;
 }
 

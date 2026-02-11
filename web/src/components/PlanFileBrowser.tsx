@@ -1,18 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchFiles, touchFile, mkdirPath } from '../api/files';
+import { fetchFiles, touchFile, mkdirPath, deleteItem } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { formatSize } from '../utils';
 
 interface PlanFileBrowserProps {
   sessionId: string;
   token: string;
-  planDir: string;           // absolute path, e.g. "/home/user/project/PLAN"
+  planDir: string;           // absolute path, e.g. "/home/user/project/TASK"
   selectedFile: string | null;
   onSelectFile: (fullPath: string) => void;
   onCreateFile: (fullPath: string) => void;
+  onDeleteFile?: (fullPath: string) => void;
 }
 
-export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSelectFile, onCreateFile }: PlanFileBrowserProps) {
+export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSelectFile, onCreateFile, onDeleteFile }: PlanFileBrowserProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -30,8 +31,8 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
       const entries = data.files
         .filter((f) => (f.type === 'file' && f.name.toLowerCase().endsWith('.md')) || f.type === 'directory')
         .sort((a, b) => {
-          const aIsIndex = a.type === 'file' && a.name.toLowerCase() === 'index.md';
-          const bIsIndex = b.type === 'file' && b.name.toLowerCase() === 'index.md';
+          const aIsIndex = a.type === 'file' && a.name === '.index.md';
+          const bIsIndex = b.type === 'file' && b.name === '.index.md';
           if (aIsIndex && !bIsIndex) return -1;
           if (!aIsIndex && bIsIndex) return 1;
           if (a.type === 'directory' && b.type !== 'directory') return -1;
@@ -95,6 +96,18 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
     }
   }, [newName, token, sessionId, relativeDir, loadFiles]);
 
+  // Delete a file or directory
+  const handleDelete = useCallback(async (file: FileEntry) => {
+    const fullPath = `${currentDir}/${file.name}`;
+    const label = file.type === 'directory' ? `folder "${file.name}" and all its contents` : `"${file.name}"`;
+    if (!window.confirm(`Delete ${label}?`)) return;
+    try {
+      await deleteItem(token, sessionId, fullPath);
+      onDeleteFile?.(fullPath);
+      await loadFiles();
+    } catch { /* ignore */ }
+  }, [token, sessionId, currentDir, loadFiles, onDeleteFile]);
+
   // Navigate into a subdirectory
   const handleEnterDir = useCallback((dirName: string) => {
     setCurrentDir(prev => `${prev}/${dirName}`);
@@ -106,14 +119,15 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
     setCurrentDir(prev => prev.substring(0, prev.lastIndexOf('/')));
   }, [currentDir, planDir]);
 
-  // Display label: parent dir + relative path from PLAN/ root
+  // Display label: parent dir + relative path from root
+  const dirBaseName = planDir.split('/').pop() || 'TASK';
   const parentName = (() => {
     const parts = planDir.split('/');
     return parts.length >= 2 ? parts[parts.length - 2] + '/' : '';
   })();
   const displayPath = currentDir === planDir
-    ? parentName + 'PLAN/'
-    : parentName + 'PLAN/' + currentDir.substring(planDir.length + 1) + '/';
+    ? parentName + dirBaseName + '/'
+    : parentName + dirBaseName + '/' + currentDir.substring(planDir.length + 1) + '/';
 
   const selectedName = selectedFile ? selectedFile.split('/').pop() : null;
 
@@ -198,10 +212,19 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
               style={{ cursor: 'pointer' }}
             >
               <span className="plan-file-browser__icon">
-                {isDir ? '\u{1F4C1}' : file.name.toLowerCase() === 'index.md' ? '\u2605' : '\u25A1'}
+                {isDir ? '\u{1F4C1}' : file.name === '.index.md' ? '\u{1F512}' : '\u25A1'}
               </span>
               <span className="plan-file-browser__name">{file.name}{isDir ? '/' : ''}</span>
               {!isDir && <span className="plan-file-browser__size">{formatSize(file.size)}</span>}
+              {file.name !== '.index.md' && (
+                <button
+                  className="pane-btn pane-btn--danger pane-btn--sm plan-file-browser__delete"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(file); }}
+                  title={`Delete ${file.name}`}
+                >
+                  &times;
+                </button>
+              )}
             </div>
           );
         })}

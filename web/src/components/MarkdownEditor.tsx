@@ -4,6 +4,7 @@ import { fetchFiles, type FileEntry } from '../api/files';
 import { useStore } from '../store';
 import { useTextareaUndo, handleTabKey } from '../hooks/useTextareaKit';
 
+
 /* ── Chat History (localStorage) ── */
 
 interface HistoryItem {
@@ -163,31 +164,53 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     });
   }, [fileList, fileFilter]);
 
-  // Load draft on mount
+  const latency = useStore((s) => s.latency);
+  const lsKey = `chat-draft-${sessionId}`;
+  const syncInFlightRef = useRef(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Load draft on mount: L1 localStorage (instant) then L2 server (async, use newer)
   useEffect(() => {
+    // L1: instant load from localStorage
+    try {
+      const local = localStorage.getItem(lsKey);
+      if (local && !filledRef.current) setContent(local);
+    } catch { /* ignore */ }
+    // L2: async load from server, use newer
     let cancelled = false;
     fetchDraft(token, sessionId).then((draft) => {
-      if (!cancelled && draft && !filledRef.current) {
+      if (cancelled || filledRef.current) { loadedRef.current = true; return; }
+      if (draft) {
+        // Server has data — use it (server is authoritative across devices)
         setContent(draft);
+        try { localStorage.setItem(lsKey, draft); } catch { /* full */ }
       }
       loadedRef.current = true;
-    }).catch(() => {
-      loadedRef.current = true;
-    });
+    }).catch(() => { loadedRef.current = true; });
     return () => { cancelled = true; };
-  }, [token, sessionId]);
+  }, [token, sessionId, lsKey]);
 
-  // Auto-save with 500ms debounce
+  // Dual-layer auto-save: L1 50ms localStorage + L2 adaptive SQLite
   useEffect(() => {
     if (!loadedRef.current) return;
+    // L1: 50ms debounce → localStorage
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      saveDraft(token, sessionId, content).catch(() => {});
-    }, 500);
+      try { localStorage.setItem(lsKey, content); } catch { /* full */ }
+    }, 50);
+    // L2: adaptive interval → server
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    const syncInterval = Math.max(200, (latency ?? 30) * 3);
+    syncTimerRef.current = setTimeout(() => {
+      if (syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+      saveDraft(token, sessionId, content).catch(() => {}).finally(() => { syncInFlightRef.current = false; });
+    }, syncInterval);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
-  }, [content, token, sessionId]);
+  }, [content, token, sessionId, latency, lsKey]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -243,8 +266,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     saveToHistory(text);
     onSend(text);
     setContent('');
+    try { localStorage.removeItem(lsKey); } catch { /* ignore */ }
     saveDraft(token, sessionId, '').catch(() => {});
-  }, [onSend, token, sessionId]);
+  }, [onSend, token, sessionId, lsKey]);
 
   const fillContent = useCallback((text: string) => {
     pushUndo();
@@ -278,49 +302,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     onContentChange?.(content.trim().length > 0);
   }, [content, onContentChange]);
 
-  // ── Clipboard: auto-copy on select + right-click paste ──
-  const pasteFloatElRef = useRef<HTMLDivElement | null>(null);
-  const pasteFloatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const insertAtCursorRef = useRef(insertAtCursor);
-  insertAtCursorRef.current = insertAtCursor;
-
-  const removePasteFloat = useCallback(() => {
-    if (pasteFloatTimerRef.current) { clearTimeout(pasteFloatTimerRef.current); pasteFloatTimerRef.current = null; }
-    if (pasteFloatElRef.current) { pasteFloatElRef.current.remove(); pasteFloatElRef.current = null; }
-  }, []);
-
-  const showPasteFloat = useCallback((x: number, y: number) => {
-    removePasteFloat();
-    const el = document.createElement('div');
-    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
-    const ta = document.createElement('textarea');
-    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
-    ta.placeholder = 'Ctrl+V';
-    ta.addEventListener('paste', (ev) => {
-      ev.preventDefault();
-      const text = ev.clipboardData?.getData('text/plain');
-      if (text) insertAtCursorRef.current(text);
-      removePasteFloat();
-    });
-    ta.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') removePasteFloat(); });
-    el.appendChild(ta);
-    document.body.appendChild(el);
-    pasteFloatElRef.current = el;
-    requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect();
-      if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
-      if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
-      ta.focus();
-    });
-    pasteFloatTimerRef.current = setTimeout(removePasteFloat, 8000);
-  }, [removePasteFloat]);
-
-  useEffect(() => {
-    const dismiss = () => { if (pasteFloatElRef.current) removePasteFloat(); };
-    document.addEventListener('click', dismiss);
-    return () => { document.removeEventListener('click', dismiss); removePasteFloat(); };
-  }, [removePasteFloat]);
-
+  // ── Clipboard: auto-copy on select ──
   const handleEditorMouseUp = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -330,20 +312,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       if (selected) navigator.clipboard.writeText(selected).catch(() => {});
     }
   }, []);
-
-  const handleEditorContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    removePasteFloat();
-    if (!navigator.clipboard?.readText) {
-      showPasteFloat(e.clientX, e.clientY);
-      return;
-    }
-    navigator.clipboard.readText().then((text) => {
-      if (text) insertAtCursorRef.current(text);
-    }).catch(() => {
-      showPasteFloat(e.clientX, e.clientY);
-    });
-  }, [removePasteFloat, showPasteFloat]);
 
   // Open history popup
   const openHistory = useCallback(() => {
@@ -726,7 +694,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onMouseUp={handleEditorMouseUp}
-        onContextMenu={handleEditorContextMenu}
         placeholder="Type / for commands, @ for files, Ctrl+Enter to send"
         spellCheck={false}
         style={{ flex: 1, fontSize: `${fontSize}px` }}

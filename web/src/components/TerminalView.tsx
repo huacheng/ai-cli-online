@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { useTerminalWebSocket } from '../hooks/useTerminalWebSocket';
 import { useStore } from '../store';
+import { usePasteFloat } from '../hooks/usePasteFloat';
 
 export interface TerminalViewHandle {
   sendInput: (data: string) => void;
@@ -96,6 +97,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
   sendInputRef.current = sendInput;
   sendResizeRef.current = sendResize;
 
+  const { showPasteFloat, removePasteFloat } = usePasteFloat(
+    (text) => sendInputRef.current(text)
+  );
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -148,49 +153,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
 
     // Right-click paste from clipboard into terminal
     const xtermEl = terminal.element;
-    let pasteFloatEl: HTMLDivElement | null = null;
-    let pasteFloatTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const removePasteFloat = () => {
-      if (pasteFloatTimer) { clearTimeout(pasteFloatTimer); pasteFloatTimer = null; }
-      if (pasteFloatEl) { pasteFloatEl.remove(); pasteFloatEl = null; }
-    };
-
-    const showPasteFloat = (x: number, y: number) => {
-      removePasteFloat();
-      // Container
-      const el = document.createElement('div');
-      el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;
-        display:flex;align-items:center;gap:4px;padding:4px 6px;
-        background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;
-        box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
-      // Hidden textarea to capture paste events (no clipboard-read permission needed)
-      const ta = document.createElement('textarea');
-      ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);
-        border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;
-        font-family:inherit;padding:2px 4px;outline:none;`;
-      ta.placeholder = 'Ctrl+V';
-      ta.addEventListener('paste', (ev) => {
-        ev.preventDefault();
-        const text = ev.clipboardData?.getData('text/plain');
-        if (text) sendInputRef.current(text);
-        removePasteFloat();
-      });
-      ta.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Escape') removePasteFloat();
-      });
-      el.appendChild(ta);
-      document.body.appendChild(el);
-      pasteFloatEl = el;
-      // Clamp position to viewport
-      requestAnimationFrame(() => {
-        const rect = el.getBoundingClientRect();
-        if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
-        if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
-        ta.focus();
-      });
-      pasteFloatTimer = setTimeout(removePasteFloat, 8000);
-    };
 
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -202,14 +164,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       navigator.clipboard.readText().then((text) => {
         if (text) sendInputRef.current(text);
       }).catch(() => {
-        // Clipboard API failed (permission denied) — show fallback paste button
         showPasteFloat(e.clientX, e.clientY);
       });
     };
 
-    // Dismiss paste float on click elsewhere
-    const handleDocClick = () => removePasteFloat();
-    document.addEventListener('click', handleDocClick);
     if (xtermEl) xtermEl.addEventListener('contextmenu', handleContextMenu);
 
     // Fit terminal to container, retrying until container has valid dimensions
@@ -303,7 +261,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
       if (resizeObserver) resizeObserver.disconnect();
       removePasteFloat();
-      document.removeEventListener('click', handleDocClick);
       if (xtermEl) xtermEl.removeEventListener('contextmenu', handleContextMenu);
       if (terminalRef.current) {
         terminalRef.current.dispose();

@@ -23,16 +23,7 @@ interface AliveWebSocket extends WebSocket {
   _isAlive: boolean;
 }
 
-/**
- * Binary protocol for hot-path messages (output/input/scrollback).
- * Format: [1-byte type prefix][raw UTF-8 payload]
- * JSON is kept for low-frequency control messages.
- */
-const BIN_TYPE_OUTPUT = 0x01;
-const BIN_TYPE_INPUT = 0x02;
-const BIN_TYPE_SCROLLBACK = 0x03;
-const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
-const BIN_TYPE_FILE_CHUNK = 0x05;
+import { BIN_TYPE_OUTPUT, BIN_TYPE_INPUT, BIN_TYPE_SCROLLBACK, BIN_TYPE_SCROLLBACK_CONTENT, BIN_TYPE_FILE_CHUNK } from 'ai-cli-online-shared';
 
 const MAX_STREAM_SIZE = 50 * 1024 * 1024; // 50MB
 const STREAM_CHUNK_SIZE = 64 * 1024;      // 64KB highWaterMark

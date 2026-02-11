@@ -1,6 +1,6 @@
 {
   "name": "ai-cli-online-server",
-  "version": "2.4.0",
+  "version": "2.6.0",
   "description": "CLI-Online Backend Server",
   "main": "dist/index.js",
   "type": "module",

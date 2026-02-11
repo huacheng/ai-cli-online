@@ -1,3 +1,13 @@
+/**
+ * Binary protocol type prefixes for hot-path WebSocket messages.
+ * Format: [1-byte type prefix][raw UTF-8 payload]
+ */
+export const BIN_TYPE_OUTPUT = 0x01;
+export const BIN_TYPE_INPUT = 0x02;
+export const BIN_TYPE_SCROLLBACK = 0x03;
+export const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
+export const BIN_TYPE_FILE_CHUNK = 0x05;
+
 // Shared file entry type (used by server file listing and web file browser)
 export interface FileEntry {
   name: string;

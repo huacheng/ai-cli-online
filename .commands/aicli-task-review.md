@@ -1,5 +1,5 @@
 ---
-name: task-review
+name: aicli-task-review
 description: Review task file annotations, research implementation plans, handle cross-impacts and conflicts
 arguments:
   - name: task_file
@@ -14,14 +14,14 @@ arguments:
     default: interactive
 ---
 
-# /task-review — Task Annotation Review & Plan Research
+# /aicli-task-review — Task Annotation Review & Plan Research
 
 Enter plan mode to analyze annotation-based task changes on the specified task file.
 
 ## Usage
 
 ```
-/task-review <absolute_path_to_task_file> <json_string_of_annotations> [--silent]
+/aicli-task-review <absolute_path_to_task_file> <json_string_of_annotations> [--silent]
 ```
 
 ## Annotation Format
@@ -114,7 +114,7 @@ Triage each insert annotation. Classify into one of three action types:
 | Target | Description |
 |--------|-------------|
 | **Task file** | Updated at the absolute path with all resolved changes, pending items marked inline |
-| **Index file** | `PLAN/INDEX.md` — update if task structure changed (new/removed sections) |
+| **Index file** | `TASK/.index.md` — update if task structure changed (new/removed sections) |
 | **Execution report** | Printed to screen (interactive) or appended to task file bottom (silent) |
 
 ## Execution Steps
@@ -127,5 +127,5 @@ Triage each insert annotation. Classify into one of three action types:
    - None/Low/Medium: resolve immediately, document in execution report
    - High: branch by mode (interactive → print + wait; silent → write to file)
 6. **Update** the task file with all resolved changes and inline markers for pending items
-7. **Update** `PLAN/INDEX.md` if the task structure changed
+7. **Update** `TASK/.index.md` if the task structure changed
 8. **Generate** execution report with summary, resolutions, and pending confirmations

@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { useStore } from '../store';
 import { useTextareaUndo, handleTabKey, autoRows } from '../hooks/useTextareaKit';
 import { useMermaidRender } from '../hooks/useMermaidRender';
+import { fetchAnnotation, saveAnnotationRemote } from '../api/annotations';
 import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
 
 /* ── Data Types ── */
@@ -104,7 +105,7 @@ function buildAnnotationJson(
   return { 'Insert Annotations': insertAnns, 'Delete Annotations': deleteAnns };
 }
 
-/** Generate /task-review command for a single file */
+/** Generate /aicli-task-review command for a single file */
 export function generateTaskReview(
   filePath: string,
   annotations: PlanAnnotations,
@@ -112,10 +113,10 @@ export function generateTaskReview(
 ): string {
   if (annotations.additions.length === 0 && annotations.deletions.length === 0) return '';
   const json = JSON.stringify(buildAnnotationJson(annotations, sourceLines));
-  return `/task-review ${filePath} ${json}`;
+  return `/aicli-task-review ${filePath} ${json}`;
 }
 
-/** Generate aggregated /task-review commands across multiple PLAN/ files */
+/** Generate aggregated /aicli-task-review commands across multiple PLAN/ files */
 export function generateMultiFileSummary(
   fileAnnotations: Array<{ filePath: string; annotations: PlanAnnotations; sourceLines: string[] }>
 ): string {
@@ -144,14 +145,16 @@ interface Props {
   markdown: string;
   filePath: string;
   sessionId: string;
+  token: string;
   onExecute: (summary: string) => void;
   onSend?: (summary: string) => void;
   onRefresh?: () => void;
   onClose?: () => void;
   expanded?: boolean;
+  readOnly?: boolean;
 }
 
-export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, onExecute, onSend, onRefresh, onClose, expanded }, ref) {
+export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, token, onExecute, onSend, onRefresh, onClose, expanded, readOnly }, ref) {
   const fontSize = useStore((s) => s.fontSize);
 
   // Parse markdown into tokens
@@ -193,32 +196,76 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     } catch { return EMPTY_ANNOTATIONS; }
   });
 
-  // Persist annotations to localStorage (debounced)
+  // Dual-layer persistence: L1 localStorage (50ms) + L2 server (adaptive)
+  const latency = useStore((s) => s.latency);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const syncInFlightRef = useRef(false);
+  const annLoadedRef = useRef(false);
+
   useEffect(() => {
+    if (!annLoadedRef.current) return;
+    const lsKey = storageKey(sessionId, filePath);
+    const serialized = JSON.stringify(annotations);
+    // L1: 50ms debounce → localStorage
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      localStorage.setItem(storageKey(sessionId, filePath), JSON.stringify(annotations));
-    }, 300);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [annotations, sessionId, filePath]);
+      try { localStorage.setItem(lsKey, serialized); } catch { /* full */ }
+    }, 50);
+    // L2: adaptive interval → server
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    const syncInterval = Math.max(200, (latency ?? 30) * 3);
+    syncTimerRef.current = setTimeout(() => {
+      if (syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+      saveAnnotationRemote(token, sessionId, filePath, serialized, Date.now())
+        .catch(() => {})
+        .finally(() => { syncInFlightRef.current = false; });
+    }, syncInterval);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [annotations, sessionId, filePath, token, latency]);
 
-  // Reload annotations when filePath changes + capture baseline
+  // Reload annotations when filePath changes: L1 localStorage (instant) then L2 server (async, use newer)
   useEffect(() => {
+    annLoadedRef.current = false;
+    // L1: instant from localStorage
+    let localAnns = EMPTY_ANNOTATIONS;
+    let localUpdatedAt = 0;
     try {
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
-      const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
-      setAnnotations(parsed);
-      // Capture baseline IDs
-      const ids = new Set<string>();
-      parsed.additions.forEach((a) => ids.add(a.id));
-      parsed.deletions.forEach((d) => ids.add(d.id));
-      baselineIdsRef.current = ids;
-    } catch {
-      setAnnotations(EMPTY_ANNOTATIONS);
-      baselineIdsRef.current = new Set();
-    }
-  }, [sessionId, filePath]);
+      if (saved) {
+        localAnns = JSON.parse(saved);
+        localUpdatedAt = Date.now(); // approximate
+      }
+    } catch { /* ignore */ }
+    setAnnotations(localAnns);
+    const ids = new Set<string>();
+    localAnns.additions.forEach((a) => ids.add(a.id));
+    localAnns.deletions.forEach((d) => ids.add(d.id));
+    baselineIdsRef.current = ids;
+
+    // L2: async from server
+    let cancelled = false;
+    fetchAnnotation(token, sessionId, filePath).then((remote) => {
+      if (cancelled) return;
+      if (remote && remote.updatedAt > localUpdatedAt) {
+        try {
+          const parsed: PlanAnnotations = JSON.parse(remote.content);
+          setAnnotations(parsed);
+          try { localStorage.setItem(storageKey(sessionId, filePath), remote.content); } catch { /* full */ }
+          const rids = new Set<string>();
+          parsed.additions.forEach((a) => rids.add(a.id));
+          parsed.deletions.forEach((d) => rids.add(d.id));
+          baselineIdsRef.current = rids;
+        } catch { /* corrupt server data */ }
+      }
+    }).catch(() => { /* offline, use local */ }).finally(() => { annLoadedRef.current = true; });
+    annLoadedRef.current = true; // allow saving even if fetch is slow
+    return () => { cancelled = true; };
+  }, [sessionId, filePath, token]);
 
   // Baseline version counter — increment to force re-computation of sent/unsent counts
   const [baselineVer, setBaselineVer] = useState(0);
@@ -437,81 +484,6 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [handleSelectionCheck]);
 
-  // ── Right-click paste into active annotation textarea ──
-  const pasteFloatElRef = useRef<HTMLDivElement | null>(null);
-  const pasteFloatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handlePasteIntoAnnotation = useCallback((text: string) => {
-    const ta = insertTextareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const current = ta.value;
-    const newText = current.slice(0, start) + text + current.slice(end);
-    setInsertText(newText);
-    requestAnimationFrame(() => {
-      ta.selectionStart = ta.selectionEnd = start + text.length;
-      ta.focus();
-    });
-  }, []);
-
-  const pasteIntoAnnotationRef = useRef(handlePasteIntoAnnotation);
-  pasteIntoAnnotationRef.current = handlePasteIntoAnnotation;
-
-  const removePasteFloat = useCallback(() => {
-    if (pasteFloatTimerRef.current) { clearTimeout(pasteFloatTimerRef.current); pasteFloatTimerRef.current = null; }
-    if (pasteFloatElRef.current) { pasteFloatElRef.current.remove(); pasteFloatElRef.current = null; }
-  }, []);
-
-  const showAnnosPasteFloat = useCallback((x: number, y: number) => {
-    removePasteFloat();
-    const el = document.createElement('div');
-    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
-    const ta = document.createElement('textarea');
-    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
-    ta.placeholder = 'Ctrl+V';
-    ta.addEventListener('paste', (ev) => {
-      ev.preventDefault();
-      const text = ev.clipboardData?.getData('text/plain');
-      if (text) pasteIntoAnnotationRef.current(text);
-      removePasteFloat();
-    });
-    ta.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') removePasteFloat(); });
-    el.appendChild(ta);
-    document.body.appendChild(el);
-    pasteFloatElRef.current = el;
-    requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect();
-      if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
-      if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
-      ta.focus();
-    });
-    pasteFloatTimerRef.current = setTimeout(removePasteFloat, 8000);
-  }, [removePasteFloat]);
-
-  useEffect(() => {
-    const dismiss = () => { if (pasteFloatElRef.current) removePasteFloat(); };
-    document.addEventListener('click', dismiss);
-    return () => { document.removeEventListener('click', dismiss); removePasteFloat(); };
-  }, [removePasteFloat]);
-
-  const handleContentContextMenu = useCallback((e: React.MouseEvent) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === 'TEXTAREA' || tag === 'INPUT') return; // let browser handle natively
-    if (!insertTextareaRef.current) return; // no active annotation zone
-    e.preventDefault();
-    removePasteFloat();
-    if (!navigator.clipboard?.readText) {
-      showAnnosPasteFloat(e.clientX, e.clientY);
-      return;
-    }
-    navigator.clipboard.readText().then((text) => {
-      if (text) pasteIntoAnnotationRef.current(text);
-    }).catch(() => {
-      showAnnosPasteFloat(e.clientX, e.clientY);
-    });
-  }, [removePasteFloat, showAnnosPasteFloat]);
-
   useMermaidRender(containerRef, tokens);
 
   // Filter: include annotations whose ID is not in baseline (new or edited → new ID)
@@ -523,7 +495,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [annotations]);
 
-  // Execute: generate /task-review command from new/modified annotations (Save to chat)
+  // Execute: generate /aicli-task-review command from new/modified annotations (Save to chat)
   const handleExecute = useCallback(() => {
     const cmd = generateTaskReview(filePath, getNewAnnotations(), sourceLines);
     if (cmd) {
@@ -572,7 +544,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('mousedown', handler);
   }, [dropdownOpen]);
 
-  // Send a single annotation to terminal as /task-review command
+  // Send a single annotation to terminal as /aicli-task-review command
   const handleSendSingle = useCallback((annId: string, type: 'add' | 'del') => {
     if (!onSend) return;
     const singleAnns: PlanAnnotations = { additions: [], deletions: [] };
@@ -739,26 +711,27 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         className={`plan-anno-content md-preview${activeInsert != null ? ' plan-anno-content--editing' : ''}`}
         style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
         onMouseUp={handleSelectionCheck}
-        onContextMenu={handleContentContextMenu}
       >
         {/* Insert zone before first block */}
-        <InsertZone
-          index={-1}
-          active={activeInsert === -1}
-          additions={additionsByIndex.get(-1)}
-          onOpen={() => { setActiveInsert(-1); setInsertText(''); }}
-          onSubmit={() => handleAddAnnotation(-1)}
-          onRemoveAddition={handleRemoveAddition}
-          onEditAddition={handleEditAddition}
-          onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
-          isSent={(id) => baselineIdsRef.current.has(id)}
-          insertText={insertText}
-          setInsertText={setInsertText}
-          textareaRef={activeInsert === -1 ? insertTextareaRef : undefined}
-          expanded={expanded}
-          alwaysShow={tokens.length === 0}
-          fontSize={fontSize}
-        />
+        {!readOnly && (
+          <InsertZone
+            index={-1}
+            active={activeInsert === -1}
+            additions={additionsByIndex.get(-1)}
+            onOpen={() => { setActiveInsert(-1); setInsertText(''); }}
+            onSubmit={() => handleAddAnnotation(-1)}
+            onRemoveAddition={handleRemoveAddition}
+            onEditAddition={handleEditAddition}
+            onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
+            isSent={(id) => baselineIdsRef.current.has(id)}
+            insertText={insertText}
+            setInsertText={setInsertText}
+            textareaRef={activeInsert === -1 ? insertTextareaRef : undefined}
+            expanded={expanded}
+            alwaysShow={tokens.length === 0}
+            fontSize={fontSize}
+          />
+        )}
 
         {tokens.map((token, i) => {
           // Content is sanitized with DOMPurify in tokenToHtml — safe against XSS
@@ -847,28 +820,30 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                 ))}
 
               {/* Insert zone after this block */}
-              <InsertZone
-                index={i}
-                active={activeInsert === i}
-                additions={additionsByIndex.get(i)}
-                onOpen={() => { setActiveInsert(i); setInsertText(''); }}
-                onSubmit={() => handleAddAnnotation(i)}
-                onRemoveAddition={handleRemoveAddition}
-                onEditAddition={handleEditAddition}
-                onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
-                isSent={(id) => baselineIdsRef.current.has(id)}
-                insertText={insertText}
-                setInsertText={setInsertText}
-                textareaRef={activeInsert === i ? insertTextareaRef : undefined}
-                expanded={expanded}
-                fontSize={fontSize}
-              />
+              {!readOnly && (
+                <InsertZone
+                  index={i}
+                  active={activeInsert === i}
+                  additions={additionsByIndex.get(i)}
+                  onOpen={() => { setActiveInsert(i); setInsertText(''); }}
+                  onSubmit={() => handleAddAnnotation(i)}
+                  onRemoveAddition={handleRemoveAddition}
+                  onEditAddition={handleEditAddition}
+                  onSendSingle={onSend ? (id) => handleSendSingle(id, 'add') : undefined}
+                  isSent={(id) => baselineIdsRef.current.has(id)}
+                  insertText={insertText}
+                  setInsertText={setInsertText}
+                  textareaRef={activeInsert === i ? insertTextareaRef : undefined}
+                  expanded={expanded}
+                  fontSize={fontSize}
+                />
+              )}
             </div>
           );
         })}
 
         {/* Delete float button */}
-        {deleteFloat && (
+        {!readOnly && deleteFloat && (
           <button
             className="plan-delete-float"
             style={{ top: deleteFloat.y, left: deleteFloat.x }}

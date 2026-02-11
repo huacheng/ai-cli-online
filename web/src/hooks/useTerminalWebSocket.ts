@@ -14,12 +14,7 @@ const CONNECT_TIMEOUT = 5000;
 const INPUT_BATCH_MS = 10;
 const MAX_INPUT_BUFFER = 64 * 1024;
 
-/** Binary protocol type prefixes (must match server) */
-const BIN_TYPE_OUTPUT = 0x01;
-const BIN_TYPE_INPUT = 0x02;
-const BIN_TYPE_SCROLLBACK = 0x03;
-const BIN_TYPE_SCROLLBACK_CONTENT = 0x04;
-const BIN_TYPE_FILE_CHUNK = 0x05;
+import { BIN_TYPE_OUTPUT, BIN_TYPE_INPUT, BIN_TYPE_SCROLLBACK, BIN_TYPE_SCROLLBACK_CONTENT, BIN_TYPE_FILE_CHUNK } from 'ai-cli-online-shared';
 
 /** Shared TextDecoder/TextEncoder instances (avoids per-message allocation) */
 const textDecoder = new TextDecoder();

@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（PLAN/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（TASK/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
@@ -46,10 +46,12 @@ ai-cli-online/
 │       │   ├── useTerminalWebSocket.ts  # WebSocket 二进制协议 + 自动重连 + RTT 测量
 │       │   ├── useFileStream.ts         # 文件流式传输 hook (chunk 接收 + 进度跟踪)
 │       │   ├── useTextareaKit.ts        # Textarea 工具 hook (Tab 缩进 + undo 栈 + 斜杠命令)
-│       │   └── useMermaidRender.ts      # Mermaid 图表渲染 hook (CDN 懒加载 + fallback)
+│       │   ├── useMermaidRender.ts      # Mermaid 图表渲染 hook (CDN 懒加载 + fallback)
+│       │   └── usePasteFloat.ts         # 粘贴浮层 hook (文件粘贴上传)
 │       ├── api/
 │       │   ├── client.ts          # API 基础配置 (API_BASE + authHeaders)
-│       │   ├── files.ts           # 文件传输 API (上传/下载/列表/touch/mkdir)
+│       │   ├── files.ts           # 文件传输 API (上传/下载/列表/touch/mkdir/rm/downloadCwd)
+│       │   ├── annotations.ts     # 批注持久化 API (fetchAnnotation/saveAnnotation)
 │       │   ├── docs.ts            # 文档内容 API (fetchFileContent, 支持 304)
 │       │   ├── drafts.ts          # 编辑器草稿 API (fetchDraft/saveDraft)
 │       │   ├── settings.ts        # 用户设置 API (字体大小读写)
@@ -60,14 +62,16 @@ ai-cli-online/
 │           ├── TabBar.tsx             # Tab 多标签页栏 (新增/切换/关闭/重命名)
 │           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + Dark/Light 双主题)
 │           ├── TerminalPane.tsx       # 终端面板 (2D 网格: [Xterm | Plan] + [Chat])
-│           ├── PlanPanel.tsx          # Plan 批注面板 (内联, PLAN/ 目录多文件批注)
+│           ├── PlanPanel.tsx          # Plan 批注面板 (内联, TASK/ 目录多文件批注)
 │           ├── PlanAnnotationRenderer.tsx  # Plan 批注渲染器 (内联批注 + Mermaid 图表)
-│           ├── PlanFileBrowser.tsx    # Plan 文件浏览器 (PLAN/ 目录树 + 新建文件)
+│           ├── PlanFileBrowser.tsx    # Plan 文件浏览器 (TASK/ 目录树 + 新建文件)
 │           ├── MarkdownEditor.tsx     # Chat 编辑器 (多行编辑 + 斜杠命令 + 草稿持久化)
 │           ├── MarkdownToc.tsx        # Markdown 目录导航 (heading 提取 + 锚点跳转)
 │           ├── ErrorBoundary.tsx      # React 错误边界
 │           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名/关闭终端)
 │           └── SplitPaneContainer.tsx # 递归布局渲染 (水平/垂直分割)
+├── .commands/        # Claude Code 自定义斜杠命令源文件
+│   └── aicli-task-review.md  # /aicli-task-review 批注审阅命令
 ├── start.sh          # 生产启动脚本 (构建 + 启动)
 └── package.json      # Monorepo 配置
 ```
@@ -241,6 +245,12 @@ interface PanelState {
 | `GET` | `/api/sessions/:sessionId/file-content` | 读取文件内容（query: `path`, `since`; 支持 304 未修改） |
 | `GET` | `/api/sessions/:sessionId/draft` | 获取编辑器草稿内容 |
 | `PUT` | `/api/sessions/:sessionId/draft` | 保存编辑器草稿内容 |
+| `POST` | `/api/sessions/:sessionId/touch` | 创建空文件（JSON body: `{ name }`) |
+| `POST` | `/api/sessions/:sessionId/mkdir` | 创建目录（JSON body: `{ path }`) |
+| `DELETE` | `/api/sessions/:sessionId/rm` | 删除文件或目录（JSON body: `{ path }`，目录递归删除） |
+| `GET` | `/api/sessions/:sessionId/download-cwd` | 打包下载 CWD 目录（tar.gz 流式响应） |
+| `GET` | `/api/sessions/:sessionId/annotations` | 获取文件批注（query: `path`） |
+| `PUT` | `/api/sessions/:sessionId/annotations` | 保存文件批注（JSON body: `{ path, content, updatedAt }`） |
 | `GET` | `/api/sessions/:sessionId/pane-command` | 获取当前 tmux pane 正在执行的命令 |
 | `GET` | `/api/settings/font-size` | 获取用户字体大小设置 |
 | `PUT` | `/api/settings/font-size` | 保存用户字体大小设置 (10-24) |
@@ -332,13 +342,14 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 内联面板（非全屏覆盖层），位于终端左侧全高显示，宽度可拖拽调整（20%-80%，持久化 localStorage）。
 
-- **PlanFileBrowser**: 左侧文件树，浏览 PLAN/ 目录下的 `.md` 文件，支持新建文件
+- **PlanFileBrowser**: 左侧文件树，浏览 TASK/ 目录下的 `.md` 文件，支持新建文件
 - **PlanAnnotationRenderer**: 中间批注编辑器，Markdown 内容逐行渲染 + 内联批注
   - 新增批注（InsertZone 点击 + 输入）、编辑批注（双击）、删除批注
-  - 批注持久化到 localStorage (`plan-annotations-${sessionId}-${filePath}`)
+  - 批注持久化到 SQLite（`GET/PUT /api/sessions/:sessionId/annotations`，按 session + filePath 存储）
   - Mermaid 图表内联渲染（CDN 懒加载: jsdelivr + unpkg 备源）
   - 文件切换时记忆/恢复滚动位置
 - **MarkdownToc**: 右侧目录导航，从 Markdown heading 提取锚点
+- 批注 Send 生成 `/aicli-task-review` 命令发送到终端
 - 关闭时聚合所有文件的未转发批注 → `onForwardToChat(summary)` 转发到 Chat 编辑器
 - 刷新按钮重新请求当前文件的 file stream
 
@@ -372,6 +383,7 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 - 后端使用 better-sqlite3 (WAL 模式)，数据库位于 `server/data/ai-cli-online.db`
 - `drafts` 表: `session_name (PK)` + `content` + `updated_at`
+- `annotations` 表: `(session_name, file_path) (PK)` + `content` + `updated_at`（批注持久化）
 - `settings` 表: `(token_hash, key) (PK)` + `value` + `updated_at`
 - 前端通过 `GET/PUT /api/sessions/:sessionId/draft` 进行草稿读写
 - 前端通过 `GET/PUT /api/settings/font-size` 读写字体大小（按 token 隔离）
