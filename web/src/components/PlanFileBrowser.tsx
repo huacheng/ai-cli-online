@@ -106,10 +106,14 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
     setCurrentDir(prev => prev.substring(0, prev.lastIndexOf('/')));
   }, [currentDir, planDir]);
 
-  // Display label: relative path from PLAN/ root
+  // Display label: parent dir + relative path from PLAN/ root
+  const parentName = (() => {
+    const parts = planDir.split('/');
+    return parts.length >= 2 ? parts[parts.length - 2] + '/' : '';
+  })();
   const displayPath = currentDir === planDir
-    ? 'PLAN/'
-    : 'PLAN/' + currentDir.substring(planDir.length + 1) + '/';
+    ? parentName + 'PLAN/'
+    : parentName + 'PLAN/' + currentDir.substring(planDir.length + 1) + '/';
 
   const selectedName = selectedFile ? selectedFile.split('/').pop() : null;
 
