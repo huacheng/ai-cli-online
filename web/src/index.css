@@ -977,6 +977,8 @@ body.resizing-panes-h * {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  direction: rtl;
+  text-align: left;
 }
 
 .plan-file-browser__list {

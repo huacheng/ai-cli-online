@@ -65,45 +65,66 @@ function tokenSourceLine(tokens: Token[], index: number): number {
 
 /* ── Summary Generation ── */
 
-export function generateSummary(
+/** Format line context as "start...end" (max 20 chars each side) */
+function formatLineContext(line: string | undefined): string {
+  if (!line) return '';
+  const trimmed = line.trim();
+  if (trimmed.length <= 40) return trimmed;
+  return trimmed.slice(0, 20) + '...' + trimmed.slice(-20);
+}
+
+/** Build annotation JSON object from annotations + sourceLines */
+function buildAnnotationJson(
+  annotations: PlanAnnotations,
+  sourceLines: string[],
+): { 'Insert Annotations': string[][]; 'Delete Annotations': string[][] } {
+  const insertAnns: string[][] = [];
+  const deleteAnns: string[][] = [];
+
+  for (const a of annotations.additions) {
+    const ctxBefore = sourceLines[a.sourceLine - 1] ?? '';
+    const ctxAfter = sourceLines[a.sourceLine] ?? '';
+    insertAnns.push([
+      `${a.sourceLine}: ${formatLineContext(ctxBefore)}`,
+      a.content,
+      formatLineContext(ctxAfter),
+    ]);
+  }
+
+  for (const d of annotations.deletions) {
+    const ctxBefore = sourceLines[d.startLine - 2] ?? '';
+    const ctxAfter = sourceLines[d.endLine] ?? '';
+    deleteAnns.push([
+      `${d.startLine}: ${formatLineContext(ctxBefore)}`,
+      d.selectedText,
+      formatLineContext(ctxAfter),
+    ]);
+  }
+
+  return { 'Insert Annotations': insertAnns, 'Delete Annotations': deleteAnns };
+}
+
+/** Generate /task-review command for a single file */
+export function generateTaskReview(
+  filePath: string,
   annotations: PlanAnnotations,
   sourceLines: string[],
 ): string {
-  const parts: string[] = [];
-
-  if (annotations.additions.length > 0) {
-    parts.push('[增加批注]');
-    annotations.additions.forEach((a, i) => {
-      const ctx = sourceLines[a.sourceLine - 1]?.trim().slice(0, 50) ?? '';
-      parts.push(`${i + 1}. 在第${a.sourceLine}行 ("${ctx}") 之后添加: "${a.content}"`);
-    });
-  }
-
-  if (annotations.deletions.length > 0) {
-    if (parts.length > 0) parts.push('');
-    parts.push('[删除标记]');
-    annotations.deletions.forEach((d, i) => {
-      const text = sourceLines.slice(d.startLine - 1, d.endLine).join(' ').trim();
-      parts.push(`${i + 1}. 删除第${d.startLine}-${d.endLine}行: "${text.slice(0, 60)}${text.length > 60 ? '...' : ''}"`);
-    });
-  }
-
-  if (parts.length === 0) return '';
-  return '请根据以下用户批注修改 PLAN.md:\n\n' + parts.join('\n');
+  if (annotations.additions.length === 0 && annotations.deletions.length === 0) return '';
+  const json = JSON.stringify(buildAnnotationJson(annotations, sourceLines));
+  return `/task-review ${filePath} ${json}`;
 }
 
-/** Generate aggregated summary across multiple PLAN/ files */
+/** Generate aggregated /task-review commands across multiple PLAN/ files */
 export function generateMultiFileSummary(
   fileAnnotations: Array<{ filePath: string; annotations: PlanAnnotations; sourceLines: string[] }>
 ): string {
-  const sections: string[] = [];
+  const commands: string[] = [];
   for (const { filePath, annotations, sourceLines } of fileAnnotations) {
-    const summary = generateSummary(annotations, sourceLines);
-    if (!summary) continue;
-    sections.push(`## ${filePath}\n\n${summary}`);
+    const cmd = generateTaskReview(filePath, annotations, sourceLines);
+    if (cmd) commands.push(cmd);
   }
-  if (sections.length === 0) return '';
-  return '请根据以下用户批注修改 PLAN/ 目录下的文件:\n\n' + sections.join('\n\n');
+  return commands.join('\n');
 }
 
 /* ── Component ── */
@@ -502,11 +523,11 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [annotations]);
 
-  // Execute: generate summary from new/modified annotations (Save to chat)
+  // Execute: generate /task-review command from new/modified annotations (Save to chat)
   const handleExecute = useCallback(() => {
-    const summary = generateSummary(getNewAnnotations(), sourceLines);
-    if (summary) {
-      onExecute(`## ${filePath}\n\n${summary}`);
+    const cmd = generateTaskReview(filePath, getNewAnnotations(), sourceLines);
+    if (cmd) {
+      onExecute(cmd);
       const ids = new Set<string>();
       annotations.additions.forEach((a) => ids.add(a.id));
       annotations.deletions.forEach((d) => ids.add(d.id));
@@ -518,9 +539,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     getSummary: () => {
-      const summary = generateSummary(getNewAnnotations(), sourceLines);
-      if (!summary) return '';
-      return `## ${filePath}\n\n${summary}`;
+      return generateTaskReview(filePath, getNewAnnotations(), sourceLines);
     },
     handleEscape: () => {
       if (activeInsert != null) {
@@ -553,22 +572,21 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('mousedown', handler);
   }, [dropdownOpen]);
 
-  // Send a single annotation to terminal
+  // Send a single annotation to terminal as /task-review command
   const handleSendSingle = useCallback((annId: string, type: 'add' | 'del') => {
     if (!onSend) return;
-    let text = `## ${filePath}\n\n`;
+    const singleAnns: PlanAnnotations = { additions: [], deletions: [] };
     if (type === 'add') {
       const a = annotations.additions.find(x => x.id === annId);
       if (!a) return;
-      const ctx = sourceLines[a.sourceLine - 1]?.trim().slice(0, 50) ?? '';
-      text += `[增加批注] 在第${a.sourceLine}行 ("${ctx}") 之后添加:\n${a.content}`;
+      singleAnns.additions.push(a);
     } else {
       const d = annotations.deletions.find(x => x.id === annId);
       if (!d) return;
-      const lineText = sourceLines.slice(d.startLine - 1, d.endLine).join(' ').trim();
-      text += `[删除批注] 删除第${d.startLine}-${d.endLine}行: "${lineText.slice(0, 60)}"`;
+      singleAnns.deletions.push(d);
     }
-    onSend(text);
+    const cmd = generateTaskReview(filePath, singleAnns, sourceLines);
+    if (cmd) onSend(cmd);
     baselineIdsRef.current.add(annId);
     setBaselineVer(v => v + 1);
   }, [onSend, filePath, annotations, sourceLines]);
