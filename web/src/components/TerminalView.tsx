@@ -132,27 +132,40 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       if (pasteFloatEl) { pasteFloatEl.remove(); pasteFloatEl = null; }
     };
 
-    const doPaste = () => {
-      navigator.clipboard.readText().then((text) => {
-        if (text) sendInputRef.current(text);
-        removePasteFloat();
-      }).catch(() => { removePasteFloat(); });
-    };
-
     const showPasteFloat = (x: number, y: number) => {
       removePasteFloat();
+      // Container
       const el = document.createElement('div');
-      el.textContent = 'Paste';
       el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;
-        padding:4px 12px;background:#24283b;color:#7aa2f7;border:1px solid #414868;
-        border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;
-        box-shadow:0 2px 8px rgba(0,0,0,0.4);user-select:none;`;
-      el.addEventListener('click', (ev) => { ev.stopPropagation(); doPaste(); });
-      el.addEventListener('mouseenter', () => { el.style.background = '#292e42'; });
-      el.addEventListener('mouseleave', () => { el.style.background = '#24283b'; });
+        display:flex;align-items:center;gap:4px;padding:4px 6px;
+        background:#24283b;border:1px solid #414868;border-radius:4px;
+        box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
+      // Hidden textarea to capture paste events (no clipboard-read permission needed)
+      const ta = document.createElement('textarea');
+      ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;
+        border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;
+        font-family:inherit;padding:2px 4px;outline:none;`;
+      ta.placeholder = 'Ctrl+V';
+      ta.addEventListener('paste', (ev) => {
+        ev.preventDefault();
+        const text = ev.clipboardData?.getData('text/plain');
+        if (text) sendInputRef.current(text);
+        removePasteFloat();
+      });
+      ta.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') removePasteFloat();
+      });
+      el.appendChild(ta);
       document.body.appendChild(el);
       pasteFloatEl = el;
-      pasteFloatTimer = setTimeout(removePasteFloat, 3000);
+      // Clamp position to viewport
+      requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`;
+        if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`;
+        ta.focus();
+      });
+      pasteFloatTimer = setTimeout(removePasteFloat, 8000);
     };
 
     const handleContextMenu = (e: MouseEvent) => {
