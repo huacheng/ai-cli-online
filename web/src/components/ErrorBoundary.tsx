@@ -29,26 +29,26 @@ export class ErrorBoundary extends Component<Props, State> {
         return (
           <div style={{
             height: '100%',
-            backgroundColor: '#1a1b26',
+            backgroundColor: 'var(--bg-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexDirection: 'column',
             gap: '8px',
-            color: '#c0caf5',
+            color: 'var(--text-bright)',
             fontFamily: 'monospace',
             padding: '16px',
           }}>
-            <div style={{ fontSize: '14px', color: '#f7768e' }}>Pane crashed</div>
-            <div style={{ fontSize: '12px', color: '#565f89', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: 'var(--accent-red)' }}>Pane crashed</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>
               {this.state.error?.message || 'An unexpected error occurred'}
             </div>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
               style={{
-                background: '#292e42',
-                border: '1px solid #414868',
-                color: '#c0caf5',
+                background: 'var(--bg-hover)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-bright)',
                 padding: '4px 12px',
                 borderRadius: '4px',
                 cursor: 'pointer',
@@ -63,25 +63,25 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div style={{
           minHeight: '100vh',
-          backgroundColor: '#1a1b26',
+          backgroundColor: 'var(--bg-primary)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'column',
           gap: '16px',
-          color: '#c0caf5',
+          color: 'var(--text-bright)',
           fontFamily: 'monospace',
         }}>
-          <div style={{ fontSize: '18px', color: '#f7768e' }}>Something went wrong</div>
-          <div style={{ fontSize: '13px', color: '#565f89', maxWidth: '500px', textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', color: 'var(--accent-red)' }}>Something went wrong</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '500px', textAlign: 'center' }}>
             {this.state.error?.message || 'An unexpected error occurred'}
           </div>
           <button
             onClick={() => window.location.reload()}
             style={{
-              background: 'linear-gradient(135deg, #7aa2f7 0%, #bb9af7 100%)',
+              background: 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%)',
               border: 'none',
-              color: '#1a1b26',
+              color: 'var(--bg-primary)',
               padding: '8px 24px',
               borderRadius: '6px',
               cursor: 'pointer',

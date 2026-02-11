@@ -85,7 +85,7 @@ function TabItem({ tabId }: { tabId: string }) {
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          borderBottom: '1px solid #292e42',
+          borderBottom: '1px solid var(--border)',
           transition: 'background-color 0.15s',
           opacity: isOpen ? 1 : 0.5,
         }}
@@ -103,7 +103,7 @@ function TabItem({ tabId }: { tabId: string }) {
             style={{
               background: 'none',
               border: 'none',
-              color: '#565f89',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               fontSize: '10px',
               padding: 0,
@@ -133,9 +133,9 @@ function TabItem({ tabId }: { tabId: string }) {
               }}
               style={{
                 width: '100%',
-                background: '#1a1b26',
-                border: '1px solid #7aa2f7',
-                color: '#c0caf5',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--accent-blue)',
+                color: 'var(--text-bright)',
                 borderRadius: '3px',
                 padding: '1px 4px',
                 fontSize: '14px',
@@ -146,7 +146,7 @@ function TabItem({ tabId }: { tabId: string }) {
             <div
               onDoubleClick={handleDoubleClick}
               style={{
-                color: '#c0caf5',
+                color: 'var(--text-bright)',
                 fontSize: '14px',
                 fontWeight: 500,
                 overflow: 'hidden',
@@ -207,8 +207,8 @@ function TabItem({ tabId }: { tabId: string }) {
               style={{
                 padding: '4px 8px',
                 fontSize: '11px',
-                color: '#565f89',
-                borderBottom: '1px solid rgba(41, 46, 66, 0.5)',
+                color: 'var(--text-secondary)',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
               }}
@@ -267,7 +267,7 @@ function OrphanedSessionItem({ sessionId, active, createdAt }: {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        borderBottom: '1px solid #292e42',
+        borderBottom: '1px solid var(--border)',
         transition: 'background-color 0.15s',
       }}
       onMouseEnter={(e) => {
@@ -399,7 +399,7 @@ export function SessionSidebar() {
           style={{
             background: 'none',
             border: 'none',
-            color: '#565f89',
+            color: 'var(--text-secondary)',
             cursor: 'pointer',
             fontSize: '16px',
             padding: '0 4px',

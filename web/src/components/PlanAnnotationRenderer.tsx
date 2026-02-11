@@ -430,9 +430,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const showAnnosPasteFloat = useCallback((x: number, y: number) => {
     removePasteFloat();
     const el = document.createElement('div');
-    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:#24283b;border:1px solid #414868;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
+    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
     const ta = document.createElement('textarea');
-    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
+    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
     ta.placeholder = 'Ctrl+V';
     ta.addEventListener('paste', (ev) => {
       ev.preventDefault();
@@ -557,7 +557,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
           onClick={handleExecute}
           disabled={!hasAnnotations}
           title="Save annotations to editor"
-          style={hasAnnotations ? { color: '#9ece6a' } : { opacity: 0.4 }}
+          style={hasAnnotations ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}
         >
           Save
         </button>
@@ -571,7 +571,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
           Clear
         </button>
         {hasAnnotations && (
-          <span style={{ fontSize: 10, color: '#565f89', marginLeft: 4 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 4 }}>
             +{annotations.additions.length} &minus;{annotations.deletions.length}
           </span>
         )}
@@ -650,7 +650,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                     ) : (
                       <>
                         <span
-                          style={{ flex: 1, fontSize: `${fontSize}px`, color: '#f7768e', whiteSpace: 'pre-wrap', cursor: 'text' }}
+                          style={{ flex: 1, fontSize: `${fontSize}px`, color: 'var(--accent-red)', whiteSpace: 'pre-wrap', cursor: 'text' }}
                           onDoubleClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
                           title="Double-click to edit"
                         >
@@ -659,7 +659,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                         <button
                           className="pane-btn pane-btn--sm"
                           onClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
-                          style={{ color: '#7aa2f7' }}
+                          style={{ color: 'var(--accent-blue)' }}
                           title="Edit deletion annotation"
                         >
                           &#x270E;
@@ -818,7 +818,7 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
             /* Display mode — double-click to edit */
             <>
               <span
-                style={{ flex: 1, fontSize: `${fontSize}px`, color: '#e0af68', whiteSpace: 'pre-wrap', cursor: 'text' }}
+                style={{ flex: 1, fontSize: `${fontSize}px`, color: 'var(--accent-yellow)', whiteSpace: 'pre-wrap', cursor: 'text' }}
                 onDoubleClick={() => startEdit(a)}
                 title="Double-click to edit"
               >
@@ -827,7 +827,7 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
               <button
                 className="pane-btn pane-btn--sm"
                 onClick={() => startEdit(a)}
-                style={{ color: '#7aa2f7' }}
+                style={{ color: 'var(--accent-blue)' }}
                 title="Edit annotation"
               >
                 &#x270E;

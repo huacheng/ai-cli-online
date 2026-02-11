@@ -123,7 +123,7 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
           onClick={handleCreateFile}
           disabled={creating || !newName.trim()}
           title="Create new .md file"
-          style={newName.trim() ? { color: '#9ece6a' } : { opacity: 0.4 }}
+          style={newName.trim() ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}
         >
           +
         </button>
@@ -132,7 +132,7 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
           onClick={handleCreateFolder}
           disabled={creating || !newName.trim()}
           title="Create new folder"
-          style={newName.trim() ? { color: '#7aa2f7' } : { opacity: 0.4 }}
+          style={newName.trim() ? { color: 'var(--accent-blue)' } : { opacity: 0.4 }}
         >
           &#x1F4C1;
         </button>

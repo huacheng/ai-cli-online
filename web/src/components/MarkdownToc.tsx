@@ -168,8 +168,8 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
         alignItems: 'flex-start',
         justifyContent: 'center',
         paddingTop: 4,
-        borderLeft: '1px solid #292e42',
-        backgroundColor: '#16161e',
+        borderLeft: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-secondary)',
       }}>
         <button
           onClick={handleToggle}
@@ -177,14 +177,14 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
           style={{
             background: 'none',
             border: 'none',
-            color: '#565f89',
+            color: 'var(--text-secondary)',
             fontSize: 13,
             cursor: 'pointer',
             padding: '2px',
             lineHeight: 1,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#7aa2f7'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-blue)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
           {'\u2630'}
         </button>
@@ -199,8 +199,8 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
       style={{
         width: TOC_WIDTH,
         flexShrink: 0,
-        borderLeft: '1px solid #292e42',
-        backgroundColor: '#16161e',
+        borderLeft: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-secondary)',
         overflowY: 'auto',
         overflowX: 'hidden',
         display: 'flex',
@@ -213,12 +213,12 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '4px 6px',
-        borderBottom: '1px solid #292e42',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
         <span style={{
           fontSize: 10,
-          color: '#414868',
+          color: 'var(--border)',
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
         }}>
@@ -230,14 +230,14 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
           style={{
             background: 'none',
             border: 'none',
-            color: '#565f89',
+            color: 'var(--text-secondary)',
             fontSize: 12,
             cursor: 'pointer',
             padding: '0 2px',
             lineHeight: 1,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#7aa2f7'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-blue)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
           {'\u00BB'}
         </button>
@@ -254,22 +254,22 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
               padding: `2px 6px 2px ${(h.level - minLevel) * 10 + 6}px`,
               fontSize: 11,
               lineHeight: 1.5,
-              color: activeId === h.id ? '#7aa2f7' : '#565f89',
+              color: activeId === h.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              borderLeft: activeId === h.id ? '2px solid #7aa2f7' : '2px solid transparent',
+              borderLeft: activeId === h.id ? '2px solid var(--accent-blue)' : '2px solid transparent',
               fontWeight: h.level <= 2 ? 500 : 400,
               transition: 'color 0.1s',
             }}
             title={h.text}
             onMouseEnter={(e) => {
-              if (activeId !== h.id) e.currentTarget.style.color = '#a9b1d6';
-              e.currentTarget.style.backgroundColor = '#24283b';
+              if (activeId !== h.id) e.currentTarget.style.color = 'var(--text-primary)';
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
             }}
             onMouseLeave={(e) => {
-              if (activeId !== h.id) e.currentTarget.style.color = '#565f89';
+              if (activeId !== h.id) e.currentTarget.style.color = 'var(--text-secondary)';
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >

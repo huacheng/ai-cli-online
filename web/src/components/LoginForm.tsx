@@ -37,7 +37,7 @@ export function LoginForm() {
             height: '56px',
             margin: '0 auto 16px',
             borderRadius: '14px',
-            background: 'linear-gradient(135deg, #7aa2f7 0%, #bb9af7 100%)',
+            background: 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -106,7 +106,7 @@ export function LoginForm() {
               width: '100%',
               padding: '11px',
               background: inputToken.trim()
-                ? 'linear-gradient(135deg, #7aa2f7 0%, #7dcfff 100%)'
+                ? 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%)'
                 : 'var(--bg-hover)',
               color: inputToken.trim() ? 'var(--bg-primary)' : 'var(--text-secondary)',
               border: 'none',

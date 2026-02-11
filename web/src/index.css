@@ -17,45 +17,45 @@
 }
 
 :root, [data-theme="dark"] {
-  --bg-primary: #1a1b26;
-  --bg-secondary: #16161e;
-  --bg-tertiary: #24283b;
-  --bg-hover: #292e42;
-  --border: #292e42;
-  --text-primary: #a9b1d6;
-  --text-secondary: #565f89;
-  --text-bright: #c0caf5;
-  --accent-blue: #7aa2f7;
-  --accent-purple: #bb9af7;
-  --accent-cyan: #7dcfff;
-  --accent-green: #9ece6a;
-  --accent-yellow: #e0af68;
-  --accent-red: #f7768e;
-  --accent-orange: #ff9e64;
-  --scrollbar-thumb: #292e42;
-  --scrollbar-thumb-hover: #414868;
-  --selection-bg: rgba(122, 162, 247, 0.3);
+  --bg-primary: #000000;
+  --bg-secondary: #0c0c0c;
+  --bg-tertiary: #171717;
+  --bg-hover: #1c1c1c;
+  --border: #2d2d2d;
+  --text-primary: #cccccc;
+  --text-secondary: #858585;
+  --text-bright: #e8e8e8;
+  --accent-blue: #569cd6;
+  --accent-purple: #c586c0;
+  --accent-cyan: #4ec9b0;
+  --accent-green: #89d185;
+  --accent-yellow: #cca700;
+  --accent-red: #f44747;
+  --accent-orange: #ce9178;
+  --scrollbar-thumb: rgba(121, 121, 121, 0.4);
+  --scrollbar-thumb-hover: rgba(121, 121, 121, 0.7);
+  --selection-bg: rgba(38, 79, 120, 0.5);
 }
 
 [data-theme="light"] {
-  --bg-primary: #f5f5f5;
-  --bg-secondary: #e8e8e8;
-  --bg-tertiary: #ffffff;
-  --bg-hover: #e0e0e0;
-  --border: #d0d0d0;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-bright: #111111;
-  --accent-blue: #2563eb;
-  --accent-purple: #7c3aed;
-  --accent-cyan: #0891b2;
-  --accent-green: #16a34a;
-  --accent-yellow: #ca8a04;
-  --accent-red: #dc2626;
-  --accent-orange: #ea580c;
-  --scrollbar-thumb: #c0c0c0;
-  --scrollbar-thumb-hover: #a0a0a0;
-  --selection-bg: rgba(37, 99, 235, 0.2);
+  --bg-primary: #faf8f4;
+  --bg-secondary: #f0eee9;
+  --bg-tertiary: #fdfcfa;
+  --bg-hover: #e8e5e0;
+  --border: #d8d4cd;
+  --text-primary: #3b3b3b;
+  --text-secondary: #848484;
+  --text-bright: #1e1e1e;
+  --accent-blue: #005fb8;
+  --accent-purple: #af00db;
+  --accent-cyan: #0e7490;
+  --accent-green: #388a34;
+  --accent-yellow: #bf8803;
+  --accent-red: #cd3131;
+  --accent-orange: #c27d2e;
+  --scrollbar-thumb: rgba(100, 100, 100, 0.3);
+  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.5);
+  --selection-bg: rgba(173, 214, 255, 0.5);
 }
 
 * {
@@ -185,9 +185,9 @@ button:focus-visible {
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   transition: all 0.15s ease;
 }
@@ -251,7 +251,7 @@ button:focus-visible {
 
 /* ── Editor resize divider ── */
 .md-editor-divider {
-  height: 4px;
+  height: 2px;
   background: var(--border);
   cursor: row-resize;
   flex-shrink: 0;
@@ -286,7 +286,7 @@ button:focus-visible {
 }
 
 .plan-divider-h {
-  width: 4px;
+  width: 2px;
   background: var(--border);
   cursor: col-resize;
   flex-shrink: 0;
@@ -732,7 +732,7 @@ body.resizing-panes-h * {
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  height: 34px;
+  height: 28px;
   flex-shrink: 0;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);

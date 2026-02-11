@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、文档浏览器（Markdown/HTML/PDF + Mermaid 图表渲染）、Plan 批注系统（内联新增/编辑/删除）、编辑器面板（多行编辑 + undo 撤销栈 + 斜杠命令 + 草稿持久化）、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（PLAN/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
@@ -35,34 +35,37 @@ ai-cli-online/
 │       └── types.ts      # 类型 re-export
 ├── web/              # 前端应用 (React + Vite)
 │   └── src/
-│       ├── App.tsx           # 主应用组件 (Login / TabBar / Terminal / NetworkIndicator)
-│       ├── store.ts          # Zustand 状态管理 (tabs + terminalsMap + 树形布局)
-│       ├── types.ts          # 类型定义 (LayoutNode, TerminalInstance, TabState)
+│       ├── main.tsx          # React 入口 (ReactDOM.createRoot)
+│       ├── App.tsx           # 主应用组件 (Login / TabBar / Terminal / 主题切换)
+│       ├── store.ts          # Zustand 状态管理 (tabs + terminalsMap + 主题 + 面板状态)
+│       ├── types.ts          # 类型定义 (LayoutNode, TerminalInstance, PanelState)
 │       ├── utils.ts          # 工具函数 (formatSize/formatTime/fileIcon)
-│       ├── index.css         # 全局样式 + xterm.css + resize 光标
+│       ├── fileStreamBus.ts  # 文件流事件总线 (跨组件 chunk/control 分发)
+│       ├── index.css         # 全局样式 + CSS 变量主题 + xterm.css
 │       ├── hooks/
 │       │   ├── useTerminalWebSocket.ts  # WebSocket 二进制协议 + 自动重连 + RTT 测量
+│       │   ├── useFileStream.ts         # 文件流式传输 hook (chunk 接收 + 进度跟踪)
+│       │   ├── useTextareaKit.ts        # Textarea 工具 hook (Tab 缩进 + undo 栈 + 斜杠命令)
 │       │   └── useMermaidRender.ts      # Mermaid 图表渲染 hook (CDN 懒加载 + fallback)
 │       ├── api/
 │       │   ├── client.ts          # API 基础配置 (API_BASE + authHeaders)
-│       │   ├── files.ts           # 文件传输 API (上传/下载/列表)
+│       │   ├── files.ts           # 文件传输 API (上传/下载/列表/touch/mkdir)
 │       │   ├── docs.ts            # 文档内容 API (fetchFileContent, 支持 304)
 │       │   ├── drafts.ts          # 编辑器草稿 API (fetchDraft/saveDraft)
 │       │   ├── settings.ts        # 用户设置 API (字体大小读写)
+│       │   ├── tabs.ts            # Tab 状态 API (布局持久化)
 │       │   └── plans.ts           # 终端命令检测 API (fetchPaneCommand)
 │       └── components/
 │           ├── LoginForm.tsx          # Token 认证表单
 │           ├── TabBar.tsx             # Tab 多标签页栏 (新增/切换/关闭/重命名)
-│           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + CSS 层隔离)
-│           ├── TerminalPane.tsx       # 终端面板 (标题栏 + 上传/下载/分割按钮)
-│           ├── PlanPanel.tsx          # 文档浏览器 (Markdown/HTML/PDF 渲染 + 编辑器)
-│           ├── DocumentPicker.tsx     # 文档选择器 (按扩展名过滤 .md/.html/.pdf, 显示文件大小)
-│           ├── MarkdownRenderer.tsx   # Markdown 渲染器 (Mermaid 图表内联渲染)
-│           ├── MarkdownEditor.tsx     # Markdown 编辑器 (多行编辑 + undo 栈 + 斜杠命令 + 草稿持久化)
+│           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + Dark/Light 双主题)
+│           ├── TerminalPane.tsx       # 终端面板 (2D 网格: [Xterm | Plan] + [Chat])
+│           ├── PlanPanel.tsx          # Plan 批注面板 (内联, PLAN/ 目录多文件批注)
 │           ├── PlanAnnotationRenderer.tsx  # Plan 批注渲染器 (内联批注 + Mermaid 图表)
-│           ├── PdfRenderer.tsx        # PDF 渲染器
+│           ├── PlanFileBrowser.tsx    # Plan 文件浏览器 (PLAN/ 目录树 + 新建文件)
+│           ├── MarkdownEditor.tsx     # Chat 编辑器 (多行编辑 + 斜杠命令 + 草稿持久化)
+│           ├── MarkdownToc.tsx        # Markdown 目录导航 (heading 提取 + 锚点跳转)
 │           ├── ErrorBoundary.tsx      # React 错误边界
-│           ├── FileBrowser.tsx        # 文件浏览器覆盖层 (目录导航 + 下载)
 │           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名/关闭终端)
 │           └── SplitPaneContainer.tsx # 递归布局渲染 (水平/垂直分割)
 ├── start.sh          # 生产启动脚本 (构建 + 启动)
@@ -142,10 +145,22 @@ tabs: TabState[];                                 // Tab 标签页列表
 activeTabId: string;                              // 当前激活的 Tab
 terminalsMap: Record<string, TerminalInstance>;    // O(1) 查找
 latency: number | null;                           // 全局网络延迟 (ms)
+theme: 'dark' | 'light';                          // 全局主题 (持久化 localStorage)
 ```
 
-每个 `TabState` 拥有独立的 `terminalIds` 和 `layout`，Tab 间完全隔离。
+每个 `TerminalInstance` 拥有 `panels: PanelState`，控制 Chat 和 Plan 面板的开关状态：
 
+```typescript
+interface PanelState {
+  chatOpen: boolean;
+  planOpen: boolean;
+}
+```
+
+每个 `TabState` 拥有独立的 `terminalIds`、`layout` 和 `panelStates`，Tab 间完全隔离。
+
+- `toggleChat(id)` / `togglePlan(id)` 独立切换面板，Chat 和 Plan 可同时打开
+- `toggleTheme()` 切换 Dark/Light 主题，同步更新 `document.documentElement.dataset.theme`
 - `setTerminalConnected/Resumed/Error` 仅更新目标终端对象，不触发其他面板重渲染
 - 全局 `latency` 由任意活跃 WebSocket 的 ping/pong RTT 更新
 - Tab 状态通过 `PersistedTabsState` 序列化到 localStorage，刷新后恢复
@@ -290,25 +305,68 @@ latency: number | null;                           // 全局网络延迟 (ms)
 - Tab 状态序列化到 localStorage (`PersistedTabsState`)，刷新后自动恢复
 - 关闭 Tab 时同步销毁所有关联的 tmux session
 
-## 文档浏览器 (DocBrowser)
+## 三区域面板布局
 
-终端面板左侧可打开文档浏览器，支持查看项目文档。
+TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示：
 
-- 支持格式: Markdown (`.md`)、HTML (`.html/.htm`)、PDF (`.pdf`)
-- DocumentPicker 按扩展名过滤 CWD 下的文档文件，显示文件大小（B/KB/MB）
-- Markdown 渲染器 + 编辑器 (多行编辑 + undo 撤销栈 + 斜杠命令，草稿通过 SQLite 服务端持久化)
-- **Mermaid 图表渲染** — Gantt 甘特图、flowchart 流程图等 Mermaid 代码块内联渲染，暗色主题
-  - CDN 懒加载: jsdelivr 主源 + unpkg 备源，加载失败时显示可见错误提示
-  - CSP 白名单: `scriptSrc` 包含 `cdn.jsdelivr.net` 和 `unpkg.com`
-  - 共享 `useMermaidRender` hook，MarkdownRenderer 和 PlanAnnotationRenderer 复用
-- **Plan 批注** — 文档内容内联批注系统
-  - 新增 / 编辑 / 删除批注，持久化存储
-  - 基线过滤 + 防闪烁 + 双实例修复
-- **鼠标选中自动复制 + 右键粘贴** — 终端剪贴板集成
-- PDF 使用独立渲染器组件
-- 文件变更通过 `mtime` 轮询检测（3 秒间隔），支持 304 未修改优化
-- Send 按钮可将编辑器内容发送到终端
-- `/history` 斜杠命令支持查看编辑历史
+```
+[Title bar: 连接状态 | Upload | Chat | Plan | 分割按钮]
+[Main area]
+  ├─ [Top row: flex-direction: row]
+  │   ├─ [Xterm 终端: flex: 1]
+  │   ├─ [水平分隔条: 4px, col-resize]     ← 仅 planOpen 时
+  │   └─ [Plan 面板: planWidthPercent%]     ← 仅 planOpen 时
+  └─ [垂直分隔条: 4px, row-resize]          ← 仅 chatOpen 时
+  └─ [Chat 面板: chatHeightPercent%]         ← 仅 chatOpen 时
+```
+
+### Xterm 终端 (TerminalView)
+
+- xterm.js + WebGL 渲染器，支持 Dark/Light 双主题 (`DARK_XTERM_THEME` / `LIGHT_XTERM_THEME`)
+- 主题跟随全局 `store.theme`，切换时实时更新 `terminal.options.theme`
+- 鼠标选中自动复制到剪贴板，右键粘贴（paste 事件捕获）
+- capture-pane 滚动历史回看覆盖层
+- CSS 层隔离: `contain: strict` + `will-change: transform`
+
+### Plan 批注面板 (PlanPanel)
+
+内联面板（非全屏覆盖层），位于终端右侧，宽度可拖拽调整（20%-80%，持久化 localStorage）。
+
+- **PlanFileBrowser**: 左侧文件树，浏览 PLAN/ 目录下的 `.md` 文件，支持新建文件
+- **PlanAnnotationRenderer**: 中间批注编辑器，Markdown 内容逐行渲染 + 内联批注
+  - 新增批注（InsertZone 点击 + 输入）、编辑批注（双击）、删除批注
+  - 批注持久化到 localStorage (`plan-annotations-${sessionId}-${filePath}`)
+  - Mermaid 图表内联渲染（CDN 懒加载: jsdelivr + unpkg 备源）
+  - 文件切换时记忆/恢复滚动位置
+- **MarkdownToc**: 右侧目录导航，从 Markdown heading 提取锚点
+- 关闭时聚合所有文件的未转发批注 → `onForwardToChat(summary)` 转发到 Chat 编辑器
+- 刷新按钮重新请求当前文件的 file stream
+
+### Chat 编辑器面板 (MarkdownEditor)
+
+底部面板，高度可拖拽调整（15%-60%，持久化 localStorage）。
+
+- 多行 Markdown 编辑器，支持 Tab 缩进、斜杠命令 (`/history`)
+- 草稿通过 SQLite 服务端持久化（`GET/PUT /api/sessions/:sessionId/draft`）
+- `Ctrl+Enter` 发送内容到终端 PTY（合并为单行 + 回车）
+- Send 按钮 + `×` 关闭按钮在 Chat 工具栏
+- Plan 面板关闭时的批注摘要自动填入编辑器（`fillContent`）
+- 鼠标选中自动复制 + 右键粘贴
+
+### 分隔条交互
+
+- **水平分隔条**（Terminal ↔ Plan）: `col-resize` 光标，拖拽调整 `planWidthPercent`
+- **垂直分隔条**（Top row ↔ Chat）: `row-resize` 光标，拖拽调整 `chatHeightPercent`
+- 拖拽时 `document.body.classList.add('resizing-panes')` 防止 iframe/selection 干扰
+- 尺寸持久化到 localStorage (`plan-width-${id}` / `doc-height-${id}`)
+
+## Light/Dark 主题系统
+
+- CSS 变量定义在 `:root, [data-theme="dark"]` 和 `[data-theme="light"]` 两套
+- 19 个语义变量: `--bg-primary`, `--text-primary`, `--accent-blue`, `--border` 等
+- 所有组件内联样式引用 `var(--xxx)`，无硬编码颜色
+- Header 中太阳/月亮按钮切换，状态持久化到 `localStorage 'ai-cli-online-theme'`
+- xterm.js 终端同步切换 Dark/Light 主题对象
 
 ## 编辑器草稿持久化
 

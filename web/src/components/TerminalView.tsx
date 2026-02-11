@@ -13,49 +13,49 @@ export interface TerminalViewHandle {
 }
 
 const DARK_XTERM_THEME = {
-  background: '#1a1b26',
-  foreground: '#a9b1d6',
-  cursor: '#c0caf5',
-  selectionBackground: 'rgba(122, 162, 247, 0.3)',
-  black: '#15161e',
-  red: '#f7768e',
-  green: '#9ece6a',
-  yellow: '#e0af68',
-  blue: '#7aa2f7',
-  magenta: '#bb9af7',
-  cyan: '#7dcfff',
-  white: '#a9b1d6',
-  brightBlack: '#414868',
-  brightRed: '#f7768e',
-  brightGreen: '#9ece6a',
-  brightYellow: '#e0af68',
-  brightBlue: '#7aa2f7',
-  brightMagenta: '#bb9af7',
-  brightCyan: '#7dcfff',
-  brightWhite: '#c0caf5',
+  background: '#000000',
+  foreground: '#cccccc',
+  cursor: '#aeafad',
+  selectionBackground: 'rgba(38, 79, 120, 0.5)',
+  black: '#000000',
+  red: '#cd3131',
+  green: '#0dbc79',
+  yellow: '#e5e510',
+  blue: '#2472c8',
+  magenta: '#bc3fbc',
+  cyan: '#11a8cd',
+  white: '#e5e5e5',
+  brightBlack: '#666666',
+  brightRed: '#f14c4c',
+  brightGreen: '#23d18b',
+  brightYellow: '#f5f543',
+  brightBlue: '#3b8eea',
+  brightMagenta: '#d670d6',
+  brightCyan: '#29b8db',
+  brightWhite: '#e5e5e5',
 };
 
 const LIGHT_XTERM_THEME = {
-  background: '#f5f5f5',
-  foreground: '#333333',
-  cursor: '#111111',
-  selectionBackground: 'rgba(37, 99, 235, 0.2)',
+  background: '#faf8f4',
+  foreground: '#3b3b3b',
+  cursor: '#1e1e1e',
+  selectionBackground: 'rgba(173, 214, 255, 0.5)',
   black: '#000000',
-  red: '#dc2626',
-  green: '#16a34a',
-  yellow: '#ca8a04',
-  blue: '#2563eb',
-  magenta: '#7c3aed',
-  cyan: '#0891b2',
-  white: '#333333',
+  red: '#cd3131',
+  green: '#00bc00',
+  yellow: '#949800',
+  blue: '#0451a5',
+  magenta: '#bc05bc',
+  cyan: '#0598bc',
+  white: '#555555',
   brightBlack: '#666666',
-  brightRed: '#dc2626',
-  brightGreen: '#16a34a',
-  brightYellow: '#ca8a04',
-  brightBlue: '#2563eb',
-  brightMagenta: '#7c3aed',
-  brightCyan: '#0891b2',
-  brightWhite: '#111111',
+  brightRed: '#cd3131',
+  brightGreen: '#14ce14',
+  brightYellow: '#b5ba00',
+  brightBlue: '#0451a5',
+  brightMagenta: '#bc05bc',
+  brightCyan: '#0598bc',
+  brightWhite: '#a5a5a5',
 };
 
 const FONT_FAMILY = "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace";
@@ -162,12 +162,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       const el = document.createElement('div');
       el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;
         display:flex;align-items:center;gap:4px;padding:4px 6px;
-        background:#24283b;border:1px solid #414868;border-radius:4px;
+        background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;
         box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
       // Hidden textarea to capture paste events (no clipboard-read permission needed)
       const ta = document.createElement('textarea');
-      ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;
-        border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;
+      ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);
+        border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;
         font-family:inherit;padding:2px 4px;outline:none;`;
       ta.placeholder = 'Ctrl+V';
       ta.addEventListener('paste', (ev) => {
@@ -254,7 +254,30 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     });
 
     // ResizeObserver for auto-fit (rAF-aligned for smooth resizing)
+    let dragFitPending = false;
     resizeObserver = new ResizeObserver(() => {
+      // During pane divider drag, skip fit to avoid xterm line-rewrap flicker.
+      // A single fit is performed on mouseup instead.
+      const isDragging = document.body.classList.contains('resizing-panes') ||
+                         document.body.classList.contains('resizing-panes-v');
+      if (isDragging) {
+        if (!dragFitPending) {
+          dragFitPending = true;
+          const onDragEnd = () => {
+            document.removeEventListener('mouseup', onDragEnd);
+            dragFitPending = false;
+            requestAnimationFrame(() => {
+              try {
+                fitAddon.fit();
+                sendResizeRef.current(terminal.cols, terminal.rows);
+              } catch { /* ignore */ }
+            });
+          };
+          document.addEventListener('mouseup', onDragEnd);
+        }
+        return;
+      }
+
       if (rafId) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;

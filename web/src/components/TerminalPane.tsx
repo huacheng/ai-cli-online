@@ -37,9 +37,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const token = useStore((s) => s.token);
   const toggleChat = useStore((s) => s.toggleChat);
   const togglePlan = useStore((s) => s.togglePlan);
-  const toggleTheme = useStore((s) => s.toggleTheme);
-  const theme = useStore((s) => s.theme);
-
   const { chatOpen, planOpen } = terminal.panels;
 
   const handleSplit = useCallback(async (direction: 'horizontal' | 'vertical') => {
@@ -204,17 +201,17 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         backgroundColor: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border)',
         flexShrink: 0,
-        height: '28px',
+        height: '24px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span style={{
             display: 'inline-block',
-            width: '7px',
-            height: '7px',
+            width: '6px',
+            height: '6px',
             borderRadius: '50%',
             backgroundColor: terminal.connected ? 'var(--accent-green)' : 'var(--accent-red)',
           }} />
-          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
             {terminal.id}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')
@@ -259,15 +256,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             Plan
           </button>
-          {/* Theme toggle */}
-          <button
-            className="pane-btn"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? '\u2600' : '\u263E'}
-          </button>
           <button
             className="pane-btn"
             onClick={() => handleSplit(isNarrow ? 'vertical' : 'horizontal')}
@@ -301,7 +289,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: 'rgba(26, 27, 38, 0.85)',
+                backgroundColor: 'var(--bg-secondary)',
+                opacity: 0.85,
                 zIndex: 2,
                 pointerEvents: 'none',
               }}>
@@ -319,7 +308,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 className="md-editor-divider-h"
                 onMouseDown={handlePlanDividerMouseDown}
                 style={{
-                  width: '4px',
+                  width: '2px',
                   flexShrink: 0,
                   cursor: 'col-resize',
                   backgroundColor: 'var(--border)',
@@ -357,7 +346,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0 8px',
-                height: '26px',
+                height: '22px',
                 flexShrink: 0,
                 backgroundColor: 'var(--bg-secondary)',
                 borderBottom: '1px solid var(--border)',
@@ -372,7 +361,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                   >
                     Send
                   </button>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
+                  <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
                 </div>
                 <button
                   className="pane-btn pane-btn--danger"
@@ -401,7 +390,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
       {terminal.error && (
         <div style={{
           padding: '2px 8px',
-          backgroundColor: '#3b2029',
+          backgroundColor: 'var(--bg-secondary)',
           borderTop: '1px solid var(--accent-red)',
           color: 'var(--accent-red)',
           fontSize: '11px',

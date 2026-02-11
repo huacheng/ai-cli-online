@@ -258,7 +258,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       {/* Plan toolbar */}
       <div className="doc-expanded-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-          <span style={{ fontSize: '13px', color: 'var(--accent-purple)', fontWeight: 500 }}>
+          <span style={{ fontSize: '11px', color: 'var(--accent-purple)', fontWeight: 500 }}>
             Plan: PLAN/{planSelectedFile ? planSelectedFile.split('/').pop() : ''}
           </span>
           <button

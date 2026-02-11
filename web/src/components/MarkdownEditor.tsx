@@ -292,9 +292,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const showPasteFloat = useCallback((x: number, y: number) => {
     removePasteFloat();
     const el = document.createElement('div');
-    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:#24283b;border:1px solid #414868;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
+    el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:inherit;`;
     const ta = document.createElement('textarea');
-    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid #414868;border-radius:3px;background:#1a1b26;color:#a9b1d6;font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
+    ta.style.cssText = `width:90px;height:22px;resize:none;border:1px solid var(--border);border-radius:3px;background:var(--bg-primary);color:var(--text-primary);font-size:11px;font-family:inherit;padding:2px 4px;outline:none;`;
     ta.placeholder = 'Ctrl+V';
     ta.addEventListener('paste', (ev) => {
       ev.preventDefault();
