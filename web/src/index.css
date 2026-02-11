@@ -798,6 +798,9 @@ body.resizing-panes-h * {
 .plan-insert-zone:hover .plan-insert-btn {
   display: flex;
 }
+.plan-anno-content--editing .plan-insert-zone:hover .plan-insert-btn {
+  display: none;
+}
 
 .plan-empty-placeholder {
   display: flex;

@@ -722,7 +722,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       {/* Annotatable content */}
       <div
         ref={containerRef}
-        className="plan-anno-content md-preview"
+        className={`plan-anno-content md-preview${activeInsert != null ? ' plan-anno-content--editing' : ''}`}
         style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
         onMouseUp={handleSelectionCheck}
         onContextMenu={handleContentContextMenu}
