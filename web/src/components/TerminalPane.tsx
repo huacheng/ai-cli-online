@@ -203,10 +203,10 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             Chat
           </button>
-          {/* Plan mode toggle */}
+          {/* Plan mode toggle (fullscreen overlay) */}
           <button
             className={`pane-btn${terminal.panelMode === 'plan' ? ' pane-btn--active' : ''}`}
-            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'plan' ? 'none' : 'plan')}
+            onClick={() => setTerminalPanelMode(terminal.id, terminal.panelMode === 'plan' ? 'chat' : 'plan')}
             title="Toggle Plan annotation mode"
             aria-label="Toggle Plan annotation mode"
           >

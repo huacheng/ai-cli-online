@@ -324,14 +324,21 @@ async function main() {
     if (!sessionName) return;
     try {
       const { name } = req.body as { name?: string };
-      if (!name || typeof name !== 'string' || name.includes('/') || name.includes('..')) {
+      if (!name || typeof name !== 'string' || name.includes('..')) {
         res.status(400).json({ error: 'Invalid filename' });
         return;
       }
       const cwd = await getCwd(sessionName);
       const fullPath = join(cwd, name);
-      await writeFile(fullPath, '', { flag: 'wx' }); // create exclusively
-      res.json({ ok: true, path: fullPath });
+      const resolved = await validatePath(fullPath, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      // Ensure parent directory exists (supports paths like "PLAN/INDEX.md")
+      await mkdir(dirname(resolved), { recursive: true });
+      await writeFile(resolved, '', { flag: 'wx' }); // create exclusively
+      res.json({ ok: true, path: resolved });
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'code' in err && err.code === 'EEXIST') {
         const cwd = await getCwd(sessionName).catch(() => '');
@@ -340,6 +347,32 @@ async function main() {
         console.error(`[api:touch] ${sessionName}:`, err);
         res.status(500).json({ error: 'Failed to create file' });
       }
+    }
+  });
+
+  // --- Mkdir (create directory) API ---
+
+  app.post('/api/sessions/:sessionId/mkdir', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const { path: dirPath } = req.body as { path?: string };
+      if (!dirPath || typeof dirPath !== 'string' || dirPath.includes('..')) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      const cwd = await getCwd(sessionName);
+      const fullPath = join(cwd, dirPath);
+      const resolved = await validatePath(fullPath, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      await mkdir(resolved, { recursive: true });
+      res.json({ ok: true, path: resolved });
+    } catch (err) {
+      console.error(`[api:mkdir] ${sessionName}:`, err);
+      res.status(500).json({ error: 'Failed to create directory' });
     }
   });
 

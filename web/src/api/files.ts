@@ -78,6 +78,19 @@ export async function touchFile(token: string, sessionId: string, name: string):
   return res.json();
 }
 
+export async function mkdirPath(token: string, sessionId: string, path: string): Promise<{ ok: boolean; path: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/mkdir`,
+    {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    },
+  );
+  if (!res.ok) throw new Error('Failed to create directory');
+  return res.json();
+}
+
 export async function downloadFile(token: string, sessionId: string, filePath: string): Promise<void> {
   const res = await fetch(
     `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download?path=${encodeURIComponent(filePath)}`,

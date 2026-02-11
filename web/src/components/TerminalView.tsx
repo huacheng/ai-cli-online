@@ -124,12 +124,55 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
 
     // Right-click paste from clipboard into terminal
     const xtermEl = terminal.element;
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
+    let pasteFloatEl: HTMLDivElement | null = null;
+    let pasteFloatTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const removePasteFloat = () => {
+      if (pasteFloatTimer) { clearTimeout(pasteFloatTimer); pasteFloatTimer = null; }
+      if (pasteFloatEl) { pasteFloatEl.remove(); pasteFloatEl = null; }
+    };
+
+    const doPaste = () => {
       navigator.clipboard.readText().then((text) => {
         if (text) sendInputRef.current(text);
-      }).catch(() => {});
+        removePasteFloat();
+      }).catch(() => { removePasteFloat(); });
     };
+
+    const showPasteFloat = (x: number, y: number) => {
+      removePasteFloat();
+      const el = document.createElement('div');
+      el.textContent = 'Paste';
+      el.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:1000;
+        padding:4px 12px;background:#24283b;color:#7aa2f7;border:1px solid #414868;
+        border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;
+        box-shadow:0 2px 8px rgba(0,0,0,0.4);user-select:none;`;
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); doPaste(); });
+      el.addEventListener('mouseenter', () => { el.style.background = '#292e42'; });
+      el.addEventListener('mouseleave', () => { el.style.background = '#24283b'; });
+      document.body.appendChild(el);
+      pasteFloatEl = el;
+      pasteFloatTimer = setTimeout(removePasteFloat, 3000);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      removePasteFloat();
+      if (!navigator.clipboard?.readText) {
+        showPasteFloat(e.clientX, e.clientY);
+        return;
+      }
+      navigator.clipboard.readText().then((text) => {
+        if (text) sendInputRef.current(text);
+      }).catch(() => {
+        // Clipboard API failed (permission denied) — show fallback paste button
+        showPasteFloat(e.clientX, e.clientY);
+      });
+    };
+
+    // Dismiss paste float on click elsewhere
+    const handleDocClick = () => removePasteFloat();
+    document.addEventListener('click', handleDocClick);
     if (xtermEl) xtermEl.addEventListener('contextmenu', handleContextMenu);
 
     // Fit terminal to container, retrying until container has valid dimensions
@@ -199,6 +242,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       if (rafId) cancelAnimationFrame(rafId);
       if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
       if (resizeObserver) resizeObserver.disconnect();
+      removePasteFloat();
+      document.removeEventListener('click', handleDocClick);
       if (xtermEl) xtermEl.removeEventListener('contextmenu', handleContextMenu);
       if (terminalRef.current) {
         terminalRef.current.dispose();

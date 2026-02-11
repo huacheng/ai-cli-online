@@ -1,33 +1,53 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useStore } from '../store';
 import { useMermaidRender } from '../hooks/useMermaidRender';
-import { MarkdownToc, extractHeadings, addHeadingIds } from './MarkdownToc';
 
 interface MarkdownRendererProps {
   content: string;
+  /** When provided, scroll position is persisted to localStorage under this key */
+  scrollStorageKey?: string;
 }
 
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, scrollStorageKey }: MarkdownRendererProps) {
   const fontSize = useStore((s) => s.fontSize);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const headings = useMemo(() => extractHeadings(content), [content]);
-
   // Content is sanitized with DOMPurify before rendering — safe against XSS
-  // addHeadingIds injects id= attributes on <h1>-<h6> for TOC scroll-to
   const html = useMemo(() => {
     if (!content) return '';
     const raw = marked.parse(content, { async: false }) as string;
-    const sanitized = DOMPurify.sanitize(raw, {
+    return DOMPurify.sanitize(raw, {
       ADD_TAGS: ['img'],
-      ADD_ATTR: ['src', 'alt', 'title', 'width', 'height', 'id'],
+      ADD_ATTR: ['src', 'alt', 'title', 'width', 'height'],
     });
-    return addHeadingIds(sanitized);
   }, [content]);
 
   useMermaidRender(containerRef, html);
+
+  // Persist scroll position to localStorage on unmount
+  useEffect(() => {
+    const key = scrollStorageKey;
+    const el = containerRef.current;
+    return () => {
+      if (key && el && el.scrollTop > 0) {
+        try { localStorage.setItem(key, String(Math.round(el.scrollTop))); } catch { /* full */ }
+      }
+    };
+  }, [scrollStorageKey]);
+
+  // Restore scroll position after content renders
+  useEffect(() => {
+    if (!scrollStorageKey || !html) return;
+    const saved = localStorage.getItem(scrollStorageKey);
+    if (saved) {
+      requestAnimationFrame(() => {
+        const el = containerRef.current;
+        if (el) el.scrollTop = Number(saved);
+      });
+    }
+  }, [scrollStorageKey, html]);
 
   if (!content) {
     return (
@@ -46,14 +66,11 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   }
 
   return (
-    <div style={{ position: 'relative', height: '100%' }}>
-      <div
-        ref={containerRef}
-        className="md-preview"
-        style={{ height: '100%', overflowY: 'auto', userSelect: 'text', padding: '12px 16px', fontSize: `${fontSize}px` }}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-      <MarkdownToc headings={headings} scrollRef={containerRef} />
-    </div>
+    <div
+      ref={containerRef}
+      className="md-preview"
+      style={{ overflowY: 'auto', userSelect: 'text', padding: '12px 16px', fontSize: `${fontSize}px`, height: '100%' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

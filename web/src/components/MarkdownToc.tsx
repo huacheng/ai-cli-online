@@ -7,7 +7,7 @@ export interface TocItem {
 }
 
 /** Generate a URL-safe slug from plain text */
-function toSlug(text: string, slugCount: Map<string, number>): string {
+export function toSlug(text: string, slugCount: Map<string, number>): string {
   let slug = text
     .replace(/<[^>]*>/g, '')
     .trim()
@@ -24,7 +24,7 @@ function toSlug(text: string, slugCount: Map<string, number>): string {
 }
 
 /** Strip inline markdown formatting to get plain text */
-function stripInlineMarkdown(text: string): string {
+export function stripInlineMarkdown(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/__(.+?)__/g, '$1')
@@ -79,6 +79,7 @@ interface MarkdownTocProps {
 }
 
 const TOC_WIDTH = 160;
+const TOC_COLLAPSED_WIDTH = 22;
 
 export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -157,96 +158,125 @@ export function MarkdownToc({ headings, scrollRef }: MarkdownTocProps) {
 
   if (headings.length < 2) return null;
 
-  return (
-    <>
-      {/* Toggle button */}
-      <button
-        onClick={handleToggle}
-        title={collapsed ? 'Show table of contents' : 'Hide table of contents'}
-        style={{
-          position: 'absolute',
-          right: collapsed ? 4 : TOC_WIDTH + 2,
-          top: 4,
-          zIndex: 5,
-          background: '#16161e',
-          border: '1px solid #292e42',
-          borderRadius: 3,
-          color: '#565f89',
-          fontSize: 12,
-          padding: '1px 5px',
-          cursor: 'pointer',
-          lineHeight: '18px',
-          transition: 'right 0.15s ease',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = '#7aa2f7'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
-      >
-        {collapsed ? '\u2630' : '\u00AB'}
-      </button>
-
-      {/* TOC panel */}
-      {!collapsed && (
-        <div
-          ref={tocRef}
+  // Collapsed: narrow strip with toggle button
+  if (collapsed) {
+    return (
+      <div style={{
+        width: TOC_COLLAPSED_WIDTH,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        paddingTop: 4,
+        borderLeft: '1px solid #292e42',
+        backgroundColor: '#16161e',
+      }}>
+        <button
+          onClick={handleToggle}
+          title="Show table of contents"
           style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: TOC_WIDTH,
-            backgroundColor: '#16161ef0',
-            borderLeft: '1px solid #292e42',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            padding: '28px 4px 8px',
-            zIndex: 4,
+            background: 'none',
+            border: 'none',
+            color: '#565f89',
+            fontSize: 13,
+            cursor: 'pointer',
+            padding: '2px',
+            lineHeight: 1,
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#7aa2f7'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
         >
-          <div style={{
-            fontSize: 10,
-            color: '#414868',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            padding: '0 4px 4px',
-            borderBottom: '1px solid #292e42',
-            marginBottom: 4,
-          }}>
-            Contents
+          {'\u2630'}
+        </button>
+      </div>
+    );
+  }
+
+  // Expanded: full TOC panel
+  return (
+    <div
+      ref={tocRef}
+      style={{
+        width: TOC_WIDTH,
+        flexShrink: 0,
+        borderLeft: '1px solid #292e42',
+        backgroundColor: '#16161e',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Header row */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '4px 6px',
+        borderBottom: '1px solid #292e42',
+        flexShrink: 0,
+      }}>
+        <span style={{
+          fontSize: 10,
+          color: '#414868',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          Contents
+        </span>
+        <button
+          onClick={handleToggle}
+          title="Hide table of contents"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#565f89',
+            fontSize: 12,
+            cursor: 'pointer',
+            padding: '0 2px',
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#7aa2f7'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#565f89'; }}
+        >
+          {'\u00BB'}
+        </button>
+      </div>
+
+      {/* Heading items */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+        {headings.map((h, i) => (
+          <div
+            key={`${h.id}-${i}`}
+            data-toc-id={h.id}
+            onClick={() => handleClick(h.id)}
+            style={{
+              padding: `2px 6px 2px ${(h.level - minLevel) * 10 + 6}px`,
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: activeId === h.id ? '#7aa2f7' : '#565f89',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              borderLeft: activeId === h.id ? '2px solid #7aa2f7' : '2px solid transparent',
+              fontWeight: h.level <= 2 ? 500 : 400,
+              transition: 'color 0.1s',
+            }}
+            title={h.text}
+            onMouseEnter={(e) => {
+              if (activeId !== h.id) e.currentTarget.style.color = '#a9b1d6';
+              e.currentTarget.style.backgroundColor = '#24283b';
+            }}
+            onMouseLeave={(e) => {
+              if (activeId !== h.id) e.currentTarget.style.color = '#565f89';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            {h.text}
           </div>
-          {headings.map((h, i) => (
-            <div
-              key={`${h.id}-${i}`}
-              data-toc-id={h.id}
-              onClick={() => handleClick(h.id)}
-              style={{
-                padding: `2px 4px 2px ${(h.level - minLevel) * 10 + 4}px`,
-                fontSize: 11,
-                lineHeight: 1.5,
-                color: activeId === h.id ? '#7aa2f7' : '#565f89',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                borderRadius: 3,
-                borderLeft: activeId === h.id ? '2px solid #7aa2f7' : '2px solid transparent',
-                fontWeight: h.level <= 2 ? 500 : 400,
-                transition: 'color 0.1s',
-              }}
-              title={h.text}
-              onMouseEnter={(e) => {
-                if (activeId !== h.id) e.currentTarget.style.color = '#a9b1d6';
-                e.currentTarget.style.backgroundColor = '#24283b';
-              }}
-              onMouseLeave={(e) => {
-                if (activeId !== h.id) e.currentTarget.style.color = '#565f89';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              {h.text}
-            </div>
-          ))}
-        </div>
-      )}
-    </>
+        ))}
+      </div>
+    </div>
   );
 }

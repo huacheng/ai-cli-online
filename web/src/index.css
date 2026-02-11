@@ -896,3 +896,140 @@ body.resizing-panes-h * {
   font-size: 11px;
   flex-shrink: 0;
 }
+
+/* ── Plan File Browser ── */
+.plan-file-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 180px;
+  flex-shrink: 0;
+  border-right: 1px solid #292e42;
+  background: #16161e;
+  overflow: hidden;
+}
+
+.plan-file-browser__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  height: 28px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #292e42;
+}
+
+.plan-file-browser__title {
+  font-size: 11px;
+  color: #bb9af7;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.plan-file-browser__list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 0;
+}
+
+.plan-file-browser__status {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #565f89;
+  font-style: italic;
+}
+
+.plan-file-browser__item {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  gap: 5px;
+  transition: background 0.1s ease;
+  border-left: 2px solid transparent;
+}
+
+.plan-file-browser__item:hover {
+  background: #24283b;
+}
+
+.plan-file-browser__item--active {
+  background: rgba(122, 162, 247, 0.1);
+  border-left-color: #7aa2f7;
+}
+
+.plan-file-browser__item--active .plan-file-browser__name {
+  color: #c0caf5;
+}
+
+.plan-file-browser__icon {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 10px;
+  color: #565f89;
+  text-align: center;
+}
+
+.plan-file-browser__name {
+  flex: 1;
+  color: #a9b1d6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.plan-file-browser__size {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: #414868;
+  white-space: nowrap;
+}
+
+.plan-file-browser__create {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-top: 1px solid #292e42;
+  flex-shrink: 0;
+}
+
+.plan-file-browser__input {
+  flex: 1;
+  min-width: 0;
+  background: #1a1b26;
+  border: 1px solid #292e42;
+  color: #a9b1d6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.plan-file-browser__input:focus {
+  border-color: #7aa2f7;
+}
+
+.plan-file-browser__input::placeholder {
+  color: #414868;
+  font-style: italic;
+}
+
+/* ── Plan Overlay Three-Column Layout ── */
+.plan-overlay-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.plan-overlay-center {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}

@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { useStore } from '../store';
 import { useTextareaUndo, handleTabKey, handleCtrlZ, autoRows } from '../hooks/useTextareaKit';
 import { useMermaidRender } from '../hooks/useMermaidRender';
+import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
 
 /* ── Data Types ── */
 
@@ -91,6 +92,21 @@ export function generateSummary(
   return '请根据以下用户批注修改 PLAN.md:\n\n' + parts.join('\n');
 }
 
+/** Generate aggregated summary across multiple PLAN/ files */
+export function generateMultiFileSummary(
+  fileAnnotations: Array<{ filePath: string; annotations: PlanAnnotations; sourceLines: string[] }>
+): string {
+  const sections: string[] = [];
+  for (const { filePath, annotations, sourceLines } of fileAnnotations) {
+    const summary = generateSummary(annotations, sourceLines);
+    if (!summary) continue;
+    const fileName = filePath.split('/').pop() || filePath;
+    sections.push(`## ${fileName}\n\n${summary}`);
+  }
+  if (sections.length === 0) return '';
+  return '请根据以下用户批注修改 PLAN/ 目录下的文件:\n\n' + sections.join('\n\n');
+}
+
 /* ── Component ── */
 
 export interface PlanAnnotationRendererHandle {
@@ -118,17 +134,33 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
 
   const sourceLines = useMemo(() => markdown.split('\n'), [markdown]);
 
-  // Baseline: map annotation ID → original content, to detect edits via content diff
-  const baselineContentRef = useRef<Map<string, string>>(new Map());
+  // TOC: extract headings from markdown + map token indices to heading slugs
+  const headings = useMemo(() => extractHeadings(markdown), [markdown]);
+  const headingIdMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const slugCount = new Map<string, number>();
+    tokens.forEach((token, i) => {
+      if (token.type === 'heading') {
+        const text = stripInlineMarkdown(((token as { text?: string }).text || ''));
+        const slug = toSlug(text, slugCount);
+        map.set(i, slug);
+      }
+    });
+    return map;
+  }, [tokens]);
+
+  // Baseline: set of annotation IDs that have already been forwarded
+  // Editing an annotation generates a new ID, so new/modified ones won't be in the baseline
+  const baselineIdsRef = useRef<Set<string>>(new Set());
   const [annotations, setAnnotations] = useState<PlanAnnotations>(() => {
     try {
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
       const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
-      // Capture initial baseline content
-      const map = new Map<string, string>();
-      parsed.additions.forEach((a) => map.set(a.id, a.content));
-      parsed.deletions.forEach((d) => map.set(d.id, d.selectedText));
-      baselineContentRef.current = map;
+      // Capture initial baseline IDs
+      const ids = new Set<string>();
+      parsed.additions.forEach((a) => ids.add(a.id));
+      parsed.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
       return parsed;
     } catch { return EMPTY_ANNOTATIONS; }
   });
@@ -158,15 +190,15 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       const saved = localStorage.getItem(storageKey(sessionId, filePath));
       const parsed: PlanAnnotations = saved ? JSON.parse(saved) : EMPTY_ANNOTATIONS;
       setAnnotations(parsed);
-      // Capture baseline content for diff-based detection
-      const map = new Map<string, string>();
-      parsed.additions.forEach((a) => map.set(a.id, a.content));
-      parsed.deletions.forEach((d) => map.set(d.id, d.selectedText));
-      baselineContentRef.current = map;
+      // Capture baseline IDs
+      const ids = new Set<string>();
+      parsed.additions.forEach((a) => ids.add(a.id));
+      parsed.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
       historyRef.current = [];
     } catch {
       setAnnotations(EMPTY_ANNOTATIONS);
-      baselineContentRef.current = new Map();
+      baselineIdsRef.current = new Set();
     }
   }, [sessionId, filePath]);
 
@@ -243,13 +275,13 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }));
   }, [pushHistory]);
 
-  // Edit an existing addition annotation
+  // Edit an existing addition annotation — assign new ID so it's detected as new vs baseline
   const handleEditAddition = useCallback((id: string, newContent: string) => {
     pushHistory();
     setAnnotations((prev) => ({
       ...prev,
       additions: prev.additions.map((a) =>
-        a.id === id ? { ...a, content: newContent } : a
+        a.id === id ? { ...a, id: uid(), content: newContent } : a
       ),
     }));
   }, [pushHistory]);
@@ -281,13 +313,13 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     }));
   }, [pushHistory]);
 
-  // Edit a deletion annotation's selected text
+  // Edit a deletion annotation's selected text — assign new ID so it's detected as new vs baseline
   const handleEditDeletion = useCallback((id: string, newText: string) => {
     pushHistory();
     setAnnotations((prev) => ({
       ...prev,
       deletions: prev.deletions.map((d) =>
-        d.id === id ? { ...d, selectedText: newText } : d
+        d.id === id ? { ...d, id: uid(), selectedText: newText } : d
       ),
     }));
   }, [pushHistory]);
@@ -392,12 +424,12 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Filter: include new annotations (not in baseline) or modified ones (content differs)
+  // Filter: include annotations whose ID is not in baseline (new or edited → new ID)
   const getNewAnnotations = useCallback((): PlanAnnotations => {
-    const bl = baselineContentRef.current;
+    const bl = baselineIdsRef.current;
     return {
-      additions: annotations.additions.filter((a) => !bl.has(a.id) || bl.get(a.id) !== a.content),
-      deletions: annotations.deletions.filter((d) => !bl.has(d.id) || bl.get(d.id) !== d.selectedText),
+      additions: annotations.additions.filter((a) => !bl.has(a.id)),
+      deletions: annotations.deletions.filter((d) => !bl.has(d.id)),
     };
   }, [annotations]);
 
@@ -406,11 +438,11 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     const summary = generateSummary(getNewAnnotations(), sourceLines);
     if (summary) {
       onExecute(summary);
-      // Update baseline to current content (mark as forwarded)
-      const map = new Map<string, string>();
-      annotations.additions.forEach((a) => map.set(a.id, a.content));
-      annotations.deletions.forEach((d) => map.set(d.id, d.selectedText));
-      baselineContentRef.current = map;
+      // Update baseline to current IDs (mark as forwarded)
+      const ids = new Set<string>();
+      annotations.additions.forEach((a) => ids.add(a.id));
+      annotations.deletions.forEach((d) => ids.add(d.id));
+      baselineIdsRef.current = ids;
     }
   }, [getNewAnnotations, annotations, sourceLines, onExecute]);
 
@@ -478,11 +510,13 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         )}
       </div>
 
+      {/* Content + TOC */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {/* Annotatable content */}
       <div
         ref={containerRef}
         className="plan-anno-content md-preview"
-        style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px` }}
+        style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
         onMouseUp={handleSelectionCheck}
       >
         {/* Insert zone before first block */}
@@ -510,6 +544,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
               {/* Token block */}
               <div
                 data-token-index={i}
+                id={headingIdMap.get(i)}
                 className={deletedIndices.has(i) ? 'plan-block--deleted' : undefined}
                 dangerouslySetInnerHTML={{ __html: html }}
               />
@@ -602,6 +637,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
             &minus;
           </button>
         )}
+      </div>
+      {/* TOC sidebar */}
+      <MarkdownToc headings={headings} scrollRef={containerRef} />
       </div>
     </div>
   );
