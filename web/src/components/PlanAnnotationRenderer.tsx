@@ -143,30 +143,30 @@ function surroundingContext(
 function buildAnnotationJson(
   annotations: PlanAnnotations,
   sourceLines: string[],
-): { 'Insert Annotations': string[]; 'Delete Annotations': string[]; 'Replace Annotations': string[]; 'Comment Annotations': string[] } {
-  const insertAnns: string[] = [];
-  const deleteAnns: string[] = [];
-  const replaceAnns: string[] = [];
-  const commentAnns: string[] = [];
+): { 'Insert Annotations': string[][]; 'Delete Annotations': string[][]; 'Replace Annotations': string[][]; 'Comment Annotations': string[][] } {
+  const insertAnns: string[][] = [];
+  const deleteAnns: string[][] = [];
+  const replaceAnns: string[][] = [];
+  const commentAnns: string[][] = [];
 
   for (const a of annotations.additions) {
     const { before, after } = surroundingContext(sourceLines, a.sourceLine, a.sourceLine);
-    insertAnns.push(`Line${a.sourceLine}: ...${before}, ${a.content}, ${after}...`);
+    insertAnns.push([`Line${a.sourceLine}:...${before}`, a.content, `${after}...`]);
   }
 
   for (const d of annotations.deletions) {
     const { before, after } = surroundingContext(sourceLines, d.startLine, d.endLine, d.selectedText);
-    deleteAnns.push(`Line${d.startLine}: ...${before}, ${d.selectedText}, ${after}...`);
+    deleteAnns.push([`Line${d.startLine}:...${before}`, d.selectedText, `${after}...`]);
   }
 
   for (const r of annotations.replacements) {
     const { before, after } = surroundingContext(sourceLines, r.startLine, r.endLine, r.selectedText);
-    replaceAnns.push(`Line${r.startLine}: ...${before}, ${r.selectedText}, ${r.content}, ${after}...`);
+    replaceAnns.push([`Line${r.startLine}:...${before}`, r.selectedText, r.content, `${after}...`]);
   }
 
   for (const c of annotations.comments) {
     const { before, after } = surroundingContext(sourceLines, c.startLine, c.endLine, c.selectedText);
-    commentAnns.push(`Line${c.startLine}: ...${before}, ${c.selectedText}, ${c.content}, ${after}...`);
+    commentAnns.push([`Line${c.startLine}:...${before}`, c.selectedText, c.content, `${after}...`]);
   }
 
   return {
