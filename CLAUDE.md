@@ -356,7 +356,12 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
   - Mermaid 图表内联渲染（CDN 懒加载: jsdelivr + unpkg 备源）
   - 文件切换时记忆/恢复滚动位置
 - **MarkdownToc**: 右侧目录导航，从 Markdown heading 提取锚点
-- 批注 Send 生成 `/aicli-task-review` 命令发送到终端，JSON 包含 4 种 Annotations 数组
+- 批注 Send 生成 `/aicli-task-review` 命令发送到终端，JSON 包含 4 种 Annotations 数组（`string[][]`）:
+  - Insert (3 元素): `["Line{N}:...before20chars", "content", "after20chars..."]`
+  - Delete (3 元素): `["Line{N}:...before20chars", "selectedText", "after20chars..."]`
+  - Replace (4 元素): `["Line{N}:...before20chars", "selectedText", "replacement", "after20chars..."]`
+  - Comment (4 元素): `["Line{N}:...before20chars", "selectedText", "comment", "after20chars..."]`
+  - context_before 含行号前缀，context_after 含省略后缀，换行符显示为 `↵`
 - 关闭时聚合所有文件的未转发批注 → `onForwardToChat(summary)` 转发到 Chat 编辑器
 - 刷新按钮重新请求当前文件的 file stream
 
