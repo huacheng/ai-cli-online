@@ -32,6 +32,7 @@
 - **网络指示器** — 实时 RTT 延迟显示 + 信号条
 - **自动重连** — 指数退避 + jitter 防雷群效应
 - **安全认证** — Token 认证 + timing-safe 比较
+- **安全加固** — symlink 穿越防护、未认证 WebSocket 连接限制、TOCTOU 下载防护、CSP Headers (frame-ancestors / base-uri / form-action)
 
 ## 功能对比：AI-Cli Online vs OpenClaw
 

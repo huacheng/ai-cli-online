@@ -32,6 +32,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Network Indicator** — real-time RTT latency display with signal bars
 - **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
 - **Secure Auth** — token authentication with timing-safe comparison
+- **Security Hardening** — symlink traversal protection, unauthenticated WebSocket connection limits, TOCTOU download guard, CSP headers (frame-ancestors, base-uri, form-action)
 
 ## Comparison: AI-Cli Online vs OpenClaw
 
