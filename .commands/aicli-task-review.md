@@ -26,35 +26,38 @@ Enter plan mode to analyze annotation-based task changes on the specified task f
 
 ## Annotation Format
 
-The annotations argument is a JSON string with the following structure:
+The annotations argument is a JSON string with the following structure. Each annotation type is a `string[]`, where each element is a single context-rich string:
 
 ```json
 {
   "Insert Annotations": [
-    ["line: context_before_start...context_before_end", "annotation content", "context_after_start...context_after_end"]
+    "Line{N}: ...{before 20 chars}, {insertion content}, {after 20 chars}..."
   ],
   "Delete Annotations": [
-    ["line: context_before_start...context_before_end", "selected text", "context_after_start...context_after_end"]
+    "Line{N}: ...{before 20 chars}, {selected text}, {after 20 chars}..."
   ],
   "Replace Annotations": [
-    ["line: context_before_start...context_before_end", "selected text", "replacement content", "context_after_start...context_after_end"]
+    "Line{N}: ...{before 20 chars}, {selected text}, {replacement content}, {after 20 chars}..."
   ],
   "Comment Annotations": [
-    ["line: context_before_start...context_before_end", "selected text", "comment content", "context_after_start...context_after_end"]
+    "Line{N}: ...{before 20 chars}, {selected text}, {comment content}, {after 20 chars}..."
   ]
 }
 ```
 
-Each annotation type has a specific array element structure:
+Each annotation is a single inline string with embedded context:
 
-| Type | Elements | Description |
-|------|----------|-------------|
-| **Insert** | 3 | [context_before, insertion_content, context_after] |
-| **Delete** | 3 | [context_before, selected_text, context_after] |
-| **Replace** | 4 | [context_before, selected_text, replacement_content, context_after] |
-| **Comment** | 4 | [context_before, selected_text, comment_content, context_after] |
+| Type | Format | Description |
+|------|--------|-------------|
+| **Insert** | `Line{N}: ...before, content, after...` | Inserted content with 20-char context on each side |
+| **Delete** | `Line{N}: ...before, selected, after...` | Deleted selected text with 20-char context on each side |
+| **Replace** | `Line{N}: ...before, selected, replacement, after...` | Replaced selected text with 20-char context on each side |
+| **Comment** | `Line{N}: ...before, selected, comment, after...` | Comment on selected text with 20-char context on each side |
 
-Context fields use the format `"line_number: first_few_chars...last_few_chars"` (before) and `"first_few_chars...last_few_chars"` (after).
+Context rules:
+- `before`: Up to 20 characters before the annotation start position (less if near line start). Newlines shown as `↵`
+- `after`: Up to 20 characters after the annotation end position (may span lines). Newlines shown as `↵`
+- `Line{N}`: Source file line number of the annotation
 
 ## Input
 

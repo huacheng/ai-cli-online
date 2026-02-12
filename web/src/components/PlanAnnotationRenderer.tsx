@@ -86,64 +86,87 @@ function tokenSourceLine(tokens: Token[], index: number): number {
 
 /* ── Summary Generation ── */
 
-/** Format line context as "start...end" (max 20 chars each side) */
-function formatLineContext(line: string | undefined): string {
-  if (!line) return '';
-  const trimmed = line.trim();
-  if (trimmed.length <= 40) return trimmed;
-  return trimmed.slice(0, 20) + '...' + trimmed.slice(-20);
+/**
+ * Extract 20 chars before and 20 chars after an annotation position (cross-line).
+ * Returns { before, after } with newlines replaced by ↵.
+ */
+function surroundingContext(
+  sourceLines: string[],
+  startLine: number,
+  endLine: number,
+  selectedText?: string,
+): { before: string; after: string } {
+  const fullText = sourceLines.join('\n');
+
+  // Compute char offset for startLine (1-indexed)
+  let startOffset = 0;
+  for (let i = 0; i < startLine - 1 && i < sourceLines.length; i++) {
+    startOffset += sourceLines[i].length + 1;
+  }
+
+  // Compute char offset for end of endLine
+  let endOffset = 0;
+  for (let i = 0; i < endLine && i < sourceLines.length; i++) {
+    endOffset += sourceLines[i].length + 1;
+  }
+
+  let annStart = startOffset;
+  let annEnd = Math.min(fullText.length, endOffset);
+
+  // Refine with selectedText if available
+  if (selectedText) {
+    const searchStart = Math.max(0, startOffset - 10);
+    const searchEnd = Math.min(fullText.length, endOffset + 10);
+    const region = fullText.slice(searchStart, searchEnd);
+    const idx = region.indexOf(selectedText);
+    if (idx >= 0) {
+      annStart = searchStart + idx;
+      annEnd = annStart + selectedText.length;
+    }
+  }
+
+  // 20 chars before (use whatever is available up to 20)
+  const bStart = Math.max(0, annStart - 20);
+  const before = fullText.slice(bStart, annStart).replace(/\n/g, '↵');
+
+  // 20 chars after (can cross lines)
+  const aEnd = Math.min(fullText.length, annEnd + 20);
+  const after = fullText.slice(annEnd, aEnd).replace(/\n/g, '↵');
+
+  return { before, after };
 }
 
-/** Build annotation JSON object from annotations + sourceLines */
+/**
+ * Build annotation JSON. Each annotation is a single context-rich string:
+ *   Line{N}: ...{before 20 chars}[, selected], content, {after 20 chars}...
+ */
 function buildAnnotationJson(
   annotations: PlanAnnotations,
   sourceLines: string[],
-): { 'Insert Annotations': string[][]; 'Delete Annotations': string[][]; 'Replace Annotations': string[][]; 'Comment Annotations': string[][] } {
-  const insertAnns: string[][] = [];
-  const deleteAnns: string[][] = [];
-  const replaceAnns: string[][] = [];
-  const commentAnns: string[][] = [];
+): { 'Insert Annotations': string[]; 'Delete Annotations': string[]; 'Replace Annotations': string[]; 'Comment Annotations': string[] } {
+  const insertAnns: string[] = [];
+  const deleteAnns: string[] = [];
+  const replaceAnns: string[] = [];
+  const commentAnns: string[] = [];
 
   for (const a of annotations.additions) {
-    const ctxBefore = sourceLines[a.sourceLine - 1] ?? '';
-    const ctxAfter = sourceLines[a.sourceLine] ?? '';
-    insertAnns.push([
-      `${a.sourceLine}: ${formatLineContext(ctxBefore)}`,
-      a.content,
-      formatLineContext(ctxAfter),
-    ]);
+    const { before, after } = surroundingContext(sourceLines, a.sourceLine, a.sourceLine);
+    insertAnns.push(`Line${a.sourceLine}: ...${before}, ${a.content}, ${after}...`);
   }
 
   for (const d of annotations.deletions) {
-    const ctxBefore = sourceLines[d.startLine - 2] ?? '';
-    const ctxAfter = sourceLines[d.endLine] ?? '';
-    deleteAnns.push([
-      `${d.startLine}: ${formatLineContext(ctxBefore)}`,
-      d.selectedText,
-      formatLineContext(ctxAfter),
-    ]);
+    const { before, after } = surroundingContext(sourceLines, d.startLine, d.endLine, d.selectedText);
+    deleteAnns.push(`Line${d.startLine}: ...${before}, ${d.selectedText}, ${after}...`);
   }
 
   for (const r of annotations.replacements) {
-    const ctxBefore = sourceLines[r.startLine - 2] ?? '';
-    const ctxAfter = sourceLines[r.endLine] ?? '';
-    replaceAnns.push([
-      `${r.startLine}: ${formatLineContext(ctxBefore)}`,
-      r.selectedText,
-      r.content,
-      formatLineContext(ctxAfter),
-    ]);
+    const { before, after } = surroundingContext(sourceLines, r.startLine, r.endLine, r.selectedText);
+    replaceAnns.push(`Line${r.startLine}: ...${before}, ${r.selectedText}, ${r.content}, ${after}...`);
   }
 
   for (const c of annotations.comments) {
-    const ctxBefore = sourceLines[c.startLine - 2] ?? '';
-    const ctxAfter = sourceLines[c.endLine] ?? '';
-    commentAnns.push([
-      `${c.startLine}: ${formatLineContext(ctxBefore)}`,
-      c.selectedText,
-      c.content,
-      formatLineContext(ctxAfter),
-    ]);
+    const { before, after } = surroundingContext(sourceLines, c.startLine, c.endLine, c.selectedText);
+    commentAnns.push(`Line${c.startLine}: ...${before}, ${c.selectedText}, ${c.content}, ${after}...`);
   }
 
   return {
@@ -639,7 +662,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     floatSetTimeRef.current = Date.now();
     setSelectionFloat({
       x: (useMouse ? mp.x : rect.right) - containerRect.left + container.scrollLeft + 6,
-      y: (useMouse ? mp.y : rect.top) - containerRect.top + container.scrollTop - 34,
+      y: (useMouse ? mp.y : rect.top) - containerRect.top + container.scrollTop - 44,
       tokenIndices: indices,
       startLine,
       endLine,
@@ -1037,7 +1060,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                     ) : (
                       <>
                         <span
-                          style={{ flex: 1, fontSize: `${fontSize}px`, color: 'var(--accent-red)', whiteSpace: 'pre-wrap', cursor: 'text' }}
+                          style={{ flex: 1, fontSize: `${fontSize}px`, color: 'var(--accent-red)', textDecoration: 'line-through', whiteSpace: 'pre-wrap', cursor: 'text' }}
                           onDoubleClick={() => { setEditingDelId(d.id); setEditDelText(d.selectedText); requestAnimationFrame(() => { const el = editDelRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
                           title="Double-click to edit"
                         >
