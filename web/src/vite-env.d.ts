@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __APP_VERSION__: string;
+
 // Workaround: @types/react-dom v18.3.x package format not resolved by npm
 declare module 'react-dom/client';
 

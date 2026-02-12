@@ -62,6 +62,13 @@ function App() {
           }}>
             AI-Cli Online
           </span>
+          <span style={{
+            fontSize: '11px',
+            color: 'var(--text-secondary)',
+            fontWeight: 400,
+          }}>
+            v{__APP_VERSION__}
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Font size controls */}
