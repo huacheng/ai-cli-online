@@ -435,6 +435,11 @@ interface AppState {
   splitTerminal: (terminalId: string, direction: SplitDirection, startCwd?: string) => string;
   removeTerminal: (id: string) => void;
 
+  /** Remove from terminalsMap only — keeps layout & terminalIds intact for reconnect */
+  disconnectTerminal: (id: string) => void;
+  /** Recreate TerminalInstance in terminalsMap (auto-reconnects WebSocket) */
+  reconnectTerminal: (id: string) => void;
+
   setTerminalConnected: (id: string, connected: boolean) => void;
   setTerminalResumed: (id: string, resumed: boolean) => void;
   setTerminalError: (id: string, error: string | null) => void;
@@ -947,6 +952,31 @@ export const useStore = create<AppState>((set, get) => ({
       set(update);
       persistTabs(toPersistable(get()));
     }
+  },
+
+  disconnectTerminal: (id) => {
+    const state = get();
+    const existing = state.terminalsMap[id];
+    if (!existing) return;
+    // Remove from terminalsMap only — layout and terminalIds stay intact
+    const { [id]: _, ...rest } = state.terminalsMap;
+    set({ terminalsMap: rest });
+  },
+
+  reconnectTerminal: (id) => {
+    const state = get();
+    if (state.terminalsMap[id]) return; // already in map
+    // Recreate TerminalInstance; WebSocket hook will auto-connect
+    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
+    const panels = ownerTab?.panelStates?.[id] || { chatOpen: false, planOpen: false };
+    const terminal: TerminalInstance = {
+      id,
+      connected: false,
+      sessionResumed: false,
+      error: null,
+      panels,
+    };
+    set({ terminalsMap: { ...state.terminalsMap, [id]: terminal } });
   },
 
   // --- Terminal connection state (unchanged, global) --------------------------

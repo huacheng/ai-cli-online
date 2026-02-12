@@ -380,6 +380,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const containerRef = useRef<HTMLDivElement>(null);
   // Grace period: prevent selectionchange from clearing a just-set float (DOM mutation may collapse selection)
   const floatSetTimeRef = useRef(0);
+  // Track mouseup position so the float appears at the mouse release point
+  const lastMouseUpPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   // Save scroll position on unmount, restore after content loads
   useEffect(() => {
@@ -629,10 +631,15 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     // Auto-copy selection to clipboard
     navigator.clipboard.writeText(text).catch(() => {});
 
+    // Use mouseup position if available and fresh (within 500ms),
+    // so the float always appears near the mouse release point
+    const mp = lastMouseUpPosRef.current;
+    const useMouse = mp && (Date.now() - mp.time < 500);
+
     floatSetTimeRef.current = Date.now();
     setSelectionFloat({
-      x: rect.right - containerRect.left + container.scrollLeft + 6,
-      y: rect.top - containerRect.top + container.scrollTop - 2,
+      x: (useMouse ? mp.x : rect.right) - containerRect.left + container.scrollLeft + 6,
+      y: (useMouse ? mp.y : rect.top) - containerRect.top + container.scrollTop - 34,
       tokenIndices: indices,
       startLine,
       endLine,
@@ -958,7 +965,10 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         ref={containerRef}
         className={`plan-anno-content md-preview${activeInsert != null ? ' plan-anno-content--editing' : ''}`}
         style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
-        onMouseUp={handleSelectionCheck}
+        onMouseUp={(e: React.MouseEvent) => {
+          lastMouseUpPosRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+          handleSelectionCheck();
+        }}
       >
         {/* Insert zone before first block */}
         {!readOnly && (

@@ -15,10 +15,14 @@ function TabItem({ tabId }: { tabId: string }) {
     if (!tab) return [];
     return tab.terminalIds.map((id) => {
       const t = s.terminalsMap[id];
-      return t ? { id, connected: t.connected } : { id, connected: false };
+      return t
+        ? { id, connected: t.connected, active: true }
+        : { id, connected: false, active: false };
     });
   });
 
+  const disconnectTerminal = useStore((s) => s.disconnectTerminal);
+  const reconnectTerminal = useStore((s) => s.reconnectTerminal);
   const killServerSession = useStore((s) => s.killServerSession);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -215,22 +219,48 @@ function TabItem({ tabId }: { tabId: string }) {
               title={`Connected: ${term.connected}`}
             >
               <span style={{ fontFamily: 'monospace' }}>{term.id}</span>
-              <span style={{ marginLeft: '8px', color: term.connected ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                {term.connected ? '●' : '○'}
+              <span style={{ marginLeft: '8px', color: term.active ? (term.connected ? 'var(--accent-green)' : 'var(--accent-yellow)') : 'var(--text-secondary)' }}>
+                {term.active ? (term.connected ? '●' : '◐') : '○'}
               </span>
-              <button
-                className="pane-btn pane-btn--danger"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm(`Close terminal "${term.id}"?`)) {
-                    killServerSession(term.id);
-                  }
-                }}
-                style={{ marginLeft: 'auto', flexShrink: 0 }}
-                title="Close terminal"
-              >
-                ×
-              </button>
+              {term.active ? (
+                <button
+                  className="pane-btn pane-btn--danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    disconnectTerminal(term.id);
+                  }}
+                  style={{ marginLeft: 'auto', flexShrink: 0 }}
+                  title="Disconnect terminal (keeps session alive)"
+                >
+                  ×
+                </button>
+              ) : (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button
+                    className="pane-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      reconnectTerminal(term.id);
+                    }}
+                    title="Reconnect terminal"
+                    style={{ fontSize: '11px', padding: '2px 6px' }}
+                  >
+                    ↻
+                  </button>
+                  <button
+                    className="pane-btn pane-btn--danger"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Kill terminal "${term.id}"? This will destroy the tmux session.`)) {
+                        killServerSession(term.id);
+                      }
+                    }}
+                    title="Kill session"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

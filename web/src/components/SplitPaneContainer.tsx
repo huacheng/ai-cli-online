@@ -58,7 +58,37 @@ const LayoutRenderer = memo(function LayoutRenderer({ node, canClose }: { node: 
 const LeafRenderer = memo(function LeafRenderer({ terminalId, canClose }: { terminalId: string; canClose: boolean }) {
   // O(1) lookup; only re-renders when THIS terminal's state changes
   const terminal = useStore((s) => s.terminalsMap[terminalId]);
-  if (!terminal) return null;
+  const reconnectTerminal = useStore((s) => s.reconnectTerminal);
+
+  if (!terminal) {
+    // Disconnected terminal — show placeholder preserving layout position
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        backgroundColor: 'var(--bg-primary)',
+        border: '1px dashed var(--border)',
+      }}>
+        <button
+          onClick={() => reconnectTerminal(terminalId)}
+          style={{
+            background: 'none',
+            border: '1px solid var(--accent-blue)',
+            color: 'var(--accent-blue)',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          ↻ Reconnect {terminalId}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary inline>
       <TerminalPane terminal={terminal} canClose={canClose} />
