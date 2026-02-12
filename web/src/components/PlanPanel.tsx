@@ -6,6 +6,7 @@ import { useFileStream } from '../hooks/useFileStream';
 import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
 import { fetchFiles, touchFile, mkdirPath } from '../api/files';
 import type { FileEntry } from '../api/files';
+import { fetchFileContent } from '../api/docs';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -175,13 +176,33 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planSelectedFile, connected]);
 
-  // When stream completes, capture the content
+  // When stream completes, capture the content and record mtime for polling
+  const planMtimeRef = useRef(0);
   useEffect(() => {
     if (fileStream.state.status === 'complete' && planSelectedFile) {
       setPlanMarkdown(fileStream.state.content);
       planContentCacheRef.current.set(planSelectedFile, fileStream.state.content);
+      planMtimeRef.current = Date.now();
     }
   }, [fileStream.state.status, fileStream.state.content, planSelectedFile]);
+
+  // Poll for file changes (3s interval, uses 304 Not Modified)
+  useEffect(() => {
+    if (!planSelectedFile || !connected || !planMarkdown) return;
+    const iv = setInterval(async () => {
+      if (!planMtimeRef.current) return;
+      try {
+        const result = await fetchFileContent(token, sessionId, planSelectedFile, planMtimeRef.current);
+        if (result) {
+          // File changed — update content
+          setPlanMarkdown(result.content);
+          planContentCacheRef.current.set(planSelectedFile!, result.content);
+          planMtimeRef.current = result.mtime;
+        }
+      } catch { /* ignore network errors */ }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [planSelectedFile, connected, planMarkdown, token, sessionId]);
 
   // Plan scroll position memory: filePath → scrollTop
   const planScrollPositionsRef = useRef(new Map<string, number>());
