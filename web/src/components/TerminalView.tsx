@@ -59,7 +59,7 @@ const LIGHT_XTERM_THEME = {
   brightWhite: '#a5a5a5',
 };
 
-const FONT_FAMILY = "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace";
+const FONT_FAMILY = "'JetBrains Mono', 'LXGW WenKai Mono', Menlo, Monaco, 'Courier New', monospace";
 
 interface TerminalViewProps {
   sessionId: string;

@@ -16,6 +16,7 @@ AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终�
 - **布局系统**: Tab 标签页 + 递归树形结构 (LeafNode / SplitNode)
 - **传输协议**: 二进制帧 (热路径) + JSON (控制消息)
 - **数据持久化**: SQLite (编辑器草稿 + 用户设置)
+- **字体**: JetBrains Mono (本地 woff2, Latin) + LXGW WenKai Mono (CDN unicode-range 按需加载, CJK)
 
 ## 目录结构
 
@@ -333,6 +334,7 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 ### Xterm 终端 (TerminalView)
 
 - xterm.js + WebGL 渲染器，支持 Dark/Light 双主题 (`DARK_XTERM_THEME` / `LIGHT_XTERM_THEME`)
+- 字体栈: `'JetBrains Mono', 'LXGW WenKai Mono', Menlo, Monaco, 'Courier New', monospace`（JetBrains Mono 处理 Latin，LXGW WenKai Mono 通过 CDN unicode-range 按需加载处理 CJK）
 - 主题跟随全局 `store.theme`，切换时实时更新 `terminal.options.theme`
 - 鼠标选中自动复制到剪贴板，右键粘贴（paste 事件捕获）
 - capture-pane 滚动历史回看覆盖层

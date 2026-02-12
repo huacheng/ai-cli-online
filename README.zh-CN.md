@@ -20,7 +20,6 @@
 - **会话持久化** — tmux 保证断网后进程存活；固定 socket 路径，服务重启后自动重连
 - **Tab 多标签页** — 独立终端分组，布局跨刷新持久化
 - **分屏布局** — 水平/垂直任意嵌套分割
-- **文档浏览器** — 终端旁查看 Markdown / HTML / PDF 文件
 - **Mermaid 图表** — 甘特图、流程图等 Mermaid 图表暗色主题内联渲染，CDN 双源容错
 - **Plan 批注** — 4 种批注类型（插入/删除/替换/评注），选中文本弹出浮动按钮组，持久化存储
 - **编辑器面板** — 多行编辑 + 草稿服务端持久化 (SQLite) + undo 撤销栈 + 斜杠命令（`/history` 等）
@@ -28,6 +27,7 @@
 - **文件传输** — 上传文件到 CWD，浏览/下载通过 REST API
 - **滚动历史** — capture-pane 回看，保留 ANSI 颜色
 - **会话管理** — 侧边栏管理 session（恢复/删除/重命名）
+- **中文等宽字体** — 通过 CDN 加载霞鹜文楷等宽 (LXGW WenKai Mono)，unicode-range 按需分片，浏览器仅下载实际用到的字符
 - **字体大小控制** — 可调节终端字体大小 (A−/A+)，设置服务端持久化
 - **网络指示器** — 实时 RTT 延迟显示 + 信号条
 - **自动重连** — 指数退避 + jitter 防雷群效应
@@ -47,14 +47,14 @@
 | **原生应用** | 无（纯 Web） | macOS + iOS + Android |
 | **语音交互** | 无 | Voice Wake + Talk Mode |
 | **AI Agent** | 无内置（运行任意 CLI） | Pi Agent 运行时 + 多 Agent 路由 |
-| **Canvas/UI** | 文档浏览器（MD / HTML / PDF） | A2UI 实时可视化工作区 |
+| **Canvas/UI** | Plan 批注系统（Markdown） | A2UI 实时可视化工作区 |
 | **文件传输** | REST API 上传/下载 | 渠道原生媒体 |
 | **安全模型** | Token auth + timing-safe | 设备配对 + DM 策略 + Docker 沙箱 |
 | **可扩展性** | Shell 脚本 | 33 扩展 + 60+ Skills + ClawHub |
 | **传输协议** | 二进制帧（超低延迟） | JSON WebSocket |
 | **部署** | 单机 Node.js | 单机 + Tailscale Serve/Funnel |
 | **技术栈** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **包大小** | ~950 KB | ~300 MB+ |
+| **包大小** | ~1 MB | ~300 MB+ |
 | **安装** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
 
 ## 快速开始
@@ -122,8 +122,7 @@ TRUST_PROXY=1                    # nginx 反代时设为 1
 - **WebSocket 压缩** — `perMessageDeflate`（level 1，threshold 128 B），带宽减少 50-70%
 - **WebGL 渲染器** — 渲染吞吐量提升 3-10 倍
 - **并行初始化** — PTY 创建、tmux 配置、resize 并行执行
-- **PDF 懒加载** — pdfjs-dist (445 KB) 仅在用户打开 PDF 文件时加载
-- **智能重渲染** — matchMedia 阈值 hook、条件 Zustand selector、分批 stat 调用
+- **智能重渲染** — 响应式布局 hook、条件 Zustand selector、分批 stat 调用
 
 ## 项目结构
 

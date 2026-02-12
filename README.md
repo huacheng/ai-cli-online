@@ -20,7 +20,6 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Session Persistence** — tmux keeps processes alive through disconnects; fixed socket path ensures auto-reconnect even after server restarts
 - **Multi-Tab** — independent terminal groups with layout persistence across browser refreshes
 - **Split Panes** — horizontal / vertical splits, arbitrarily nested
-- **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal; file picker shows file sizes
 - **Mermaid Diagrams** — Gantt charts, flowcharts, and other Mermaid diagrams render inline with dark theme; CDN fallback for reliability
 - **Plan Annotations** — 4 annotation types (insert / delete / replace / comment) on document content with persistent storage; selection float button group for quick action
 - **Editor Panel** — multi-line editing with server-side draft persistence (SQLite), undo stack, and slash commands (`/history`, etc.)
@@ -28,6 +27,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **File Transfer** — upload files to CWD, browse and download via REST API
 - **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
 - **Session Management** — sidebar to restore, delete, rename sessions, and close individual terminals (with confirmation)
+- **CJK Font Support** — LXGW WenKai Mono via CDN with unicode-range subsetting; browser loads only needed CJK glyphs on demand
 - **Font Size Control** — adjustable terminal font size (A−/A+) with server-side persistence
 - **Network Indicator** — real-time RTT latency display with signal bars
 - **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
@@ -47,14 +47,14 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 | **Native Apps** | None (pure web) | macOS + iOS + Android |
 | **Voice Interaction** | None | Voice Wake + Talk Mode |
 | **AI Agent** | None built-in (run any CLI) | Pi Agent runtime + multi-agent routing |
-| **Canvas / UI** | Document browser (MD / HTML / PDF) | A2UI real-time visual workspace |
+| **Canvas / UI** | Plan annotations (Markdown) | A2UI real-time visual workspace |
 | **File Transfer** | REST API upload / download | Channel-native media |
 | **Security Model** | Token auth + timing-safe | Device pairing + DM policy + Docker sandbox |
 | **Extensibility** | Shell scripts | 33 extensions + 60+ skills + ClawHub |
 | **Transport** | Binary frames (ultra-low latency) | JSON WebSocket |
 | **Deployment** | Single-node Node.js | Single-node + Tailscale Serve/Funnel |
 | **Tech Stack** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **Package Size** | ~950 KB | ~300 MB+ |
+| **Package Size** | ~1 MB | ~300 MB+ |
 | **Install** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
 
 ## Quick Start
@@ -122,8 +122,7 @@ Browser (xterm.js + WebGL) <-- WebSocket binary/JSON --> Express (node-pty) <-->
 - **WebSocket compression** — `perMessageDeflate` (level 1, threshold 128 B), 50-70% bandwidth reduction
 - **WebGL renderer** — 3-10x rendering throughput vs canvas
 - **Parallel initialization** — PTY creation, tmux config, and resize run concurrently
-- **PDF lazy loading** — pdfjs-dist (445 KB) only loaded when a user opens a PDF file
-- **Smart re-render** — matchMedia threshold hook, conditional Zustand selectors, batched stat calls
+- **Smart re-render** — responsive layout hook, conditional Zustand selectors, batched stat calls
 
 ## Project Structure
 
