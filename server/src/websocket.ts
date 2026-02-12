@@ -12,7 +12,7 @@ import {
   resizeSession,
   getCwd,
 } from './tmux.js';
-import { validatePath } from './files.js';
+import { validatePathNoSymlink } from './files.js';
 import { createReadStream, type ReadStream } from 'fs';
 import { stat as fsStat } from 'fs/promises';
 import { PtySession } from './pty.js';
@@ -24,6 +24,10 @@ interface AliveWebSocket extends WebSocket {
 }
 
 import { BIN_TYPE_OUTPUT, BIN_TYPE_INPUT, BIN_TYPE_SCROLLBACK, BIN_TYPE_SCROLLBACK_CONTENT, BIN_TYPE_FILE_CHUNK } from 'ai-cli-online-shared';
+
+// A2: Limit pending (unauthenticated) WebSocket connections
+const MAX_PENDING_AUTH = 50;
+let pendingAuthCount = 0;
 
 const MAX_STREAM_SIZE = 50 * 1024 * 1024; // 50MB
 const STREAM_CHUNK_SIZE = 64 * 1024;      // 64KB highWaterMark
@@ -150,9 +154,22 @@ export function setupWebSocket(
 
     const clientIp = req.socket.remoteAddress || 'unknown';
 
+    // A2: Reject when too many unauthenticated connections are pending
+    let countedAsPending = false;
+    if (authToken) {
+      if (pendingAuthCount >= MAX_PENDING_AUTH) {
+        console.log(`[WS] Pending auth limit (${MAX_PENDING_AUTH}) reached, rejecting connection from ${clientIp}`);
+        ws.close(4006, 'Too many pending connections');
+        return;
+      }
+      pendingAuthCount++;
+      countedAsPending = true;
+    }
+
     // Reject connections from IPs with too many recent auth failures
     if (authToken && isAuthRateLimited(clientIp)) {
       console.log(`[WS] Auth rate-limited IP: ${clientIp}`);
+      if (countedAsPending) { pendingAuthCount--; countedAsPending = false; }
       ws.close(4001, 'Too many auth failures');
       return;
     }
@@ -185,6 +202,7 @@ export function setupWebSocket(
     const authTimer = authToken
       ? setTimeout(() => {
           if (!authenticated) {
+            if (countedAsPending) { pendingAuthCount--; countedAsPending = false; }
             console.log('[WS] Auth timeout — no auth message received');
             ws.close(4001, 'Auth timeout');
           }
@@ -306,9 +324,11 @@ export function setupWebSocket(
           if (!msg.token || !compareToken(msg.token, authToken)) {
             recordAuthFailure(clientIp);
             console.log(`[WS] Unauthorized — invalid token from ${clientIp}`);
+            if (countedAsPending) { pendingAuthCount--; countedAsPending = false; }
             ws.close(4001, 'Unauthorized');
             return;
           }
+          if (countedAsPending) { pendingAuthCount--; countedAsPending = false; }
           authenticated = true;
           authenticatedToken = msg.token;
           await initSession(msg.token);
@@ -357,7 +377,7 @@ export function setupWebSocket(
 
             try {
               const cwd = await getCwd(sessionName);
-              const resolved = await validatePath(msg.path, cwd);
+              const resolved = await validatePathNoSymlink(msg.path, cwd);
               if (!resolved) {
                 send(ws, { type: 'file-stream-error', error: 'Invalid path' });
                 break;
@@ -389,17 +409,17 @@ export function setupWebSocket(
                 buf.set(data, 1);
                 ws.send(buf);
 
-                // Backpressure: pause stream when WS send buffer is full
+                // Backpressure: pause stream when WS send buffer is full, resume on drain
                 if (ws.bufferedAmount > STREAM_HIGH_WATER) {
                   stream.pause();
-                  const checkDrain = () => {
+                  const onDrain = () => {
                     if (ws.bufferedAmount < STREAM_LOW_WATER) {
                       stream.resume();
                     } else {
-                      setTimeout(checkDrain, 10);
+                      ws.once('drain', onDrain);
                     }
                   };
-                  setTimeout(checkDrain, 10);
+                  ws.once('drain', onDrain);
                 }
               });
 
@@ -431,6 +451,7 @@ export function setupWebSocket(
     });
 
     ws.on('close', () => {
+      if (countedAsPending) { pendingAuthCount--; countedAsPending = false; }
       if (authTimer) clearTimeout(authTimer);
       if (activeFileStream) {
         activeFileStream.destroy();

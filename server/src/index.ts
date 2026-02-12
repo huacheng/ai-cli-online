@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 import { setupWebSocket, getActiveSessionNames, clearWsIntervals } from './websocket.js';
 import { isTmuxAvailable, listSessions, buildSessionName, killSession, isValidSessionId, cleanupStaleSessions, getCwd, getPaneCommand } from './tmux.js';
-import { listFiles, validatePath, validateNewPath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
+import { listFiles, validatePath, validatePathNoSymlink, validateNewPath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from './files.js';
 import { getDraft, saveDraft as saveDraftDb, deleteDraft, cleanupOldDrafts, getSetting, saveSetting, getAnnotation, saveAnnotation, cleanupOldAnnotations, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
@@ -70,6 +70,9 @@ async function main() {
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "https:", "data:", "blob:"],
         connectSrc: ["'self'", "wss:", "ws:"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
       },
     },
     frameguard: { action: 'deny' },
@@ -268,7 +271,7 @@ async function main() {
         res.status(400).json({ error: 'path query parameter required' });
         return;
       }
-      const resolved = await validatePath(filePath, cwd);
+      const resolved = await validatePathNoSymlink(filePath, cwd);
       if (!resolved) {
         res.status(400).json({ error: 'Invalid path' });
         return;
@@ -284,7 +287,21 @@ async function main() {
       }
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(basename(resolved))}"`);
       res.setHeader('Content-Length', fileStat.size);
-      createReadStream(resolved).pipe(res);
+      // A3: Stream with byte counting to guard against TOCTOU size changes
+      const stream = createReadStream(resolved);
+      let bytesWritten = 0;
+      stream.on('data', (chunk) => {
+        const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+        bytesWritten += buf.length;
+        if (bytesWritten > MAX_DOWNLOAD_SIZE) {
+          stream.destroy();
+          if (!res.writableEnded) res.end();
+          return;
+        }
+        if (!res.writableEnded) res.write(chunk);
+      });
+      stream.on('end', () => { if (!res.writableEnded) res.end(); });
+      stream.on('error', () => { if (!res.writableEnded) res.end(); });
     } catch (err) {
       console.error(`[api:download] ${sessionName}:`, err);
       res.status(404).json({ error: 'File not found' });
@@ -297,6 +314,11 @@ async function main() {
     if (!sessionName) return;
     try {
       const cwd = await getCwd(sessionName);
+      // A5: Validate CWD format before passing to tar
+      if (!cwd.startsWith('/') || cwd.includes('\0')) {
+        res.status(400).json({ error: 'Invalid working directory' });
+        return;
+      }
       const dirName = basename(cwd);
       res.setHeader('Content-Type', 'application/gzip');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(dirName)}.tar.gz"`);
@@ -558,7 +580,7 @@ async function main() {
     }
     try {
       const cwd = await getCwd(sessionName);
-      const resolved = await validatePath(filePath, cwd);
+      const resolved = await validatePathNoSymlink(filePath, cwd);
       if (!resolved) {
         res.status(400).json({ error: 'Invalid path' });
         return;

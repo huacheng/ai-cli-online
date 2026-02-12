@@ -46,7 +46,7 @@ function scrollKey(sessionId: string, filePath: string) {
 
 /** Render a single marked token to sanitized HTML (XSS-safe via DOMPurify) */
 function tokenToHtml(token: Token): string {
-  const raw = marked.parser([token as Token], { async: false } as never) as unknown as string;
+  const raw = String(marked.parser([token as Token], { async: false }));
   // All HTML is sanitized with DOMPurify before rendering — safe against XSS
   return DOMPurify.sanitize(raw, {
     ADD_TAGS: ['img'],

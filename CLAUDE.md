@@ -28,7 +28,7 @@ ai-cli-online/
 │       ├── index.ts      # 主入口，HTTP + WebSocket + REST API + 静态文件服务
 │       ├── websocket.ts  # WebSocket ↔ PTY 双向 relay (二进制协议 + JSON 控制)
 │       ├── tmux.ts       # tmux 会话管理 (创建/attach/capture/resize/kill/getCwd)
-│       ├── files.ts      # 文件操作 (listFiles/validatePath/fileContent)
+│       ├── files.ts      # 文件操作 (listFiles/validatePath/validatePathNoSymlink/validateNewPath/cachedRealpath)
 │       ├── pty.ts        # node-pty 封装
 │       ├── db.ts         # SQLite 数据库 (better-sqlite3, WAL 模式, 草稿持久化)
 │       ├── auth.ts       # 认证工具 (timing-safe token 比较)

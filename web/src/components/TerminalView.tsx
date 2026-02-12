@@ -378,11 +378,13 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
 
     // Load WebGL renderer (same as main terminal) — canvas 2D may not render
     // in some environments while WebGL works fine
+    let sbWebglAddon: WebglAddon | null = null;
     try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => webglAddon.dispose());
-      terminal.loadAddon(webglAddon);
+      sbWebglAddon = new WebglAddon();
+      sbWebglAddon.onContextLoss(() => { sbWebglAddon?.dispose(); sbWebglAddon = null; });
+      terminal.loadAddon(sbWebglAddon);
     } catch {
+      sbWebglAddon = null;
       // WebGL not available, fall back to default canvas renderer
     }
 
@@ -448,6 +450,8 @@ function ScrollbackViewer({ data, onClose }: { data: string; onClose: () => void
       if (sbRafId) cancelAnimationFrame(sbRafId);
       document.removeEventListener('keydown', onKeyDown);
       resizeObserver.disconnect();
+      // C4: Explicitly dispose WebGL addon before terminal to free GPU context
+      if (sbWebglAddon) { try { sbWebglAddon.dispose(); } catch { /* ignore */ } sbWebglAddon = null; }
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;

@@ -42,6 +42,10 @@ db.exec(`
   )
 `);
 
+// Indexes for periodic cleanup queries on updated_at
+db.exec('CREATE INDEX IF NOT EXISTS idx_drafts_updated_at ON drafts(updated_at)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_annotations_updated_at ON annotations(updated_at)');
+
 // --- Annotations statements ---
 const stmtAnnGet = db.prepare('SELECT content, updated_at FROM annotations WHERE session_name = ? AND file_path = ?');
 const stmtAnnUpsert = db.prepare(`
