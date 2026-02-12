@@ -107,7 +107,7 @@ function App() {
           <button
             className="header-btn"
             onClick={toggleSidebar}
-            title="Toggle Tabs & Sessions Sidebar"
+            title="Toggle Tabs & Terminals Sidebar"
             aria-label="Toggle sidebar"
           >
             ☰

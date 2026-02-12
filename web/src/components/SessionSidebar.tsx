@@ -392,7 +392,7 @@ export function SessionSidebar() {
         flexShrink: 0,
       }}>
         <span style={{ color: 'var(--accent-blue)', fontSize: '14px', fontWeight: 'bold' }}>
-          Tabs & Sessions
+          Tabs & Terminals
         </span>
         <button
           onClick={toggleSidebar}
@@ -423,7 +423,7 @@ export function SessionSidebar() {
             backgroundColor: 'rgba(122, 162, 247, 0.05)',
             borderBottom: '1px solid var(--border)',
           }}>
-            TABS
+            Tabs
           </div>
           {tabs.length === 0 ? (
             <div style={{
