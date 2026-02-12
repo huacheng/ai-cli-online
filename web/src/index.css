@@ -810,6 +810,8 @@ body.resizing-panes-h * {
 .plan-annotation-textarea {
   flex: 1;
   min-height: 36px;
+  max-height: 30em;
+  field-sizing: content; /* auto-expand for wrapped lines (Chrome 123+, Firefox 132+) */
   resize: vertical;
   border: 1px solid var(--border);
   border-radius: 3px;
