@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.4 (2026-02-12)
+
+### 新功能
+
+- **Header 显示版本号** — 在标题 "AI-Cli Online" 右侧显示当前版本号（如 `v2.9.4`），版本号从 `package.json` 通过 Vite `define` 构建时注入，自动跟随发布更新
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.4
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.4
+
 ## v2.9.3 (2026-02-12)
 
 ### Bug 修复
