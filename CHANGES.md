@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.3 (2026-02-12)
+
+### Bug 修复
+
+- **修复 xterm 终端 CJK 字体不生效** — `document.fonts.ready` 在终端初始化时立即 resolve（此时无 CJK 字符、字体未触发下载），导致 LXGW WenKai Mono unicode-range 按需加载的字体块完成后 xterm.js Canvas/WebGL 渲染器不会重绘。新增 `document.fonts` `loadingdone` 事件监听，字体块加载完成后自动 re-fit 终端（100ms debounce）
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.3
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.3
+
 ## v2.9.2 (2026-02-12)
 
 ### UI 优化

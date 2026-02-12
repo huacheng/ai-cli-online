@@ -206,6 +206,25 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       }
     });
 
+    // Also handle on-demand font loads (e.g. LXGW WenKai Mono unicode-range chunks
+    // that only start downloading when CJK characters appear in terminal output).
+    // xterm.js uses Canvas/WebGL so it won't auto-rerender like DOM text.
+    let fontFitTimer: ReturnType<typeof setTimeout> | null = null;
+    const onFontsLoadingDone = () => {
+      if (disposed) return;
+      // Debounce: multiple unicode-range chunks may finish in quick succession
+      if (fontFitTimer) clearTimeout(fontFitTimer);
+      fontFitTimer = setTimeout(() => {
+        if (!disposed) {
+          try {
+            fitAddon.fit();
+            sendResizeRef.current(terminal.cols, terminal.rows);
+          } catch { /* ignore */ }
+        }
+      }, 100);
+    };
+    document.fonts.addEventListener('loadingdone', onFontsLoadingDone);
+
     // Forward user input to WebSocket
     terminal.onData((data) => {
       sendInputRef.current(data);
@@ -259,6 +278,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       if (retryIntervalId) clearInterval(retryIntervalId);
       if (rafId) cancelAnimationFrame(rafId);
       if (resizeNetworkTimer) clearTimeout(resizeNetworkTimer);
+      if (fontFitTimer) clearTimeout(fontFitTimer);
+      document.fonts.removeEventListener('loadingdone', onFontsLoadingDone);
       if (resizeObserver) resizeObserver.disconnect();
       removePasteFloat();
       if (xtermEl) xtermEl.removeEventListener('contextmenu', handleContextMenu);
