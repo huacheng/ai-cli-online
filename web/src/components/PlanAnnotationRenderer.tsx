@@ -406,25 +406,60 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Track mouseup position so the float appears at the mouse release point
   const lastMouseUpPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
-  // Save scroll position on unmount, restore after content loads
+  // Save scroll position continuously on scroll (debounced) + on unmount
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const saveScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const key = scrollKey(sessionId, filePath);
+        if (el.scrollTop > 0) {
+          try { localStorage.setItem(key, String(el.scrollTop)); } catch { /* full */ }
+        } else {
+          localStorage.removeItem(key);
+        }
+      }, 50);
+    };
+    el.addEventListener('scroll', saveScroll, { passive: true });
     return () => {
-      const el = containerRef.current;
-      if (el && el.scrollTop > 0) {
-        localStorage.setItem(scrollKey(sessionId, filePath), String(el.scrollTop));
-      }
+      clearTimeout(timer);
+      el.removeEventListener('scroll', saveScroll);
     };
   }, [sessionId, filePath]);
 
+  // Restore scroll position after content renders
   useEffect(() => {
     if (!tokens.length) return;
     const saved = localStorage.getItem(scrollKey(sessionId, filePath));
-    if (saved) {
-      requestAnimationFrame(() => {
-        const el = containerRef.current;
-        if (el) el.scrollTop = Number(saved);
-      });
-    }
+    if (!saved) return;
+    const target = Number(saved);
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Try immediately (DOM is committed when effect runs)
+    el.scrollTop = target;
+    if (el.scrollTop >= target - 10) return;
+
+    // Content not tall enough yet — observe DOM mutations until it is
+    let settleTimer: ReturnType<typeof setTimeout>;
+    const restore = () => {
+      el.scrollTop = target;
+      observer.disconnect();
+    };
+    const observer = new MutationObserver(() => {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(restore, 80);
+    });
+    observer.observe(el, { childList: true, subtree: true });
+    const fallback = setTimeout(restore, 500);
+
+    return () => {
+      clearTimeout(settleTimer);
+      clearTimeout(fallback);
+      observer.disconnect();
+    };
   }, [sessionId, filePath, tokens.length]);
 
   // Focus insert textarea when zone opens
@@ -440,6 +475,85 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       requestAnimationFrame(() => pendingTextareaRef.current?.focus());
     }
   }, [pendingAction]);
+
+  // ── Flush pending edits on unmount (e.g. Tab switch) ──
+  const flushRef = useRef({
+    annotations, activeInsert, insertText, pendingAction, pendingText, tokens,
+    editingDelId, editDelText, editingRepId, editRepText, editingComId, editComText,
+    filePath, sessionId, token,
+  });
+  flushRef.current = {
+    annotations, activeInsert, insertText, pendingAction, pendingText, tokens,
+    editingDelId, editDelText, editingRepId, editRepText, editingComId, editComText,
+    filePath, sessionId, token,
+  };
+
+  useEffect(() => {
+    return () => {
+      const s = flushRef.current;
+      let anns = s.annotations;
+      let changed = false;
+
+      // Flush active insert
+      if (s.activeInsert != null && s.insertText.trim()) {
+        const line = tokenSourceLine(s.tokens, s.activeInsert + 1);
+        anns = { ...anns, additions: [...anns.additions, { id: uid(), afterTokenIndex: s.activeInsert, sourceLine: line, content: s.insertText.trim() }] };
+        changed = true;
+      }
+
+      // Flush pending replace/comment
+      if (s.pendingAction && s.pendingText.trim()) {
+        const pa = s.pendingAction;
+        const content = s.pendingText.trim();
+        if (pa.type === 'replace') {
+          anns = { ...anns, replacements: [...anns.replacements, { id: uid(), tokenIndices: pa.tokenIndices, startLine: pa.startLine, endLine: pa.endLine, selectedText: pa.text, content }] };
+        } else {
+          anns = { ...anns, comments: [...anns.comments, { id: uid(), tokenIndices: pa.tokenIndices, startLine: pa.startLine, endLine: pa.endLine, selectedText: pa.text, content }] };
+        }
+        changed = true;
+      }
+
+      // Flush editing deletion
+      if (s.editingDelId) {
+        const trimmed = s.editDelText.trim();
+        if (trimmed) {
+          anns = { ...anns, deletions: anns.deletions.map(d => d.id === s.editingDelId ? { ...d, id: uid(), selectedText: trimmed } : d) };
+        } else {
+          anns = { ...anns, deletions: anns.deletions.filter(d => d.id !== s.editingDelId) };
+        }
+        changed = true;
+      }
+
+      // Flush editing replacement
+      if (s.editingRepId) {
+        const trimmed = s.editRepText.trim();
+        if (trimmed) {
+          anns = { ...anns, replacements: anns.replacements.map(r => r.id === s.editingRepId ? { ...r, id: uid(), content: trimmed } : r) };
+        } else {
+          anns = { ...anns, replacements: anns.replacements.filter(r => r.id !== s.editingRepId) };
+        }
+        changed = true;
+      }
+
+      // Flush editing comment
+      if (s.editingComId) {
+        const trimmed = s.editComText.trim();
+        if (trimmed) {
+          anns = { ...anns, comments: anns.comments.map(c => c.id === s.editingComId ? { ...c, id: uid(), content: trimmed } : c) };
+        } else {
+          anns = { ...anns, comments: anns.comments.filter(c => c.id !== s.editingComId) };
+        }
+        changed = true;
+      }
+
+      if (changed) {
+        const serialized = JSON.stringify(anns);
+        try { localStorage.setItem(storageKey(s.sessionId, s.filePath), serialized); } catch { /* full */ }
+        saveAnnotationRemote(s.token, s.sessionId, s.filePath, serialized, Date.now()).catch(() => {});
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Add annotation
   const handleAddAnnotation = useCallback((afterIndex: number) => {
@@ -1468,6 +1582,7 @@ function InsertZone({ index, active, additions, onOpen, onSubmit, onRemoveAdditi
               if (e.key === 'Escape') { e.preventDefault(); onSubmit(); return; }
               if (e.key === 'Tab') { handleTabKey(e, setInsertTextWithUndo); return; }
             }}
+            onBlur={onSubmit}
             placeholder="Add annotation... (Ctrl+Enter or Esc to save)"
             rows={autoRows(insertText)}
             style={{ fontSize: `${fontSize}px`, ...(expanded ? { minWidth: 300 } : undefined) }}

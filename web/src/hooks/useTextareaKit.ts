@@ -72,8 +72,8 @@ export function handleCtrlZ(
 
 /**
  * Compute textarea rows from text content (line count).
- * Min 1, max `maxRows` (default 10).
+ * Min 1, max `maxRows` (default 20).
  */
-export function autoRows(text: string, maxRows = 10): number {
+export function autoRows(text: string, maxRows = 20): number {
   return Math.min(maxRows, Math.max(1, (text.match(/\n/g)?.length ?? 0) + 1));
 }

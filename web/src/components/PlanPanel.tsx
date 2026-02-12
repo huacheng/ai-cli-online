@@ -66,6 +66,18 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
 
   const planAnnotationRef = useRef<PlanAnnotationRendererHandle>(null);
 
+  // Persist selected file to localStorage (50ms debounce)
+  const planFileKey = `plan-selected-file-${sessionId}`;
+  const planFileSaveRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => {
+    if (!planSelectedFile) return;
+    clearTimeout(planFileSaveRef.current);
+    planFileSaveRef.current = setTimeout(() => {
+      try { localStorage.setItem(planFileKey, planSelectedFile); } catch { /* full */ }
+    }, 50);
+    return () => clearTimeout(planFileSaveRef.current);
+  }, [planSelectedFile, planFileKey]);
+
   // Auto-detect PLAN/ directory on mount
   const planStreamedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -84,7 +96,13 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
           const indexFile = innerRes.files.find((f: FileEntry) => f.name === '.index.md');
           if (indexFile) {
             setPlanDir(dirPath);
-            setPlanSelectedFile(dirPath + '/' + indexFile.name);
+            // Restore previously selected file if path is under TASK/
+            const savedFile = localStorage.getItem(planFileKey);
+            if (savedFile && savedFile.startsWith(dirPath + '/')) {
+              setPlanSelectedFile(savedFile);
+            } else {
+              setPlanSelectedFile(dirPath + '/' + indexFile.name);
+            }
           } else {
             try {
               const result = await touchFile(token, sessionId, 'TASK/.index.md');
