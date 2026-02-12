@@ -24,12 +24,32 @@ export interface DeleteAnnotation {
   selectedText: string;
 }
 
+export interface ReplaceAnnotation {
+  id: string;
+  tokenIndices: number[];
+  startLine: number;
+  endLine: number;
+  selectedText: string;
+  content: string;
+}
+
+export interface CommentAnnotation {
+  id: string;
+  tokenIndices: number[];
+  startLine: number;
+  endLine: number;
+  selectedText: string;
+  content: string;
+}
+
 export interface PlanAnnotations {
   additions: AddAnnotation[];
   deletions: DeleteAnnotation[];
+  replacements: ReplaceAnnotation[];
+  comments: CommentAnnotation[];
 }
 
-const EMPTY_ANNOTATIONS: PlanAnnotations = { additions: [], deletions: [] };
+const EMPTY_ANNOTATIONS: PlanAnnotations = { additions: [], deletions: [], replacements: [], comments: [] };
 
 /* ── Helpers ── */
 
@@ -78,9 +98,11 @@ function formatLineContext(line: string | undefined): string {
 function buildAnnotationJson(
   annotations: PlanAnnotations,
   sourceLines: string[],
-): { 'Insert Annotations': string[][]; 'Delete Annotations': string[][] } {
+): { 'Insert Annotations': string[][]; 'Delete Annotations': string[][]; 'Replace Annotations': string[][]; 'Comment Annotations': string[][] } {
   const insertAnns: string[][] = [];
   const deleteAnns: string[][] = [];
+  const replaceAnns: string[][] = [];
+  const commentAnns: string[][] = [];
 
   for (const a of annotations.additions) {
     const ctxBefore = sourceLines[a.sourceLine - 1] ?? '';
@@ -102,7 +124,34 @@ function buildAnnotationJson(
     ]);
   }
 
-  return { 'Insert Annotations': insertAnns, 'Delete Annotations': deleteAnns };
+  for (const r of annotations.replacements) {
+    const ctxBefore = sourceLines[r.startLine - 2] ?? '';
+    const ctxAfter = sourceLines[r.endLine] ?? '';
+    replaceAnns.push([
+      `${r.startLine}: ${formatLineContext(ctxBefore)}`,
+      r.selectedText,
+      r.content,
+      formatLineContext(ctxAfter),
+    ]);
+  }
+
+  for (const c of annotations.comments) {
+    const ctxBefore = sourceLines[c.startLine - 2] ?? '';
+    const ctxAfter = sourceLines[c.endLine] ?? '';
+    commentAnns.push([
+      `${c.startLine}: ${formatLineContext(ctxBefore)}`,
+      c.selectedText,
+      c.content,
+      formatLineContext(ctxAfter),
+    ]);
+  }
+
+  return {
+    'Insert Annotations': insertAnns,
+    'Delete Annotations': deleteAnns,
+    'Replace Annotations': replaceAnns,
+    'Comment Annotations': commentAnns,
+  };
 }
 
 /** Generate /aicli-task-review command for a single file */
@@ -111,7 +160,7 @@ export function generateTaskReview(
   annotations: PlanAnnotations,
   sourceLines: string[],
 ): string {
-  if (annotations.additions.length === 0 && annotations.deletions.length === 0) return '';
+  if (annotations.additions.length === 0 && annotations.deletions.length === 0 && annotations.replacements.length === 0 && annotations.comments.length === 0) return '';
   const json = JSON.stringify(buildAnnotationJson(annotations, sourceLines));
   return `/aicli-task-review ${filePath} ${json}`;
 }
@@ -191,7 +240,12 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       const ids = new Set<string>();
       parsed.additions.forEach((a) => ids.add(a.id));
       parsed.deletions.forEach((d) => ids.add(d.id));
+      (parsed.replacements ?? []).forEach((r) => ids.add(r.id));
+      (parsed.comments ?? []).forEach((c) => ids.add(c.id));
       baselineIdsRef.current = ids;
+      // Migrate old data missing new arrays
+      if (!parsed.replacements) parsed.replacements = [];
+      if (!parsed.comments) parsed.comments = [];
       return parsed;
     } catch { return EMPTY_ANNOTATIONS; }
   });
@@ -241,10 +295,15 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         localUpdatedAt = Date.now(); // approximate
       }
     } catch { /* ignore */ }
+    // Migrate old data missing new arrays
+    if (!localAnns.replacements) localAnns.replacements = [];
+    if (!localAnns.comments) localAnns.comments = [];
     setAnnotations(localAnns);
     const ids = new Set<string>();
     localAnns.additions.forEach((a) => ids.add(a.id));
     localAnns.deletions.forEach((d) => ids.add(d.id));
+    localAnns.replacements.forEach((r) => ids.add(r.id));
+    localAnns.comments.forEach((c) => ids.add(c.id));
     baselineIdsRef.current = ids;
 
     // L2: async from server
@@ -254,11 +313,15 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       if (remote && remote.updatedAt > localUpdatedAt) {
         try {
           const parsed: PlanAnnotations = JSON.parse(remote.content);
+          if (!parsed.replacements) parsed.replacements = [];
+          if (!parsed.comments) parsed.comments = [];
           setAnnotations(parsed);
           try { localStorage.setItem(storageKey(sessionId, filePath), remote.content); } catch { /* full */ }
           const rids = new Set<string>();
           parsed.additions.forEach((a) => rids.add(a.id));
           parsed.deletions.forEach((d) => rids.add(d.id));
+          parsed.replacements.forEach((r) => rids.add(r.id));
+          parsed.comments.forEach((c) => rids.add(c.id));
           baselineIdsRef.current = rids;
         } catch { /* corrupt server data */ }
       }
@@ -273,10 +336,12 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Annotation counts: total / sent / unsent
   const annCounts = useMemo(() => {
     const bl = baselineIdsRef.current;
-    const total = annotations.additions.length + annotations.deletions.length;
+    const total = annotations.additions.length + annotations.deletions.length + annotations.replacements.length + annotations.comments.length;
     let sent = 0;
     annotations.additions.forEach(a => { if (bl.has(a.id)) sent++; });
     annotations.deletions.forEach(d => { if (bl.has(d.id)) sent++; });
+    annotations.replacements.forEach(r => { if (bl.has(r.id)) sent++; });
+    annotations.comments.forEach(c => { if (bl.has(c.id)) sent++; });
     return { total, sent, unsent: total - sent };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, baselineVer]);
@@ -291,8 +356,27 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const [editDelText, setEditDelText] = useState('');
   const editDelRef = useRef<HTMLTextAreaElement>(null);
 
-  // Delete float button
-  const [deleteFloat, setDeleteFloat] = useState<{ x: number; y: number; tokenIndices: number[]; startLine: number; endLine: number; text: string } | null>(null);
+  // Replace/Comment card editing
+  const [editingRepId, setEditingRepId] = useState<string | null>(null);
+  const [editRepText, setEditRepText] = useState('');
+  const editRepRef = useRef<HTMLTextAreaElement>(null);
+  const [editingComId, setEditingComId] = useState<string | null>(null);
+  const [editComText, setEditComText] = useState('');
+  const editComRef = useRef<HTMLTextAreaElement>(null);
+
+  // Pending selection action: after clicking ↔ or ? in the float, user types content
+  const [pendingAction, setPendingAction] = useState<{
+    type: 'replace' | 'comment';
+    tokenIndices: number[];
+    startLine: number;
+    endLine: number;
+    text: string;
+  } | null>(null);
+  const [pendingText, setPendingText] = useState('');
+  const pendingTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Selection float button (replaces old single delete float)
+  const [selectionFloat, setSelectionFloat] = useState<{ x: number; y: number; tokenIndices: number[]; startLine: number; endLine: number; text: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Save scroll position on unmount, restore after content loads
@@ -322,6 +406,13 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       requestAnimationFrame(() => insertTextareaRef.current?.focus());
     }
   }, [activeInsert]);
+
+  // Focus pending action textarea when it opens
+  useEffect(() => {
+    if (pendingAction) {
+      requestAnimationFrame(() => pendingTextareaRef.current?.focus());
+    }
+  }, [pendingAction]);
 
   // Add annotation
   const handleAddAnnotation = useCallback((afterIndex: number) => {
@@ -367,21 +458,107 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
 
   // Mark deletion from selection
   const handleMarkDeletion = useCallback(() => {
-    if (!deleteFloat) return;
+    if (!selectionFloat) return;
 
     setAnnotations((prev) => ({
       ...prev,
       deletions: [...prev.deletions, {
         id: uid(),
-        tokenIndices: deleteFloat.tokenIndices,
-        startLine: deleteFloat.startLine,
-        endLine: deleteFloat.endLine,
-        selectedText: deleteFloat.text.slice(0, 80),
+        tokenIndices: selectionFloat.tokenIndices,
+        startLine: selectionFloat.startLine,
+        endLine: selectionFloat.endLine,
+        selectedText: selectionFloat.text.slice(0, 80),
       }],
     }));
-    setDeleteFloat(null);
+    setSelectionFloat(null);
     window.getSelection()?.removeAllRanges();
-  }, [deleteFloat]);
+  }, [selectionFloat]);
+
+  // Start replace/comment action from selection float
+  const handleStartSelectionAction = useCallback((type: 'replace' | 'comment') => {
+    if (!selectionFloat) return;
+    setPendingAction({
+      type,
+      tokenIndices: selectionFloat.tokenIndices,
+      startLine: selectionFloat.startLine,
+      endLine: selectionFloat.endLine,
+      text: selectionFloat.text.slice(0, 80),
+    });
+    setPendingText('');
+    setSelectionFloat(null);
+    window.getSelection()?.removeAllRanges();
+  }, [selectionFloat]);
+
+  // Submit pending replace/comment action
+  const handleSubmitPendingAction = useCallback(() => {
+    if (!pendingAction) return;
+    const content = pendingText.trim();
+    if (!content) { setPendingAction(null); setPendingText(''); return; }
+
+    if (pendingAction.type === 'replace') {
+      setAnnotations((prev) => ({
+        ...prev,
+        replacements: [...prev.replacements, {
+          id: uid(),
+          tokenIndices: pendingAction.tokenIndices,
+          startLine: pendingAction.startLine,
+          endLine: pendingAction.endLine,
+          selectedText: pendingAction.text,
+          content,
+        }],
+      }));
+    } else {
+      setAnnotations((prev) => ({
+        ...prev,
+        comments: [...prev.comments, {
+          id: uid(),
+          tokenIndices: pendingAction.tokenIndices,
+          startLine: pendingAction.startLine,
+          endLine: pendingAction.endLine,
+          selectedText: pendingAction.text,
+          content,
+        }],
+      }));
+    }
+    setPendingAction(null);
+    setPendingText('');
+  }, [pendingAction, pendingText]);
+
+  // Remove a replacement annotation
+  const handleRemoveReplacement = useCallback((id: string) => {
+    setAnnotations((prev) => ({
+      ...prev,
+      replacements: prev.replacements.filter((r) => r.id !== id),
+    }));
+  }, []);
+
+  // Edit a replacement annotation — assign new ID
+  const handleEditReplacement = useCallback((id: string, newContent: string) => {
+    setAnnotations((prev) => ({
+      ...prev,
+      replacements: prev.replacements.map((r) =>
+        r.id === id ? { ...r, id: uid(), content: newContent } : r
+      ),
+    }));
+  }, []);
+
+  // Remove a comment annotation
+  const handleRemoveComment = useCallback((id: string) => {
+    setAnnotations((prev) => ({
+      ...prev,
+      comments: prev.comments.filter((c) => c.id !== id),
+    }));
+  }, []);
+
+  // Edit a comment annotation — assign new ID
+  const handleEditComment = useCallback((id: string, newContent: string) => {
+    setAnnotations((prev) => ({
+      ...prev,
+      comments: prev.comments.map((c) =>
+        c.id === id ? { ...c, id: uid(), content: newContent } : c
+      ),
+    }));
+  }, []);
 
   // Remove a deletion annotation
   const handleRemoveDeletion = useCallback((id: string) => {
@@ -417,23 +594,23 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const handleSelectionCheck = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !containerRef.current) {
-      setDeleteFloat(null);
+      setSelectionFloat(null);
       return;
     }
     const text = sel.toString().trim();
-    if (!text) { setDeleteFloat(null); return; }
+    if (!text) { setSelectionFloat(null); return; }
 
     // Ensure selection is within our container
     const range = sel.getRangeAt(0);
     if (!containerRef.current.contains(range.commonAncestorContainer)) {
-      setDeleteFloat(null);
+      setSelectionFloat(null);
       return;
     }
 
     // Find token indices from selection
     const startEl = findTokenEl(range.startContainer);
     const endEl = findTokenEl(range.endContainer);
-    if (!startEl || !endEl) { setDeleteFloat(null); return; }
+    if (!startEl || !endEl) { setSelectionFloat(null); return; }
 
     const startIdx = parseInt(startEl.getAttribute('data-token-index') || '0', 10);
     const endIdx = parseInt(endEl.getAttribute('data-token-index') || '0', 10);
@@ -450,7 +627,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     // Auto-copy selection to clipboard
     navigator.clipboard.writeText(text).catch(() => {});
 
-    setDeleteFloat({
+    setSelectionFloat({
       x: rect.right - containerRect.left + container.scrollLeft + 6,
       y: rect.top - containerRect.top + container.scrollTop - 2,
       tokenIndices: indices,
@@ -468,7 +645,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       selTimerRef.current = setTimeout(() => {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || !containerRef.current) {
-          setDeleteFloat(null);
+          setSelectionFloat(null);
           return;
         }
         const anchor = sel.anchorNode;
@@ -492,6 +669,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return {
       additions: annotations.additions.filter((a) => !bl.has(a.id)),
       deletions: annotations.deletions.filter((d) => !bl.has(d.id)),
+      replacements: annotations.replacements.filter((r) => !bl.has(r.id)),
+      comments: annotations.comments.filter((c) => !bl.has(c.id)),
     };
   }, [annotations]);
 
@@ -503,6 +682,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       const ids = new Set<string>();
       annotations.additions.forEach((a) => ids.add(a.id));
       annotations.deletions.forEach((d) => ids.add(d.id));
+      annotations.replacements.forEach((r) => ids.add(r.id));
+      annotations.comments.forEach((c) => ids.add(c.id));
       baselineIdsRef.current = ids;
       setBaselineVer(v => v + 1);
     }
@@ -514,6 +695,10 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       return generateTaskReview(filePath, getNewAnnotations(), sourceLines);
     },
     handleEscape: () => {
+      if (pendingAction) {
+        handleSubmitPendingAction();
+        return true;
+      }
       if (activeInsert != null) {
         handleAddAnnotation(activeInsert);
         return true;
@@ -526,7 +711,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         if (containerRef.current) containerRef.current.scrollTop = top;
       });
     },
-  }), [getNewAnnotations, sourceLines, filePath, activeInsert, handleAddAnnotation]);
+  }), [getNewAnnotations, sourceLines, filePath, activeInsert, handleAddAnnotation, pendingAction, handleSubmitPendingAction]);
 
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -545,17 +730,25 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   }, [dropdownOpen]);
 
   // Send a single annotation to terminal as /aicli-task-review command
-  const handleSendSingle = useCallback((annId: string, type: 'add' | 'del') => {
+  const handleSendSingle = useCallback((annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
     if (!onSend) return;
-    const singleAnns: PlanAnnotations = { additions: [], deletions: [] };
+    const singleAnns: PlanAnnotations = { additions: [], deletions: [], replacements: [], comments: [] };
     if (type === 'add') {
       const a = annotations.additions.find(x => x.id === annId);
       if (!a) return;
       singleAnns.additions.push(a);
-    } else {
+    } else if (type === 'del') {
       const d = annotations.deletions.find(x => x.id === annId);
       if (!d) return;
       singleAnns.deletions.push(d);
+    } else if (type === 'rep') {
+      const r = annotations.replacements.find(x => x.id === annId);
+      if (!r) return;
+      singleAnns.replacements.push(r);
+    } else {
+      const c = annotations.comments.find(x => x.id === annId);
+      if (!c) return;
+      singleAnns.comments.push(c);
     }
     const cmd = generateTaskReview(filePath, singleAnns, sourceLines);
     if (cmd) onSend(cmd);
@@ -564,13 +757,12 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   }, [onSend, filePath, annotations, sourceLines]);
 
   // Delete annotation from dropdown
-  const handleDropdownDelete = useCallback((annId: string, type: 'add' | 'del') => {
-    if (type === 'add') {
-      handleRemoveAddition(annId);
-    } else {
-      handleRemoveDeletion(annId);
-    }
-  }, [handleRemoveAddition, handleRemoveDeletion]);
+  const handleDropdownDelete = useCallback((annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
+    if (type === 'add') handleRemoveAddition(annId);
+    else if (type === 'del') handleRemoveDeletion(annId);
+    else if (type === 'rep') handleRemoveReplacement(annId);
+    else handleRemoveComment(annId);
+  }, [handleRemoveAddition, handleRemoveDeletion, handleRemoveReplacement, handleRemoveComment]);
 
   // Check if a token index is marked for deletion
   const deletedIndices = useMemo(() => {
@@ -578,6 +770,20 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     annotations.deletions.forEach((d) => d.tokenIndices.forEach((i) => set.add(i)));
     return set;
   }, [annotations.deletions]);
+
+  // Check if a token index is marked for replacement
+  const replacedIndices = useMemo(() => {
+    const set = new Set<number>();
+    annotations.replacements.forEach((r) => r.tokenIndices.forEach((i) => set.add(i)));
+    return set;
+  }, [annotations.replacements]);
+
+  // Check if a token index is marked with a comment
+  const commentedIndices = useMemo(() => {
+    const set = new Set<number>();
+    annotations.comments.forEach((c) => c.tokenIndices.forEach((i) => set.add(i)));
+    return set;
+  }, [annotations.comments]);
 
   // Additions grouped by afterTokenIndex
   const additionsByIndex = useMemo(() => {
@@ -590,7 +796,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return map;
   }, [annotations.additions]);
 
-  const hasAnnotations = annotations.additions.length > 0 || annotations.deletions.length > 0;
+  const hasAnnotations = annotations.additions.length > 0 || annotations.deletions.length > 0 || annotations.replacements.length > 0 || annotations.comments.length > 0;
 
   // markdown can be empty string for a valid empty file — still show the annotation UI
   // The parent (PlanPanel) only renders this component when planFilePath is set
@@ -628,7 +834,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
               {(() => {
                 const firstAdd = annotations.additions[0];
                 const firstDel = annotations.deletions[0];
-                const text = firstAdd ? firstAdd.content : firstDel ? firstDel.selectedText : '';
+                const firstRep = annotations.replacements[0];
+                const firstCom = annotations.comments[0];
+                const text = firstAdd ? firstAdd.content : firstDel ? firstDel.selectedText : firstRep ? firstRep.content : firstCom ? firstCom.content : '';
                 if (!text) return '';
                 return text.slice(0, 40) + (text.length > 40 ? '...' : '');
               })()}
@@ -681,6 +889,40 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                         style={isSent ? { opacity: 0.3 } : { color: 'var(--accent-blue)' }}
                       >Send</button>
                       <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleDropdownDelete(d.id, 'del')} title="Delete">&times;</button>
+                    </div>
+                  );
+                })}
+                {annotations.replacements.map(r => {
+                  const isSent = baselineIdsRef.current.has(r.id);
+                  return (
+                    <div key={r.id} className="plan-anno-dropdown__item plan-anno-dropdown__item--rep">
+                      <span className="plan-anno-dropdown__type" style={{ color: 'var(--accent-blue)' }}>&#x21C4;</span>
+                      <span className="plan-anno-dropdown__text">{r.content.slice(0, 60)}{r.content.length > 60 ? '...' : ''}</span>
+                      <button
+                        className="pane-btn pane-btn--sm"
+                        onClick={() => !isSent && handleSendSingle(r.id, 'rep')}
+                        disabled={isSent}
+                        title={isSent ? 'Already sent' : 'Send to terminal'}
+                        style={isSent ? { opacity: 0.3 } : { color: 'var(--accent-blue)' }}
+                      >Send</button>
+                      <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleDropdownDelete(r.id, 'rep')} title="Delete">&times;</button>
+                    </div>
+                  );
+                })}
+                {annotations.comments.map(c => {
+                  const isSent = baselineIdsRef.current.has(c.id);
+                  return (
+                    <div key={c.id} className="plan-anno-dropdown__item plan-anno-dropdown__item--com">
+                      <span className="plan-anno-dropdown__type" style={{ color: 'var(--accent-green)' }}>?</span>
+                      <span className="plan-anno-dropdown__text">{c.content.slice(0, 60)}{c.content.length > 60 ? '...' : ''}</span>
+                      <button
+                        className="pane-btn pane-btn--sm"
+                        onClick={() => !isSent && handleSendSingle(c.id, 'com')}
+                        disabled={isSent}
+                        title={isSent ? 'Already sent' : 'Send to terminal'}
+                        style={isSent ? { opacity: 0.3 } : { color: 'var(--accent-blue)' }}
+                      >Send</button>
+                      <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleDropdownDelete(c.id, 'com')} title="Delete">&times;</button>
                     </div>
                   );
                 })}
@@ -742,7 +984,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
               <div
                 data-token-index={i}
                 id={headingIdMap.get(i)}
-                className={deletedIndices.has(i) ? 'plan-block--deleted' : undefined}
+                className={deletedIndices.has(i) ? 'plan-block--deleted' : replacedIndices.has(i) ? 'plan-block--replaced' : commentedIndices.has(i) ? 'plan-block--commented' : undefined}
                 dangerouslySetInnerHTML={{ __html: html }}
               />
 
@@ -819,6 +1061,161 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
                   </div>
                 ))}
 
+              {/* Replace annotations for this token */}
+              {annotations.replacements
+                .filter((r) => r.tokenIndices.includes(i) && r.tokenIndices[0] === i)
+                .map((r) => (
+                  <div key={r.id} className="plan-replace-card">
+                    {editingRepId === r.id ? (
+                      <textarea
+                        ref={editRepRef}
+                        className="plan-annotation-textarea"
+                        value={editRepText}
+                        onChange={(e) => setEditRepText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            const trimmed = editRepText.trim();
+                            if (trimmed) handleEditReplacement(r.id, trimmed);
+                            else handleRemoveReplacement(r.id);
+                            setEditingRepId(null);
+                          }
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingRepId(null); }
+                        }}
+                        onBlur={() => {
+                          const trimmed = editRepText.trim();
+                          if (trimmed) handleEditReplacement(r.id, trimmed);
+                          else handleRemoveReplacement(r.id);
+                          setEditingRepId(null);
+                        }}
+                        rows={autoRows(editRepText)}
+                        style={{ fontSize: `${fontSize}px`, flex: 1 }}
+                      />
+                    ) : (
+                      <>
+                        <span style={{ color: 'var(--accent-blue)', flexShrink: 0 }}>&#x21C4;</span>
+                        <span
+                          style={{ flex: 1, fontSize: `${fontSize}px`, whiteSpace: 'pre-wrap', cursor: 'text' }}
+                          onDoubleClick={() => { setEditingRepId(r.id); setEditRepText(r.content); requestAnimationFrame(() => { const el = editRepRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          title="Double-click to edit"
+                        >
+                          <span style={{ color: 'var(--accent-red)', textDecoration: 'line-through' }}>{r.selectedText}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}> → </span>
+                          <span style={{ color: 'var(--accent-blue)' }}>{r.content}</span>
+                        </span>
+                        {onSend && (() => {
+                          const sent = baselineIdsRef.current.has(r.id);
+                          return (
+                            <button
+                              className="pane-btn pane-btn--sm"
+                              onClick={() => !sent && handleSendSingle(r.id, 'rep')}
+                              disabled={sent}
+                              title={sent ? 'Already sent' : 'Send to terminal'}
+                              style={sent ? { opacity: 0.3 } : { color: 'var(--accent-green)' }}
+                            >Send</button>
+                          );
+                        })()}
+                        <button
+                          className="pane-btn pane-btn--sm"
+                          onClick={() => { setEditingRepId(r.id); setEditRepText(r.content); requestAnimationFrame(() => { const el = editRepRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          style={{ color: 'var(--accent-blue)' }}
+                          title="Edit replacement"
+                        >&#x270E;</button>
+                        <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleRemoveReplacement(r.id)} title="Remove replacement">&times;</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+
+              {/* Comment annotations for this token */}
+              {annotations.comments
+                .filter((c) => c.tokenIndices.includes(i) && c.tokenIndices[0] === i)
+                .map((c) => (
+                  <div key={c.id} className="plan-comment-card">
+                    {editingComId === c.id ? (
+                      <textarea
+                        ref={editComRef}
+                        className="plan-annotation-textarea"
+                        value={editComText}
+                        onChange={(e) => setEditComText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            const trimmed = editComText.trim();
+                            if (trimmed) handleEditComment(c.id, trimmed);
+                            else handleRemoveComment(c.id);
+                            setEditingComId(null);
+                          }
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingComId(null); }
+                        }}
+                        onBlur={() => {
+                          const trimmed = editComText.trim();
+                          if (trimmed) handleEditComment(c.id, trimmed);
+                          else handleRemoveComment(c.id);
+                          setEditingComId(null);
+                        }}
+                        rows={autoRows(editComText)}
+                        style={{ fontSize: `${fontSize}px`, flex: 1 }}
+                      />
+                    ) : (
+                      <>
+                        <span style={{ color: 'var(--accent-green)', flexShrink: 0 }}>?</span>
+                        <span
+                          style={{ flex: 1, fontSize: `${fontSize}px`, whiteSpace: 'pre-wrap', cursor: 'text' }}
+                          onDoubleClick={() => { setEditingComId(c.id); setEditComText(c.content); requestAnimationFrame(() => { const el = editComRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          title="Double-click to edit"
+                        >
+                          <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>"{c.selectedText}"</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>: </span>
+                          <span style={{ color: 'var(--accent-green)' }}>{c.content}</span>
+                        </span>
+                        {onSend && (() => {
+                          const sent = baselineIdsRef.current.has(c.id);
+                          return (
+                            <button
+                              className="pane-btn pane-btn--sm"
+                              onClick={() => !sent && handleSendSingle(c.id, 'com')}
+                              disabled={sent}
+                              title={sent ? 'Already sent' : 'Send to terminal'}
+                              style={sent ? { opacity: 0.3 } : { color: 'var(--accent-green)' }}
+                            >Send</button>
+                          );
+                        })()}
+                        <button
+                          className="pane-btn pane-btn--sm"
+                          onClick={() => { setEditingComId(c.id); setEditComText(c.content); requestAnimationFrame(() => { const el = editComRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }); }}
+                          style={{ color: 'var(--accent-blue)' }}
+                          title="Edit comment"
+                        >&#x270E;</button>
+                        <button className="pane-btn pane-btn--danger pane-btn--sm" onClick={() => handleRemoveComment(c.id)} title="Remove comment">&times;</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+
+              {/* Pending replace/comment textarea for this token */}
+              {pendingAction && pendingAction.tokenIndices[0] === i && (
+                <div className={pendingAction.type === 'replace' ? 'plan-replace-card' : 'plan-comment-card'} style={{ padding: '4px 8px' }}>
+                  <span style={{ color: pendingAction.type === 'replace' ? 'var(--accent-blue)' : 'var(--accent-green)', flexShrink: 0 }}>
+                    {pendingAction.type === 'replace' ? '\u21C4' : '?'}
+                  </span>
+                  <textarea
+                    ref={pendingTextareaRef}
+                    className="plan-annotation-textarea"
+                    value={pendingText}
+                    onChange={(e) => setPendingText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSubmitPendingAction(); return; }
+                      if (e.key === 'Escape') { e.preventDefault(); handleSubmitPendingAction(); return; }
+                    }}
+                    onBlur={handleSubmitPendingAction}
+                    placeholder={pendingAction.type === 'replace' ? 'Replace with... (Ctrl+Enter to save)' : 'Comment... (Ctrl+Enter to save)'}
+                    rows={autoRows(pendingText)}
+                    style={{ fontSize: `${fontSize}px`, flex: 1 }}
+                  />
+                </div>
+              )}
+
               {/* Insert zone after this block */}
               {!readOnly && (
                 <InsertZone
@@ -842,15 +1239,28 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
           );
         })}
 
-        {/* Delete float button */}
-        {!readOnly && deleteFloat && (
-          <button
-            className="plan-delete-float"
-            style={{ top: deleteFloat.y, left: deleteFloat.x }}
-            onMouseDown={(e) => { e.preventDefault(); handleMarkDeletion(); }}
+        {/* Selection float button group */}
+        {!readOnly && selectionFloat && (
+          <div
+            className="plan-selection-float"
+            style={{ top: selectionFloat.y, left: selectionFloat.x }}
           >
-            &minus;
-          </button>
+            <button
+              className="plan-selection-float__delete"
+              onMouseDown={(e) => { e.preventDefault(); handleMarkDeletion(); }}
+              title="Delete selection"
+            >&minus;</button>
+            <button
+              className="plan-selection-float__replace"
+              onMouseDown={(e) => { e.preventDefault(); handleStartSelectionAction('replace'); }}
+              title="Replace selection"
+            >&#x21C4;</button>
+            <button
+              className="plan-selection-float__comment"
+              onMouseDown={(e) => { e.preventDefault(); handleStartSelectionAction('comment'); }}
+              title="Comment on selection"
+            >?</button>
+          </div>
         )}
       </div>
       {/* TOC sidebar */}

@@ -22,7 +22,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Split Panes** — horizontal / vertical splits, arbitrarily nested
 - **Document Browser** — view Markdown, HTML, and PDF files alongside your terminal; file picker shows file sizes
 - **Mermaid Diagrams** — Gantt charts, flowcharts, and other Mermaid diagrams render inline with dark theme; CDN fallback for reliability
-- **Plan Annotations** — add, edit, and delete inline annotations on document content with persistent storage
+- **Plan Annotations** — 4 annotation types (insert / delete / replace / comment) on document content with persistent storage; selection float button group for quick action
 - **Editor Panel** — multi-line editing with server-side draft persistence (SQLite), undo stack, and slash commands (`/history`, etc.)
 - **Copy & Paste** — mouse selection auto-copies to clipboard; right-click pastes into terminal
 - **File Transfer** — upload files to CWD, browse and download via REST API

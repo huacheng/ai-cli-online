@@ -879,35 +879,85 @@ body.resizing-panes-h * {
   font-size: 11px;
 }
 
-/* ── Delete Float Button ── */
-.plan-delete-float {
+/* ── Selection Float Button Group ── */
+.plan-selection-float {
   position: absolute;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.plan-selection-float button {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent-red);
-  background: #2a1520;
-  color: var(--accent-red);
-  font-size: 16px;
-  font-weight: bold;
+  border-radius: 4px;
+  border: none;
   cursor: pointer;
-  padding: 0;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 10px rgba(247, 118, 142, 0.25), 0 1px 4px rgba(0, 0, 0, 0.4);
-  transition: background 0.12s ease, transform 0.12s ease;
+  background: transparent;
+  transition: background 0.15s, transform 0.1s;
 }
 
-.plan-delete-float:hover {
-  background: rgba(247, 118, 142, 0.2);
-  transform: scale(1.15);
+.plan-selection-float button:hover { transform: scale(1.1); }
+.plan-selection-float__delete { color: var(--accent-red); }
+.plan-selection-float__delete:hover { background: rgba(247, 118, 142, 0.2); }
+.plan-selection-float__replace { color: var(--accent-blue); }
+.plan-selection-float__replace:hover { background: rgba(122, 162, 247, 0.2); }
+.plan-selection-float__comment { color: var(--accent-green); }
+.plan-selection-float__comment:hover { background: rgba(158, 206, 106, 0.2); }
+
+/* ── Replace Card ── */
+.plan-replace-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 2px 0;
+  border-left: 3px solid rgba(122, 162, 247, 0.6);
+  background: rgba(122, 162, 247, 0.04);
+  border-radius: 0 4px 4px 0;
+  font-size: 11px;
 }
 
-/* ── Deleted Block Visual (subtle left border, no full strikethrough) ── */
+/* ── Comment Card ── */
+.plan-comment-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 2px 0;
+  border-left: 3px solid rgba(158, 206, 106, 0.6);
+  background: rgba(158, 206, 106, 0.04);
+  border-radius: 0 4px 4px 0;
+  font-size: 11px;
+}
+
+/* ── Block Visual Markers ── */
 .plan-block--deleted {
   border-left: 3px solid rgba(247, 118, 142, 0.5);
+  padding-left: 8px;
+  border-radius: 2px;
+  position: relative;
+}
+
+.plan-block--replaced {
+  border-left: 3px solid rgba(122, 162, 247, 0.5);
+  padding-left: 8px;
+  border-radius: 2px;
+  position: relative;
+}
+
+.plan-block--commented {
+  border-left: 3px solid rgba(158, 206, 106, 0.5);
   padding-left: 8px;
   border-radius: 2px;
   position: relative;
@@ -1177,6 +1227,8 @@ body.resizing-panes-h * {
 .plan-anno-dropdown__item:last-child { border-bottom: none; }
 .plan-anno-dropdown__item--add { border-left: 2px solid var(--accent-yellow); }
 .plan-anno-dropdown__item--del { border-left: 2px solid var(--accent-red); }
+.plan-anno-dropdown__item--rep { border-left: 2px solid var(--accent-blue); }
+.plan-anno-dropdown__item--com { border-left: 2px solid var(--accent-green); }
 .plan-anno-dropdown__type {
   flex-shrink: 0;
   width: 14px;

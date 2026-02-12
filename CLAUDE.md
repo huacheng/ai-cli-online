@@ -344,12 +344,17 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 - **PlanFileBrowser**: 左侧文件树，浏览 TASK/ 目录下的 `.md` 文件，支持新建文件
 - **PlanAnnotationRenderer**: 中间批注编辑器，Markdown 内容逐行渲染 + 内联批注
-  - 新增批注（InsertZone 点击 + 输入）、编辑批注（双击）、删除批注
+  - 4 种批注类型:
+    - **Insert** (`+` 黄色): 行间插入，点击 InsertZone 输入内容
+    - **Delete** (`−` 红色): 选中文本后删除，红色删除线标记
+    - **Replace** (`↔` 蓝色): 选中文本后替换，蓝色卡片显示 "old → new"
+    - **Comment** (`?` 绿色): 选中文本后评注/提问，绿色卡片显示
+  - 选中文本后弹出浮动按钮组（`−` / `↔` / `?` 竖排面板），替代原来的单个删除按钮
   - 批注持久化到 SQLite（`GET/PUT /api/sessions/:sessionId/annotations`，按 session + filePath 存储）
   - Mermaid 图表内联渲染（CDN 懒加载: jsdelivr + unpkg 备源）
   - 文件切换时记忆/恢复滚动位置
 - **MarkdownToc**: 右侧目录导航，从 Markdown heading 提取锚点
-- 批注 Send 生成 `/aicli-task-review` 命令发送到终端
+- 批注 Send 生成 `/aicli-task-review` 命令发送到终端，JSON 包含 4 种 Annotations 数组
 - 关闭时聚合所有文件的未转发批注 → `onForwardToChat(summary)` 转发到 Chat 编辑器
 - 刷新按钮重新请求当前文件的 file stream
 

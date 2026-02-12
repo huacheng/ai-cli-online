@@ -1,5 +1,23 @@
 # AI-CLI-Online 变更日志
 
+## v2.8.0 (2026-02-12)
+
+### 新功能
+
+- **批注类型扩展为 4 种** — 从 2 种 (insert/delete) 扩展到 4 种完整批注体系:
+  - **Insert** (`+` 黄色): 行间插入批注（现有）
+  - **Delete** (`−` 红色): 选中文本删除（现有）
+  - **Replace** (`↔` 蓝色): 选中文本替换，卡片显示 "old → new"（新增）
+  - **Comment** (`?` 绿色): 选中文本评注/提问（新增）
+- **浮动按钮组** — 选中文本后弹出 3 按钮竖排面板 (`−` / `↔` / `?`)，替代原来的单个删除按钮
+- **Replace/Comment 卡片渲染** — 蓝色/绿色边框卡片，支持双击编辑、单条发送、删除
+- **选区视觉反馈** — Replace 蓝色左边框、Comment 绿色左边框，与 Delete 红色左边框风格一致
+- **/aicli-task-review 命令扩展** — JSON 输出包含 4 种 Annotations 数组；新增 Replace (Section C) 和 Comment (Section D) 处理逻辑；Comment 智能区分问句型（研究 + 解释）和陈述型（记录备忘）
+
+### 兼容性
+
+- 旧版批注数据（仅含 additions/deletions）自动迁移，新增 replacements/comments 空数组
+
 ## v2.6.0 (2026-02-11)
 
 ### 新功能

@@ -31,30 +31,37 @@ The annotations argument is a JSON string with the following structure:
 ```json
 {
   "Insert Annotations": [
-    ["line: context_before_start...context_before_end", "annotation content 1", "context_after_start...context_after_end"],
-    ["line: context_before_start...context_before_end", "annotation content 2", "context_after_start...context_after_end"]
+    ["line: context_before_start...context_before_end", "annotation content", "context_after_start...context_after_end"]
   ],
   "Delete Annotations": [
-    ["line: context_before_start...context_before_end", "annotation content 3", "context_after_start...context_after_end"],
-    ["line: context_before_start...context_before_end", "annotation content 4", "context_after_start...context_after_end"]
+    ["line: context_before_start...context_before_end", "selected text", "context_after_start...context_after_end"]
+  ],
+  "Replace Annotations": [
+    ["line: context_before_start...context_before_end", "selected text", "replacement content", "context_after_start...context_after_end"]
+  ],
+  "Comment Annotations": [
+    ["line: context_before_start...context_before_end", "selected text", "comment content", "context_after_start...context_after_end"]
   ]
 }
 ```
 
-Each annotation is a 3-element array:
+Each annotation type has a specific array element structure:
 
-| Index | Field | Description |
-|-------|-------|-------------|
-| 0 | **Context before** | `"line_number: first_few_chars...last_few_chars"` of the line above the annotation position |
-| 1 | **Annotation content** | The actual annotation text (insertion or deletion content) |
-| 2 | **Context after** | `"first_few_chars...last_few_chars"` of the line below the annotation position |
+| Type | Elements | Description |
+|------|----------|-------------|
+| **Insert** | 3 | [context_before, insertion_content, context_after] |
+| **Delete** | 3 | [context_before, selected_text, context_after] |
+| **Replace** | 4 | [context_before, selected_text, replacement_content, context_after] |
+| **Comment** | 4 | [context_before, selected_text, comment_content, context_after] |
+
+Context fields use the format `"line_number: first_few_chars...last_few_chars"` (before) and `"first_few_chars...last_few_chars"` (after).
 
 ## Input
 
 | Parameter | Description |
 |-----------|-------------|
 | **Task file** | Absolute path to the task file being reviewed (from annotation context) |
-| **Annotations** | JSON string with `Insert Annotations` and `Delete Annotations` arrays |
+| **Annotations** | JSON string with `Insert Annotations`, `Delete Annotations`, `Replace Annotations`, and `Comment Annotations` arrays |
 | **Mode** | `interactive` (default): print to screen and wait for confirmation. `silent`: write to task file for later annotation-based confirmation |
 
 ## Processing Logic
@@ -99,17 +106,42 @@ Triage each insert annotation. Classify into one of three action types:
 | **High — Interactive** | Await confirmation | Explain conflict cause, draft solution, print to screen. If no response within 10 min → fall back to Silent |
 | **High — Silent** | Write to task file | Explain conflict cause, draft solution, write into task file. Wait for next annotation edit confirmation |
 
-### C. Execution Report
+### C. Replace Annotations
+
+Triage each replace annotation. Classify into one of three action types:
+
+| Type | Condition | Action |
+|------|-----------|--------|
+| **Deferred confirmation** | A previously unresolved item, now confirmed by this replacement | Resume research based on replacement + context |
+| **Plan content replacement** | Replaces part of an existing implementation plan | Delete original content, insert replacement, then assess cross-impact (same as Delete § Cross-Impact) |
+| **Simple text replacement** | No plan impact, just wording change | Replace directly in task file |
+
+Cross-Impact Assessment: same rules as Delete Annotations (Section A).
+
+### D. Comment Annotations
+
+Triage each comment annotation. Classify by intent:
+
+| Type | Detection | Action |
+|------|-----------|--------|
+| **Question / Request for explanation** | Contains `?`, or starts with interrogative words (how, why, what, when, where, which, could, can, should, is, are, do, does, will, would) | Research the selected content in full context. Write detailed explanation, supplementary details, or implementation rationale **below** the selected content in the task file. Mark with `> 💬 ...` blockquote format. |
+| **Note / Memo** | Declarative sentence, no question markers | Insert as an inline note below the selected content using `> 📝 ...` blockquote format. No plan research needed. |
+
+Comment annotations NEVER delete or modify existing content — they only ADD supplementary information.
+
+### E. Execution Report
 
 | Section | Content |
 |---------|---------|
-| **Actions summary** | All actions taken during this review (deletions, insertions, plan changes) |
+| **Actions summary** | All actions taken during this review (deletions, insertions, replacements, plan changes) |
 | **Cross-impact resolutions** | Low/Medium level cross-impacts that were resolved, with explanations |
 | **Conflict resolutions** | Low/Medium level conflicts that were resolved, with explanations |
+| **Explanations provided** | Comment-type questions that were answered with detailed explanations |
+| **Notes recorded** | Comment-type memos inserted into task file |
 | **Pending confirmations** | High-level cross-impacts/conflicts awaiting user review |
 | **Deferred items** | Items written to task file in silent mode, pending next annotation edit |
 
-### D. Output
+### F. Output
 
 | Target | Description |
 |--------|-------------|
@@ -120,9 +152,13 @@ Triage each insert annotation. Classify into one of three action types:
 ## Execution Steps
 
 1. **Read** the task file at the given absolute path
-2. **Parse** all annotations (deletions and insertions) from the JSON input
-3. **Triage** each annotation — classify by type (deferred / plan change / pure removal / new task / info supplement)
-4. **Assess** cross-impacts (deletions) and conflicts (insertions) against existing plans in the task file
+2. **Parse** all annotations (deletions, insertions, replacements, comments) from the JSON input
+3. **Triage** each annotation — classify by type:
+   - Delete: deferred / plan deletion / pure removal
+   - Insert: deferred / new task / info supplement
+   - Replace: deferred / plan replacement / simple replacement
+   - Comment: question → research & explain / note → record as-is
+4. **Assess** cross-impacts (deletions, replacements) and conflicts (insertions) against existing plans in the task file
 5. **Execute** changes per severity level:
    - None/Low/Medium: resolve immediately, document in execution report
    - High: branch by mode (interactive → print + wait; silent → write to file)
