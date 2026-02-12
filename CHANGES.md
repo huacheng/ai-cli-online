@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.1 (2026-02-12)
+
+### 文档
+
+- 更新 README 截图，反映 v2.9.0 的中文等宽字体效果
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.1
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.1
+
 ## v2.9.0 (2026-02-12)
 
 ### 新功能
