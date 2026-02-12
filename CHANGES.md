@@ -1,5 +1,16 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.5 (2026-02-12)
+
+### 文档
+
+- 更新 CLAUDE.md、README.md、README.zh-CN.md，补充版本号显示功能描述
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.5
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.5
+
 ## v2.9.4 (2026-02-12)
 
 ### 新功能
