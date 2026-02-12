@@ -1,5 +1,20 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.0 (2026-02-12)
+
+### 新功能
+
+- **中文等宽字体 LXGW WenKai Mono** — 通过 jsDelivr CDN 加载霞鹜文楷等宽字体，unicode-range 分片按需加载（116 个 woff2 chunks），浏览器仅下载页面实际用到的 CJK 字符分片，npm 包体积零增长
+  - 字体栈: JetBrains Mono (Latin) → LXGW WenKai Mono (CJK) → 系统回退
+  - CSP 安全策略更新: `styleSrc` 和 `fontSrc` 允许 `cdn.jsdelivr.net`
+  - 全局 font-family 统一更新（index.css 7 处 + TerminalView FONT_FAMILY）
+
+### 文档
+
+- 清理 README 过期信息: 移除已删除的文档浏览器、PDF 懒加载等描述
+- 更新功能对比表 Canvas/UI 列和包大小（~1 MB）
+- 移除 33 行废弃 CSS（`.pdf-renderer`、`.doc-expanded-overlay`）
+
 ## v2.8.0 (2026-02-12)
 
 ### 新功能
@@ -17,6 +32,26 @@
 ### 兼容性
 
 - 旧版批注数据（仅含 additions/deletions）自动迁移，新增 replacements/comments 空数组
+
+## v2.7.0 (2026-02-12)
+
+### 安全加固
+
+- **symlink 穿越防护** — 文件下载 API 增加 `lstat` + `realpath` 双重校验，阻止符号链接逃逸访问敏感文件
+- **未认证 WebSocket 限制** — 未通过认证的 WebSocket 连接 10 秒超时自动断开
+- **TOCTOU 下载防护** — 下载时先 `lstat` 再 `createReadStream`，防止检查与使用之间的竞态条件
+- **CSP Headers 增强** — 新增 `frame-ancestors 'none'`、`base-uri 'self'`、`form-action 'self'` 安全指令
+
+### 代码质量
+
+- 全局 TypeScript strict 模式修复
+- 消除未使用变量和 import
+- 错误处理统一化
+
+### 性能
+
+- WebSocket 消息处理优化
+- 服务端响应压缩配置调优
 
 ## v2.6.0 (2026-02-11)
 
