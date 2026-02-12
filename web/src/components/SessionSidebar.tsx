@@ -328,6 +328,7 @@ export function SessionSidebar() {
   const serverSessions = useStore((s) => sidebarOpen ? s.serverSessions : []);
   const tabs = useStore((s) => sidebarOpen ? s.tabs : []);
   const terminalIdsLength = useStore((s) => s.terminalIds.length);
+  const tabsLoading = useStore((s) => s.tabsLoading);
 
   // Find orphaned sessions (server sessions not in any tab)
   const allTabTerminalIds = new Set(
@@ -439,8 +440,8 @@ export function SessionSidebar() {
           )}
         </div>
 
-        {/* Orphaned Sessions Section */}
-        {orphanedSessions.length > 0 && (
+        {/* Orphaned Sessions Section — hide while tabs are still loading from server */}
+        {!tabsLoading && orphanedSessions.length > 0 && (
           <div style={{ marginTop: '16px' }}>
             <div style={{
               padding: '8px 12px',

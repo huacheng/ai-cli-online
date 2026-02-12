@@ -378,6 +378,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   // Selection float button (replaces old single delete float)
   const [selectionFloat, setSelectionFloat] = useState<{ x: number; y: number; tokenIndices: number[]; startLine: number; endLine: number; text: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Grace period: prevent selectionchange from clearing a just-set float (DOM mutation may collapse selection)
+  const floatSetTimeRef = useRef(0);
 
   // Save scroll position on unmount, restore after content loads
   useEffect(() => {
@@ -627,6 +629,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     // Auto-copy selection to clipboard
     navigator.clipboard.writeText(text).catch(() => {});
 
+    floatSetTimeRef.current = Date.now();
     setSelectionFloat({
       x: rect.right - containerRect.left + container.scrollLeft + 6,
       y: rect.top - containerRect.top + container.scrollTop - 2,
@@ -645,6 +648,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       selTimerRef.current = setTimeout(() => {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || !containerRef.current) {
+          // Grace period: don't clear float if it was just set (DOM mutation from rendering the float may collapse selection)
+          if (Date.now() - floatSetTimeRef.current < 300) return;
           setSelectionFloat(null);
           return;
         }
@@ -661,7 +666,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [handleSelectionCheck]);
 
-  useMermaidRender(containerRef, tokens);
+  const theme = useStore((s) => s.theme);
+  useMermaidRender(containerRef, tokens, theme);
 
   // Filter: include annotations whose ID is not in baseline (new or edited → new ID)
   const getNewAnnotations = useCallback((): PlanAnnotations => {
