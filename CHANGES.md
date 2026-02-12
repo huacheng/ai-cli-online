@@ -15,6 +15,11 @@
 - 更新功能对比表 Canvas/UI 列和包大小（~1 MB）
 - 移除 33 行废弃 CSS（`.pdf-renderer`、`.doc-expanded-overlay`）
 
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.0
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.0
+
 ## v2.8.0 (2026-02-12)
 
 ### 新功能
@@ -32,6 +37,11 @@
 ### 兼容性
 
 - 旧版批注数据（仅含 additions/deletions）自动迁移，新增 replacements/comments 空数组
+
+### 发布
+
+- npm: 包含在 v2.9.0 中发布
+- GitHub: https://github.com/huacheng/ai-cli-online (commit d447eb4)
 
 ## v2.7.0 (2026-02-12)
 
@@ -52,6 +62,11 @@
 
 - WebSocket 消息处理优化
 - 服务端响应压缩配置调优
+
+### 发布
+
+- npm: 包含在 v2.9.0 中发布
+- GitHub: https://github.com/huacheng/ai-cli-online (commit e42468b)
 
 ## v2.6.0 (2026-02-11)
 
