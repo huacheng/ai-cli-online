@@ -1,5 +1,18 @@
 # AI-CLI-Online 变更日志
 
+## v2.9.2 (2026-02-12)
+
+### UI 优化
+
+- **侧边栏文本修改** — "Tabs & Sessions" → "Tabs & Terminals"，"TABS" → "Tabs"
+- **Light 主题 GitHub Primer 配色** — 18 个 CSS 变量 + xterm 终端配色全部替换为 GitHub Primer 设计系统色值（纯白背景 + 蓝灰色调），告别暖黄米色调
+- **修复 scrollback 按钮硬编码暗色** — 替换为 CSS 变量 `var(--bg-hover)`，Light 主题下不再显示深色背景
+
+### 发布
+
+- npm: https://www.npmjs.com/package/ai-cli-online/v/2.9.2
+- GitHub Release: https://github.com/huacheng/ai-cli-online/releases/tag/v2.9.2
+
 ## v2.9.1 (2026-02-12)
 
 ### 文档
