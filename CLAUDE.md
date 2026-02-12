@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（TASK/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴，以及 capture-pane 滚动历史回看（带 ANSI 颜色）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（TASK/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色），以及 Header 版本号显示（构建时从 package.json 注入）。
 
 ## 架构
 
@@ -37,7 +37,7 @@ ai-cli-online/
 ├── web/              # 前端应用 (React + Vite)
 │   └── src/
 │       ├── main.tsx          # React 入口 (ReactDOM.createRoot)
-│       ├── App.tsx           # 主应用组件 (Login / TabBar / Terminal / 主题切换)
+│       ├── App.tsx           # 主应用组件 (Login / TabBar / Terminal / 主题切换 / 版本号显示)
 │       ├── store.ts          # Zustand 状态管理 (tabs + terminalsMap + 主题 + 面板状态)
 │       ├── types.ts          # 类型定义 (LayoutNode, TerminalInstance, PanelState)
 │       ├── utils.ts          # 工具函数 (formatSize/formatTime/fileIcon)

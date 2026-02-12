@@ -29,6 +29,7 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 - **Session Management** — sidebar to restore, delete, rename sessions, and close individual terminals (with confirmation)
 - **CJK Font Support** — LXGW WenKai Mono via CDN with unicode-range subsetting; browser loads only needed CJK glyphs on demand
 - **Font Size Control** — adjustable terminal font size (A−/A+) with server-side persistence
+- **Version Display** — current version shown in header, auto-injected from `package.json` at build time
 - **Network Indicator** — real-time RTT latency display with signal bars
 - **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
 - **Secure Auth** — token authentication with timing-safe comparison
