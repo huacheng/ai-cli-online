@@ -49,7 +49,7 @@ function CenteredLoading({ label, percent }: { label: string; percent?: number }
   );
 }
 
-export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onForwardToChat, onSendToTerminal }: PlanPanelProps) {
+export function PlanPanel({ sessionId, token, connected, onRequestFileStream, onSendToTerminal }: PlanPanelProps) {
   // File stream hook
   const fileStream = useFileStream();
 
@@ -255,10 +255,10 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     planStreamedRef.current = null;
   }, []);
 
-  // Handle Save from annotation renderer — forward to chat
+  // Handle Save from annotation renderer — send directly to terminal
   const handlePlanSave = useCallback((summary: string) => {
-    if (summary) onForwardToChat?.(summary);
-  }, [onForwardToChat]);
+    if (summary) onSendToTerminal?.(summary);
+  }, [onSendToTerminal]);
 
   // Handle close file — deselect current file (does NOT close the Plan panel)
   const handleCloseFile = useCallback(() => {
