@@ -60,17 +60,19 @@ For each implementation step:
 1. **Read** `.index.md` — validate status is `review` or `executing`
 2. **Update** `.index.md` status to `executing`, update timestamp
 3. **Discover** all implementation steps from plan files
-4. **If** `--step N` specified, execute only that step; otherwise execute all in order
-5. **For each step:**
+4. **Detect completed steps**: check git log for `exec step N/M done` commits to determine progress; mark those steps as completed
+5. **If NEEDS_FIX resumption**: read `.bugfix.md` (mid-exec) or `.analysis.md` (post-exec) and address fix items before continuing remaining steps
+6. **If** `--step N` specified, execute only that step; otherwise execute remaining incomplete steps in order
+7. **For each step:**
    a. Read required source files
    b. Implement the change
    c. Verify (diagnostics / build check)
    d. Record result
-6. **After all steps** (or on failure):
+8. **After all steps** (or on failure):
    - Update `.index.md` timestamp
    - If all steps complete: signal `(done)`, suggest running `/ai-cli-task check --checkpoint post-exec`
    - If significant issue: signal `(mid-exec)`, suggest running `/ai-cli-task check --checkpoint mid-exec`
-7. **Report** execution summary with per-step results
+9. **Report** execution summary with per-step results
 
 ## State Transitions
 
