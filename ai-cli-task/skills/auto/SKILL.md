@@ -98,6 +98,57 @@ Before sending any command, the daemon captures the tmux pane output and verifie
 
 If terminal is not ready, the daemon retries with exponential backoff (1s, 2s, 4s, max 30s).
 
+### Stall Detection & Recovery
+
+Claude Code may stall mid-execution (e.g., waiting for user input, context window overflow prompt, or internal hang). Since the daemon is signal-driven, a stall means no `.auto-signal` is written and the loop halts silently. The daemon MUST actively detect and recover from stalls.
+
+#### Heartbeat Polling
+
+The daemon runs a periodic heartbeat (every 60 seconds) while an auto loop is active:
+
+1. `tmux capture-pane -t '=${name}:' -p` — capture current terminal output
+2. Compare with previous capture (store last capture hash)
+3. Track consecutive unchanged captures as `stall_count`
+
+#### Stall Determination
+
+| `stall_count` | Terminal Output Status | Verdict |
+|---------------|----------------------|---------|
+| < 3 | — | Normal (Claude may be thinking/working) |
+| ≥ 3 | Output unchanged for ≥ 3 polls | Stall suspected → run pattern match |
+
+A stall is only suspected after **3 consecutive unchanged captures** (≥ 3 minutes at 60s interval). This avoids false positives from long-running steps.
+
+#### Pattern Matching Recovery
+
+When stall is suspected, scan the captured pane output for known stall patterns:
+
+| Pattern | Detection | Recovery Action |
+|---------|-----------|-----------------|
+| Continuation prompt | `continue`, `Continue?`, `press enter` (case-insensitive) | Send `continue\n` to PTY |
+| Yes/No prompt | `(y/n)`, `(Y/N)`, `[y/N]`, `[Y/n]` | Send `y\n` to PTY |
+| Proceed prompt | `Do you want to proceed`, `Shall I continue` | Send `yes\n` to PTY |
+| Shell prompt visible | `$`, `❯`, `%` at end of output (no active command) | Claude exited without writing signal → re-send last command |
+| No recognizable pattern | — | Log warning, increment `stall_count`, continue polling |
+
+#### Recovery Limits
+
+| Limit | Value | Action on Exceed |
+|-------|-------|-----------------|
+| Max recoveries per step | 3 | Stop auto loop, report stall |
+| Max total recoveries | 10 | Stop auto loop, report repeated stalls |
+
+Recovery counts are tracked in SQLite (`recovery_count_step`, `recovery_count_total` in `task_auto` table) and reset per step on successful `.auto-signal` receipt.
+
+#### SQLite Schema Addition
+
+```sql
+ALTER TABLE task_auto ADD COLUMN recovery_count_step INTEGER DEFAULT 0;
+ALTER TABLE task_auto ADD COLUMN recovery_count_total INTEGER DEFAULT 0;
+ALTER TABLE task_auto ADD COLUMN last_capture_hash TEXT DEFAULT '';
+ALTER TABLE task_auto ADD COLUMN stall_count INTEGER DEFAULT 0;
+```
+
 ## State Machine
 
 ```
@@ -220,6 +271,10 @@ CREATE TABLE task_auto (
   max_iterations INTEGER DEFAULT 20,
   timeout_minutes INTEGER DEFAULT 30,
   iteration_count INTEGER DEFAULT 0,
+  recovery_count_step INTEGER DEFAULT 0,
+  recovery_count_total INTEGER DEFAULT 0,
+  last_capture_hash TEXT DEFAULT '',
+  stall_count INTEGER DEFAULT 0,
   started_at TEXT,
   last_signal_at TEXT
 );
@@ -231,6 +286,7 @@ CREATE TABLE task_auto (
 
 - **Max iterations**: user-configurable (default 20), forced stop when reached
 - **Timeout**: user-configurable (default 30 min), forced stop when elapsed
+- **Stall detection**: heartbeat polling (60s) + pattern matching recovery, with per-step (3) and total (10) recovery limits
 - **Pause on blocked**: Auto stops immediately on `blocked` status
 - **Manual override**: User can `/ai-cli-task auto --stop` at any time
 - **Terminal check**: Always verify terminal readiness before sending commands
@@ -253,9 +309,10 @@ The frontend is a **pure observer** for auto mode, except for start/stop control
 ## Cleanup
 
 When auto mode stops (complete, blocked, cancelled, or manual stop):
-1. Delete `.auto-signal` file if exists
-2. Remove `task_auto` row from SQLite
-3. Frontend status indicator clears on next poll
+1. Stop heartbeat polling timer
+2. Delete `.auto-signal` file if exists
+3. Remove `task_auto` row from SQLite (clears all stall detection state)
+4. Frontend status indicator clears on next poll
 
 ## Git
 
