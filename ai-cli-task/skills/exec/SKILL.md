@@ -33,8 +33,9 @@ Execute the implementation plan for a task module that has passed evaluation.
 1. **Read** all plan files in the task module (non-dot-prefixed `.md` files)
 2. **Read** `.target.md` for requirements context
 3. **Read** `.analysis.md` for evaluation notes and approved approach
-4. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
-5. **Build** execution order respecting any noted dependencies
+4. **Read** `.bugfix.md` if exists for mid-exec issue history and fix guidance
+5. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
+6. **Build** execution order respecting any noted dependencies
 
 ### Per-Step Execution
 
@@ -99,7 +100,7 @@ For long-running executions, intermediate progress can be observed by:
 
 - Each step should be atomic — if a step fails, previous steps remain applied
 - The executor should follow project coding conventions (check CLAUDE.md if present)
-- When status is `executing` (NEEDS_FIX), exec reads issues from `.analysis.md` and addresses them
+- When status is `executing` (NEEDS_FIX), exec reads issues from `.analysis.md` (post-exec) or `.bugfix.md` (mid-exec) and addresses them
 - When `--step N` is used, the executor verifies prerequisites for that step are met
 - After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
 - Execution does NOT automatically run tests — that is part of the post-exec evaluation

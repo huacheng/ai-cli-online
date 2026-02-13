@@ -67,7 +67,7 @@ Evaluates progress during execution when issues are encountered.
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
 | **CONTINUE** | Document progress, note any adjustments | Status unchanged |
-| **NEEDS_FIX** | Write specific fixable issues to `.analysis.md` | Status unchanged |
+| **NEEDS_FIX** | Append specific fixable issues to `.bugfix.md` | Status unchanged |
 | **REPLAN** | Write issue analysis to `.bugfix.md` | `executing` → `re-planning` |
 | **BLOCKED** | Write blocking analysis | → `blocked` |
 
@@ -99,7 +99,7 @@ Evaluates whether execution results meet the task requirements.
 | File | When Created | Content |
 |------|-------------|---------|
 | `.analysis.md` | post-plan, post-exec | Feasibility analysis (post-plan) or issue list (NEEDS_FIX) |
-| `.bugfix.md` | mid-exec (REPLAN) | Issue analysis, root cause, fix approach |
+| `.bugfix.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach |
 
 ## Execution Steps
 
