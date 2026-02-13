@@ -67,6 +67,7 @@ Evaluates progress during execution when issues are encountered.
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
 | **CONTINUE** | Document progress, note any adjustments | Status unchanged |
+| **NEEDS_FIX** | Write specific fixable issues to `.analysis.md` | Status unchanged |
 | **REPLAN** | Write issue analysis to `.bugfix.md` | `executing` → `re-planning` |
 | **BLOCKED** | Write blocking analysis | → `blocked` |
 
@@ -121,6 +122,7 @@ post-plan NEEDS_REVISION: (no change)
 post-plan BLOCKED:       → blocked
 
 mid-exec CONTINUE:       (no change)
+mid-exec NEEDS_FIX:      (no change)
 mid-exec REPLAN:         executing → re-planning
 mid-exec BLOCKED:        → blocked
 

@@ -76,7 +76,7 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 | `draft` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `planning` | =`planning` | PASS→`review` / NEEDS_REV=`planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `review` | →`re-planning` | ⊘ | ⊘ | ⊘ | →`executing` | — | →`cancelled` |
-| `executing` | →`re-planning` | ⊘ | CONT=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT→`complete`+merge / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) | — | →`cancelled` |
+| `executing` | →`re-planning` | ⊘ | CONT=`executing` / NEEDS_FIX=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT→`complete`+merge / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) | — | →`cancelled` |
 | `re-planning` | =`re-planning` | PASS→`review` / NEEDS_REV=`re-planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `complete` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
 | `blocked` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
@@ -248,7 +248,7 @@ Decision maker at three lifecycle checkpoints:
 | Checkpoint | Prerequisite | Outcomes |
 |------------|-------------|----------|
 | **post-plan** | `planning` / `re-planning` | PASS→`review`, NEEDS_REVISION (no change), BLOCKED→`blocked` |
-| **mid-exec** | `executing` | CONTINUE (no change), REPLAN→`re-planning`, BLOCKED→`blocked` |
+| **mid-exec** | `executing` | CONTINUE (no change), NEEDS_FIX (no change), REPLAN→`re-planning`, BLOCKED→`blocked` |
 | **post-exec** | `executing` | ACCEPT→`complete`+merge, NEEDS_FIX (no change), REPLAN→`re-planning` |
 
 ACCEPT triggers task-level refactoring → merge to main. If merge conflict → status stays `executing`, report conflict. Tests MUST pass for ACCEPT.

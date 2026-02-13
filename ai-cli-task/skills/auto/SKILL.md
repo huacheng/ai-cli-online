@@ -85,6 +85,8 @@ Phase 1: Planning
 Phase 2: Execution
   exec ─┬─ (mid-exec) ──→ check(mid-exec) ─── CONTINUE ──→ exec (resume)
         │                         │
+        │                    NEEDS_FIX ──→ exec (fix then resume)
+        │                         │
         │                    REPLAN ──→ [Phase 1]
         │
         └─ (done) ──→ [Phase 3]
@@ -135,7 +137,8 @@ The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, N
 | check | REPLAN | plan | Fundamental issues, revise plan |
 | check | BLOCKED | (stop) | Cannot continue |
 | check (mid-exec) | CONTINUE | exec | Progress OK, resume execution |
-| check (mid-exec) | REPLAN | plan | Issues found, revise plan |
+| check (mid-exec) | NEEDS_FIX | exec | Fixable issues, exec addresses then continues |
+| check (mid-exec) | REPLAN | plan | Fundamental issues, revise plan |
 | check (mid-exec) | BLOCKED | (stop) | Cannot continue |
 | plan | (any) | check | Plan ready, assess it |
 | exec | (done) | check --checkpoint post-exec | All steps completed, verify results |
