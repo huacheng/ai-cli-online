@@ -69,9 +69,26 @@ Fields:
 The backend daemon detects this via `fs.watch` and:
 1. Checks terminal readiness (`tmux capture-pane` — looks for shell prompt)
 2. Reads the signal file and **validates** before use (see Signal Validation below)
-3. Constructs next command from validated fields: `claude "/ai-cli-task <next> <task_module> [--checkpoint <checkpoint>]"`
+3. Constructs next command using **per-subcommand templates** (see Command Construction below)
 4. Sends the command to PTY
 5. Deletes the `.auto-signal` file
+
+### Command Construction
+
+The daemon MUST use per-subcommand templates — NOT a generic template — because each sub-command has different CLI arguments:
+
+| `next` value | Command template |
+|-------------|-----------------|
+| `plan` | `claude "/ai-cli-task plan <task_module> --generate"` |
+| `check` | `claude "/ai-cli-task check <task_module> --checkpoint <checkpoint>"` |
+| `exec` | `claude "/ai-cli-task exec <task_module>"` |
+| `merge` | `claude "/ai-cli-task merge <task_module>"` |
+| `report` | `claude "/ai-cli-task report <task_module>"` |
+
+- `plan` always gets `--generate` (auto mode never processes annotations)
+- `check` always gets `--checkpoint` (required to route to correct evaluation)
+- `exec` gets no extra flags (it reads `.index.md` `completed_steps` and `.bugfix/`/`.analysis/` internally to determine what to do)
+- `merge` and `report` take no extra flags
 
 ### Signal Validation (Security)
 
@@ -80,7 +97,7 @@ The daemon MUST validate `.auto-signal` before constructing PTY commands to prev
 | Field | Validation | Allowed Values |
 |-------|-----------|----------------|
 | `step` | Whitelist | `plan`, `check`, `exec`, `merge`, `report` |
-| `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(annotations)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `success`, `blocked`, `(generated)` |
+| `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(annotations)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `success`, `conflict` |
 | `next` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `(stop)` |
 | `checkpoint` | Whitelist | `""`, `post-plan`, `mid-exec`, `post-exec` |
 | `timestamp` | Format check | ISO 8601 |
@@ -139,15 +156,6 @@ When stall is suspected, scan the captured pane output for known stall patterns:
 | Max total recoveries | 10 | Stop auto loop, report repeated stalls |
 
 Recovery counts are tracked in SQLite (`recovery_count_step`, `recovery_count_total` in `task_auto` table) and reset per step on successful `.auto-signal` receipt.
-
-#### SQLite Schema Addition
-
-```sql
-ALTER TABLE task_auto ADD COLUMN recovery_count_step INTEGER DEFAULT 0;
-ALTER TABLE task_auto ADD COLUMN recovery_count_total INTEGER DEFAULT 0;
-ALTER TABLE task_auto ADD COLUMN last_capture_hash TEXT DEFAULT '';
-ALTER TABLE task_auto ADD COLUMN stall_count INTEGER DEFAULT 0;
-```
 
 ## State Machine
 
@@ -229,7 +237,7 @@ The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, N
 | exec | (step-N) | check | mid-exec | Single step completed (from manual `--step N`), mid-exec checkpoint |
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
-| merge | blocked | (stop) | — | Merge conflict unresolvable |
+| merge | conflict | (stop) | — | Merge conflict unresolvable |
 | report | (any) | (stop) | — | Loop complete |
 
 **Note on `(step-N)`:** This signal is produced only when `exec --step N` is invoked manually (targeted single-step execution). In normal auto flow, the daemon sends `exec` without `--step`, and exec runs all remaining steps sequentially. The `(step-N)` routing is defensive — if someone manually triggers `--step N` during an active auto loop, the daemon knows to route to mid-exec check.
@@ -243,6 +251,7 @@ Without signal-based routing, NEEDS_REVISION and NEEDS_FIX would cause infinite 
 | `POST` | `/api/sessions/:id/task-auto` | Start auto mode for a task module |
 | `DELETE` | `/api/sessions/:id/task-auto` | Stop auto mode |
 | `GET` | `/api/sessions/:id/task-auto` | Get auto mode status |
+| `GET` | `/api/task-auto/lookup?taskDir=<path>` | Look up which session is running auto for a given task directory. Returns `{ session_name, status }` or 404 if not found. Used by `cancel` to find the correct session to stop |
 
 Request body for POST:
 ```json
@@ -282,6 +291,8 @@ CREATE TABLE task_auto (
 
 `session_name` as PRIMARY KEY enforces one auto loop per session. Starting a new auto task requires stopping the current one or creating a new session.
 
+`status` column values: `running` (active loop) → row deleted on stop. The row only exists while the auto loop is active; cleanup removes it entirely. The `status` column exists for recovery: if the server crashes before cleanup, stale rows with `status = 'running'` are detected on restart (see Server Recovery).
+
 ## Safety
 
 - **Max iterations**: user-configurable (default 20), forced stop when reached
@@ -318,10 +329,23 @@ When auto mode stops (complete, blocked, cancelled, or manual stop):
 
 Auto mode inherits git behavior from each sub-command it invokes. No additional git commits are made by auto itself — each `plan`, `check`, `exec`, and `report` sub-command handles its own state commits on the task branch.
 
+## Server Recovery
+
+On backend server restart, auto state is recovered from SQLite:
+
+1. **Read** all `task_auto` rows with `status = 'running'`
+2. **For each active row**:
+   a. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
+   b. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
+   c. Start heartbeat polling timer
+   d. Check for existing `.auto-signal` file — if present, it was written before crash and not yet consumed; process it normally (validate → construct command → send to PTY)
+   e. If no `.auto-signal` exists, run terminal readiness check: if shell prompt visible, treat as stall recovery (Claude may have exited without writing signal); if command running, wait for normal completion
+3. **Resume** normal daemon operation (signal watching + heartbeat polling)
+
 ## Notes
 
 - Auto mode uses `claude "/ai-cli-task ..."` CLI invocation, not `/` slash commands
 - The daemon starts a `fs.watch` on the task module directory for `.auto-signal`
-- If the backend server restarts, auto state is recovered from SQLite on startup
 - `.auto-signal` is a transient file — should be in `.gitignore`
 - The daemon logs all actions to server console for debugging
+- **Known trade-off**: First entry on `executing` status always runs `check --checkpoint post-exec`. If execution was incomplete (`completed_steps` < total), check will detect this and route back to exec via NEEDS_FIX, adding one extra iteration. This is acceptable because the daemon does not parse plan files to determine total steps

@@ -123,8 +123,8 @@ Evaluates whether execution results meet the task requirements.
 
 ```
 post-plan PASS:          planning → review
-post-plan PASS:          re-planning → review
-post-plan NEEDS_REVISION: (no change, files committed)
+post-plan PASS:          re-planning → review, phase: "" (cleared)
+post-plan NEEDS_REVISION: (no change, files committed). If current status is `re-planning`, set `phase: needs-plan`
 post-plan BLOCKED:       → blocked
 
 mid-exec CONTINUE:       (no change)

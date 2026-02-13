@@ -44,7 +44,7 @@ When called without annotation_file or with `--generate`:
 10. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with verification criteria: acceptance criteria from `.target.md` + per-step test cases / expected outcomes. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
 11. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
 12. Write `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints
-13. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If status is `re-planning`, set `phase: needs-check`. Clear `phase` to `""` for other statuses. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
+13. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
 14. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
 15. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "check", checkpoint: "post-plan" }`
 16. Report plan summary to user
@@ -166,22 +166,23 @@ Comments NEVER delete or modify existing content — they only ADD information.
 ## Annotation Execution Steps
 
 1. **Read** the task file at the given absolute path
-2. **Read** the annotation file (`.tmp-annotations.json`)
-3. **Read** `.target.md` + sibling plan files + `.test/` (latest criteria) for full context
-4. **Parse** all annotation arrays
-5. **Triage** each annotation by type and condition
-6. **Assess** cross-impacts and conflicts against ALL files in the module
-7. **Execute** changes per severity level
-8. **Update** the task file with resolved changes and inline markers for pending items
-9. **Update** `.index.md` in the task module:
-   - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
-   - If status transitions to `re-planning`, set `phase: needs-check`
-   - Update `updated` timestamp
-10. **Write** `.summary.md` with condensed context reflecting annotation changes
-11. **Clean up** the `.tmp-annotations.json` file (delete after processing)
-12. **Git commit**: `-- ai-cli-task(<module>):plan annotations processed`
-13. **Write** `.auto-signal`: `{ step: "plan", result: "(annotations)", next: "check", checkpoint: "post-plan" }`
-14. **Generate** execution report (print to screen or append to file per mode)
+2. **Read** `.index.md` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
+3. **Read** the annotation file (`.tmp-annotations.json`)
+4. **Read** `.target.md` + sibling plan files + `.test/` (latest criteria) for full context
+5. **Parse** all annotation arrays
+6. **Triage** each annotation by type and condition
+7. **Assess** cross-impacts and conflicts against ALL files in the module
+8. **Execute** changes per severity level
+9. **Update** the task file with resolved changes and inline markers for pending items
+10. **Update** `.index.md` in the task module:
+    - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
+    - If status transitions to `re-planning`, set `phase: needs-check`
+    - Update `updated` timestamp
+11. **Write** `.summary.md` with condensed context reflecting annotation changes
+12. **Clean up** the `.tmp-annotations.json` file (delete after processing)
+13. **Git commit**: `-- ai-cli-task(<module>):plan annotations processed`
+14. **Write** `.auto-signal`: `{ step: "plan", result: "(annotations)", next: "check", checkpoint: "post-plan" }`
+15. **Generate** execution report (print to screen or append to file per mode)
 
 ## State Transitions
 

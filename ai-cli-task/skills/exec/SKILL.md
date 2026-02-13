@@ -76,7 +76,7 @@ For each implementation step:
 3. **Update** `.index.md` status to `executing`, update timestamp
 4. **Discover** all implementation steps from plan files
 5. **Detect completed steps**: read `completed_steps` field from `.index.md` frontmatter to determine progress; skip steps ≤ `completed_steps`
-6. **If NEEDS_FIX resumption**: read `.auto-signal` `checkpoint` field to determine source — `"mid-exec"` → read `.bugfix/` latest file, `"post-exec"` → read `.analysis/` latest file. If no signal, check both and use the most recent file. Address fix items before continuing remaining steps
+6. **If NEEDS_FIX resumption**: determine fix source by reading **both** `.bugfix/` and `.analysis/` latest files, using the most recent file (by filename date) as the primary fix guidance. `.bugfix/` entries indicate mid-exec issues; `.analysis/` entries indicate post-exec issues. Address fix items before continuing remaining steps
 7. **If** `--step N` specified, execute only that step; otherwise execute remaining incomplete steps in order
 8. **For each step:**
    a. Read required files
@@ -134,7 +134,7 @@ For long-running executions, intermediate progress can be observed by:
 
 - Each step should be atomic — if a step fails, previous steps remain applied
 - The executor should follow project coding conventions (check CLAUDE.md if present)
-- When status is `executing` (NEEDS_FIX), exec reads the `.auto-signal` `checkpoint` field to determine source, then reads issues from `.analysis/` (post-exec) or `.bugfix/` (mid-exec) accordingly
+- When status is `executing` (NEEDS_FIX), exec reads both `.bugfix/` and `.analysis/` latest files, using the most recent by filename date as fix guidance (`.bugfix/` = mid-exec source, `.analysis/` = post-exec source)
 - When `--step N` is used, the executor verifies prerequisites for that step are met, then signals `(step-N)` on completion for mid-exec checkpoint
 - After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
 - Per-step verification against `.test/` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`

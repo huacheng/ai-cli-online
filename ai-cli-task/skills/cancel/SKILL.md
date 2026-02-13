@@ -33,8 +33,9 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
 
 1. **Read** `.index.md` — get current status
 2. **Stop auto** if running:
-   - Query SQLite `task_auto` table by `task_dir` to find the `session_name` running this task's auto loop
-   - If found: call `DELETE /api/sessions/<session_name>/task-auto`
+   - Call `GET /api/task-auto/lookup?taskDir=<task_module_path>` to find the session running this task's auto loop
+   - If found (200): call `DELETE /api/sessions/<session_name>/task-auto`
+   - If not found (404): no auto loop running, skip
    - Delete `.auto-signal` file if exists
 3. **If uncommitted changes exist**, git commit snapshot: `-- ai-cli-task(<module>):cancel pre-cancel snapshot`
 4. **Update** `.index.md`:

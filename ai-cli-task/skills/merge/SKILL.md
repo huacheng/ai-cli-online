@@ -72,7 +72,7 @@ On successful merge:
    b. Attempt resolution (up to 3 tries)
    c. Each resolution: fix conflicts → verify (build + test) → if pass commit, if fail abort and retry
    d. If all 3 attempts fail → stay `executing`, abort merge, report unresolvable conflicts
-8. **Write** `.auto-signal` (MUST be before worktree cleanup — signal file lives in task directory)
+8. **Write** `.auto-signal` to the **main worktree's** `TASK/<module>/` directory (NOT the task worktree's copy). In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path
 9. **Phase 4**: Post-merge cleanup (status update → `complete`, worktree removal, branch deletion)
 10. **Report** merge result
 
@@ -97,7 +97,7 @@ On successful merge:
 | Result | Signal |
 |--------|--------|
 | Success | `{ "step": "merge", "result": "success", "next": "report", "checkpoint": "", "timestamp": "..." }` |
-| Blocked | `{ "step": "merge", "result": "blocked", "next": "(stop)", "checkpoint": "", "timestamp": "..." }` |
+| Conflict | `{ "step": "merge", "result": "conflict", "next": "(stop)", "checkpoint": "", "timestamp": "..." }` |
 
 ## Notes
 
@@ -107,3 +107,4 @@ On successful merge:
 - On merge failure, status stays `executing` (not `blocked`) so merge can be retried. The user should manually resolve conflicts and then run `/ai-cli-task merge` again
 - After manual resolution, if the user has already merged manually, they can update `.index.md` status to `complete` directly
 - Pre-merge refactoring is optional — if no cleanup needed, skip directly to merge
+- **Worktree signal race prevention**: In worktree mode, `.auto-signal` is written to the main worktree's `TASK/<module>/` path (not the task worktree), ensuring the daemon can read it after worktree removal. The daemon MUST watch the main worktree path for all signal files

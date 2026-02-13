@@ -123,7 +123,7 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 | `draft` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `planning` | =`planning` | PASS→`review` / NEEDS_REV=`planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `review` | →`re-planning` | ⊘ | ⊘ | ⊘ | →`executing` | ⊘ | — | →`cancelled` |
-| `executing` | →`re-planning` | ⊘ | CONT=`executing` / NEEDS_FIX=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT=`executing` (signal→merge) / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) | →`complete` / =`executing` (conflict) | — | →`cancelled` |
+| `executing` | →`re-planning` | ⊘ | CONT=`executing` / NEEDS_FIX=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT=`executing` (signal→merge) / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) / →`blocked` (dependency) | →`complete` / =`executing` (conflict) | — | →`cancelled` |
 | `re-planning` | =`re-planning` | PASS→`review` / NEEDS_REV=`re-planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `complete` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
 | `blocked` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
@@ -256,7 +256,7 @@ git reset --hard <commit>          # in the task's worktree
 
 #### .auto-signal Convention
 
-Every sub-command (plan, check, exec, report) MUST write `.auto-signal` on completion, regardless of whether auto mode is active:
+Every sub-command (plan, check, exec, merge, report) MUST write `.auto-signal` on completion, regardless of whether auto mode is active:
 
 ```json
 {
