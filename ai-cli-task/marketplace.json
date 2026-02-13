@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ai-cli-task",
+  "description": "Task lifecycle management — plan, check, execute, and track development tasks with annotation-driven workflow",
+  "owner": {
+    "name": "huacheng"
+  },
+  "plugins": [
+    {
+      "name": "ai-cli-task",
+      "description": "Structured task management with 7 skills: init, plan, check, exec, report, auto, cancel. Git-integrated lifecycle with branch-per-task and worktree support.",
+      "version": "0.1.0",
+      "author": {
+        "name": "huacheng"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/huacheng/ai-cli-online",
+      "tags": ["task-management", "annotation", "plan", "execution", "lifecycle"]
+    }
+  ]
+}
