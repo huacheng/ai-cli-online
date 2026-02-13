@@ -165,7 +165,7 @@ Examples:
 -- ai-cli-task(auth-refactor):cancel user cancelled
 ```
 
-Commit scope: TASK/ directory files (state/plan) or source code files (feat/fix).
+Commit scope: TASK/ directory files (state/plan) or project files (feat/fix).
 
 #### Refactoring & Merge
 

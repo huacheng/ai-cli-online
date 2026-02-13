@@ -1,7 +1,7 @@
 {
   "name": "ai-cli-task",
   "version": "0.1.0",
-  "description": "Task lifecycle management for ai-cli-online — plan, check, execute, and track development tasks through structured TASK/ directory workflow",
+  "description": "Task lifecycle management for ai-cli-online — plan, check, execute, and track tasks through structured TASK/ directory workflow",
   "author": {
     "name": "huacheng"
   },

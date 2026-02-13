@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ai-cli-task",
-  "description": "Task lifecycle management — plan, check, execute, and track development tasks with annotation-driven workflow",
+  "description": "Task lifecycle management — plan, check, execute, and track tasks with annotation-driven workflow",
   "owner": {
     "name": "huacheng"
   },

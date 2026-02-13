@@ -35,7 +35,7 @@ When called without annotation_file or with `--generate`:
 1. Read `.target.md` for requirements
 2. Read `.analysis.md` if exists (address check feedback from NEEDS_REVISION)
 3. Read `.bugfix.md` if exists (address mid-exec issues from REPLAN)
-4. Read project codebase for context (relevant source files, CLAUDE.md conventions)
+4. Read project codebase for context (relevant files, CLAUDE.md conventions)
 5. Research and generate implementation plan (incorporating check feedback and bugfix history if any)
 6. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
 7. Update `.index.md`: status → `planning`, update timestamp
@@ -193,7 +193,7 @@ Comments NEVER delete or modify existing content — they only ADD information.
 
 - The `.tmp-annotations.json` is ephemeral — created by frontend, consumed and deleted by this skill
 - All plan research should consider the full context of the task module (read `.target.md` and sibling plan files)
-- When researching implementation plans, use the project codebase as context (read relevant source files)
+- When researching implementation plans, use the project codebase as context (read relevant project files)
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: Actively use shell commands to fetch external information (curl docs/APIs, npm info, package changelogs, GitHub issues, etc.) to support planning decisions with evidence rather than relying solely on internal knowledge
