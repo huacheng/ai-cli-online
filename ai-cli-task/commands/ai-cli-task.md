@@ -34,13 +34,14 @@ TASK/
     ├── .summary.md            # Condensed context summary (written by plan/check/exec, read by all)
     ├── .report.md             # Completion report (written by report)
     ├── .tmp-annotations.json  # Transient annotation transport (frontend → plan)
-    ├── .auto-signal           # Transient auto-loop signal (ephemeral)
+    ├── .auto-signal           # Transient auto-loop progress report (ephemeral)
+    ├── .auto-stop             # Transient auto-loop stop request (ephemeral)
     └── *.md                   # User-authored plan documents (non-dot-prefixed)
 ```
 
 - **Dot-prefixed** files are system-managed; only `.target.md` is human-editable
 - **Non-dot** `.md` files are user-authored plan documents via the Plan annotation panel
-- `.tmp-annotations.json` and `.auto-signal` are ephemeral (should be in `.gitignore`)
+- `.tmp-annotations.json`, `.auto-signal`, and `.auto-stop` are ephemeral (should be in `.gitignore`)
 - `.notes/` files use origin suffix: `<YYYY-MM-DD>-<summary>-plan.md` or `<YYYY-MM-DD>-<summary>-exec.md`
 - `.test/` files use phase prefix: `<YYYY-MM-DD>-<phase>-criteria.md` (test plan) or `<YYYY-MM-DD>-<phase>-results.md` (test outcomes)
 - `.summary.md` is a condensed context file — written by `plan`/`check`/`exec` after each run, read by subsequent steps instead of all history files. Prevents context window overflow as task accumulates history
@@ -271,7 +272,7 @@ Every sub-command (plan, check, exec, merge, report) MUST write `.auto-signal` o
 - The `next` field follows the signal routing table documented in the `auto` sub-command.
 - The `checkpoint` field provides context for the next command (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`) when the `next` command needs it. Optional — omit when not applicable. If auto mode is not active, the file is harmless (gitignored, ephemeral). This fire-and-forget pattern avoids each skill needing to detect auto mode.
 
-**Worktree note**: In worktree mode, write `.auto-signal` BEFORE worktree cleanup (e.g., check ACCEPT writes signal before removing worktree).
+**Worktree note**: In worktree mode, `.auto-signal` MUST be written to the **main worktree's** `TASK/<module>/` directory (not the task worktree copy) to survive worktree removal during merge cleanup.
 
 #### .gitignore
 
@@ -280,6 +281,7 @@ Add to project `.gitignore`:
 .worktrees/
 TASK/**/.tmp-annotations.json
 TASK/**/.auto-signal
+TASK/**/.auto-stop
 ```
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: auto
-description: Autonomous execution loop — coordinates plan/check/exec cycle with backend daemon
+description: Autonomous execution loop — single Claude session orchestrates plan/check/exec cycle internally
 arguments:
   - name: task_module
     description: "Path to the task module directory (e.g., TASK/auth-refactor)"
@@ -13,7 +13,7 @@ arguments:
 
 # /ai-cli-task auto — Autonomous Execution Loop
 
-Coordinate the full task lifecycle autonomously: plan → check → exec → check, with self-correction on failures.
+Coordinate the full task lifecycle autonomously: plan → check → exec → check, with self-correction on failures. Runs as a **single Claude session** that internally dispatches sub-commands, preserving context across all steps.
 
 ## Usage
 
@@ -23,31 +23,49 @@ Coordinate the full task lifecycle autonomously: plan → check → exec → che
 
 ## Architecture
 
-Auto mode is **backend-driven** — the server daemon manages the execution loop independently of the frontend WebSocket connection. This ensures the loop continues even if the browser is closed or the tab is switched.
+Auto mode runs as a **single long-lived Claude session** that internally loops through sub-commands. The backend daemon starts the session and monitors it externally; it does NOT dispatch individual commands.
 
 ### Components
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  Claude (skill)  │────▶│  .auto-signal    │────▶│  Backend    │
-│  writes signal   │     │  (file in TASK/) │     │  Daemon     │
-│  after each step │     └──────────────────┘     │  (fs.watch) │
-└─────────────────┘                               └──────┬──────┘
-                                                         │
-                                              ┌──────────▼──────────┐
-                                              │  tmux capture-pane  │
-                                              │  (readiness check)  │
-                                              └──────────┬──────────┘
-                                                         │
-                                              ┌──────────▼──────────┐
-                                              │  PTY write          │
-                                              │  next command       │
-                                              └─────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  Claude (single session)                         │
+│                                                  │
+│  /ai-cli-task auto <module>                      │
+│    ├→ execute plan logic    ─┐                   │
+│    ├→ execute check logic    │  internal loop    │
+│    ├→ execute exec logic     │  (shared context) │
+│    ├→ execute check logic    │                   │
+│    ├→ execute merge logic   ─┘                   │
+│    └→ execute report logic                       │
+│                                                  │
+│  writes .auto-signal ──→ (progress report)       │
+│  reads  .auto-stop   ──→ (stop request)          │
+└─────────────────────────────────────────────────┘
+         │                          ▲
+         ▼                          │
+┌─────────────────┐     ┌──────────┴──────────┐
+│  .auto-signal   │     │  Backend Daemon      │
+│  (progress)     │────▶│  - monitors progress │
+│                 │     │  - enforces timeout   │
+│  .auto-stop     │◀────│  - writes stop file   │
+│  (stop request) │     │  - stall detection    │
+└─────────────────┘     └─────────────────────┘
 ```
+
+### Why Single Session
+
+| Aspect | Multi-session (old) | Single session (current) |
+|--------|-------------------|--------------------------|
+| Context | Lost between steps, rebuilt from `.summary.md` | Naturally shared across all steps |
+| Token cost | Re-read files each step, duplicate context loading | Read once, incrementally update |
+| Coherence | Each step is blind to implicit decisions | Claude remembers why it made choices |
+| Latency | Shell prompt wait + Claude startup per step | Zero inter-step overhead |
+| Daemon complexity | Command construction + dispatch + readiness check | Just monitoring + stop signal |
 
 ### Signal File (`.auto-signal`)
 
-After each step completes, Claude writes a signal file to the task module:
+After each sub-command step completes, Claude writes a progress signal to the task module. This is a **monitoring report** for the daemon, NOT a dispatch trigger:
 
 ```json
 {
@@ -55,6 +73,7 @@ After each step completes, Claude writes a signal file to the task module:
   "result": "PASS",
   "next": "exec",
   "checkpoint": "",
+  "iteration": 3,
   "timestamp": "2024-01-01T00:00:00Z"
 }
 ```
@@ -62,37 +81,35 @@ After each step completes, Claude writes a signal file to the task module:
 Fields:
 - `step`: the sub-command that just completed
 - `result`: outcome of the step
-- `next`: next sub-command to run (or `"(stop)"`)
-- `checkpoint`: hint for the next command when it needs a checkpoint parameter (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`). Empty when not applicable
+- `next`: what Claude will execute next (or `"(stop)"`)
+- `checkpoint`: context hint (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`). Empty when not applicable
+- `iteration`: current iteration count (for daemon progress tracking)
 - `timestamp`: ISO 8601
 
-The backend daemon detects this via `fs.watch` and:
-1. Checks terminal readiness (`tmux capture-pane` — looks for shell prompt)
-2. Reads the signal file and **validates** before use (see Signal Validation below)
-3. Constructs next command using **per-subcommand templates** (see Command Construction below)
-4. Sends the command to PTY
-5. Deletes the `.auto-signal` file
+The daemon reads this via `fs.watch` to:
+1. Update progress display (iteration count, current step, elapsed time)
+2. Check iteration limit (`iteration >= maxIterations` → write `.auto-stop`)
+3. Check timeout (`elapsed >= timeoutMinutes` → write `.auto-stop`)
+4. Update `last_signal_at` in SQLite for stall detection baseline
 
-### Command Construction
+The daemon does **NOT** construct or send commands based on the signal.
 
-The daemon MUST use per-subcommand templates — NOT a generic template — because each sub-command has different CLI arguments:
+### Stop File (`.auto-stop`)
 
-| `next` value | Command template |
-|-------------|-----------------|
-| `plan` | `claude "/ai-cli-task plan <task_module> --generate"` |
-| `check` | `claude "/ai-cli-task check <task_module> --checkpoint <checkpoint>"` |
-| `exec` | `claude "/ai-cli-task exec <task_module>"` |
-| `merge` | `claude "/ai-cli-task merge <task_module>"` |
-| `report` | `claude "/ai-cli-task report <task_module>"` |
+The daemon writes `.auto-stop` to the task module directory to request graceful termination. Claude checks for this file before each iteration:
 
-- `plan` always gets `--generate` (auto mode never processes annotations)
-- `check` always gets `--checkpoint` (required to route to correct evaluation)
-- `exec` gets no extra flags (it reads `.index.md` `completed_steps` and `.bugfix/`/`.analysis/` internally to determine what to do)
-- `merge` and `report` take no extra flags
+```json
+{
+  "reason": "timeout",
+  "timestamp": "2024-01-01T00:30:00Z"
+}
+```
 
-### Signal Validation (Security)
+Reasons: `"timeout"`, `"max_iterations"`, `"user_stop"`, `"stall_limit"`
 
-The daemon MUST validate `.auto-signal` before constructing PTY commands to prevent command injection:
+### Signal Validation
+
+The daemon validates `.auto-signal` fields for monitoring integrity:
 
 | Field | Validation | Allowed Values |
 |-------|-----------|----------------|
@@ -100,24 +117,14 @@ The daemon MUST validate `.auto-signal` before constructing PTY commands to prev
 | `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(annotations)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `success`, `conflict` |
 | `next` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `(stop)` |
 | `checkpoint` | Whitelist | `""`, `post-plan`, `mid-exec`, `post-exec` |
+| `iteration` | Integer | ≥ 0 |
 | `timestamp` | Format check | ISO 8601 |
 
-- **Reject** any signal with fields not matching the whitelist — do NOT pass to PTY
-- **No string interpolation**: construct the command from validated enum values, not raw string concatenation from the signal file
-- **Log rejected signals** for debugging
-
-### Terminal Readiness Detection
-
-Before sending any command, the daemon captures the tmux pane output and verifies:
-- Shell prompt is visible (e.g., `$`, `❯`, `%`)
-- No active command is running
-- Previous command has completed
-
-If terminal is not ready, the daemon retries with exponential backoff (1s, 2s, 4s, max 30s).
+Invalid signals are logged but do not affect Claude's internal loop (daemon is observer, not dispatcher).
 
 ### Stall Detection & Recovery
 
-Claude Code may stall mid-execution (e.g., waiting for user input, context window overflow prompt, or internal hang). Since the daemon is signal-driven, a stall means no `.auto-signal` is written and the loop halts silently. The daemon MUST actively detect and recover from stalls.
+Claude Code may stall mid-execution (e.g., context window overflow prompt, waiting for user input, or internal hang). The daemon MUST actively detect and recover from stalls.
 
 #### Heartbeat Polling
 
@@ -145,22 +152,22 @@ When stall is suspected, scan the captured pane output for known stall patterns:
 | Continuation prompt | `continue`, `Continue?`, `press enter` (case-insensitive) | Send `continue\n` to PTY |
 | Yes/No prompt | `(y/n)`, `(Y/N)`, `[y/N]`, `[Y/n]` | Send `y\n` to PTY |
 | Proceed prompt | `Do you want to proceed`, `Shall I continue` | Send `yes\n` to PTY |
-| Shell prompt visible | `$`, `❯`, `%` at end of output (no active command) | Claude exited without writing signal → re-send last command |
+| Shell prompt visible | `$`, `❯`, `%` at end of output (no active command) | Claude session ended unexpectedly → restart auto session (see Server Recovery) |
 | No recognizable pattern | — | Log warning, increment `stall_count`, continue polling |
 
 #### Recovery Limits
 
 | Limit | Value | Action on Exceed |
 |-------|-------|-----------------|
-| Max recoveries per step | 3 | Stop auto loop, report stall |
-| Max total recoveries | 10 | Stop auto loop, report repeated stalls |
+| Max recoveries per iteration | 3 | Write `.auto-stop` with reason `"stall_limit"` |
+| Max total recoveries | 10 | Write `.auto-stop` with reason `"stall_limit"` |
 
-Recovery counts are tracked in SQLite (`recovery_count_step`, `recovery_count_total` in `task_auto` table) and reset per step on successful `.auto-signal` receipt.
+Recovery counts are tracked in SQLite and reset on each new `.auto-signal` receipt.
 
 ## State Machine
 
 ```
-AUTO LOOP (4 phases)
+AUTO LOOP (4 phases — all within single Claude session)
 
 Phase 1: Planning
   plan ──→ check(post-plan) ─── PASS ──────────→ [Phase 2]
@@ -192,32 +199,39 @@ Terminal: BLOCKED at any check → (stop, status → blocked)
 Terminal: merge conflict → (stop, status stays executing — retryable)
 ```
 
-## Auto Loop Steps
+## Internal Loop Logic
 
-1. **Start**: Read `.index.md` status, determine entry point
-2. **Route** based on current status:
+The auto skill runs this loop within a single Claude session:
 
-| Current Status | Auto Action |
-|----------------|-------------|
-| `draft` | Validate `.target.md` has substantive content (not just template placeholders) → if empty, stop and report "fill `.target.md` first". Otherwise run `plan --generate` |
-| `planning` | Run `check --checkpoint post-plan` |
-| `review` | Run `exec` |
-| `executing` | Run `check --checkpoint post-exec` |
-| `re-planning` | Read `phase` field: if `needs-plan` → run `plan --generate`; if `needs-check` → run `check --checkpoint post-plan`; if empty → default to `plan --generate` (safe fallback) |
-| `complete` | Run `report`, then stop loop |
+```
+1. Read .index.md → determine entry point (status-based routing)
+2. LOOP:
+   a. Check for .auto-stop file → if exists, break loop
+   b. Execute current step (plan/check/exec/merge/report logic per SKILL.md)
+   c. Evaluate result → determine next step (result-based routing)
+   d. Write .auto-signal (progress report for daemon)
+   e. Increment iteration counter
+   f. If next == "(stop)" → break loop
+   g. Set current step = next step → continue loop
+3. Cleanup: delete .auto-signal, report final status
+```
+
+### Entry Point (Status-Based Routing)
+
+| Current Status | First Step |
+|----------------|-----------|
+| `draft` | Validate `.target.md` has substantive content (not just template placeholders) → if empty, stop and report "fill `.target.md` first". Otherwise execute plan (generate mode) |
+| `planning` | Execute check (post-plan) |
+| `review` | Execute exec |
+| `executing` | Execute check (post-exec) |
+| `re-planning` | Read `phase` field: if `needs-plan` → execute plan (generate); if `needs-check` → execute check (post-plan); if empty → default to plan (generate, safe fallback) |
+| `complete` | Execute report, then stop |
 | `blocked` | Stop loop, report blocking reason |
 | `cancelled` | Stop loop |
 
-3. **After each skill completes**: Write `.auto-signal` with result and **next action**
-4. **Daemon picks up signal** → reads `next` field → sends next command → loop continues
-5. **Loop terminates** when status reaches `complete`, `blocked`, or `cancelled`
+### Result-Based Routing
 
-### Two-Level Routing
-
-- **First entry**: Status-based routing (table above) — determines the entry point
-- **Subsequent iterations**: Signal-based routing (`.auto-signal` `next` field) — drives the loop
-
-The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, NEEDS_FIX):
+After each step, Claude evaluates the result and determines the next step internally:
 
 | step | result | next | checkpoint | Rationale |
 |------|--------|------|------------|-----------|
@@ -234,22 +248,27 @@ The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, N
 | plan | (any) | check | post-plan | Plan ready, assess it |
 | exec | (done) | check | post-exec | All steps completed, verify results |
 | exec | (mid-exec) | check | mid-exec | Significant issue encountered, checkpoint |
-| exec | (step-N) | check | mid-exec | Single step completed (from manual `--step N`), mid-exec checkpoint |
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
 | report | (any) | (stop) | — | Loop complete |
 
-**Note on `(step-N)`:** This signal is produced only when `exec --step N` is invoked manually (targeted single-step execution). In normal auto flow, the daemon sends `exec` without `--step`, and exec runs all remaining steps sequentially. The `(step-N)` routing is defensive — if someone manually triggers `--step N` during an active auto loop, the daemon knows to route to mid-exec check.
+### Context Advantage
 
-Without signal-based routing, NEEDS_REVISION and NEEDS_FIX would cause infinite loops (status unchanged → same command re-sent → same result).
+Because all steps run in one session, Claude naturally retains:
+- Plan decisions and trade-offs from the planning phase
+- Check feedback and evaluation rationale
+- Implementation details and workarounds from execution
+- Error context from previous fix attempts
+
+The `.summary.md` file is still written by each sub-command as a **compaction safety net** — if the context window overflows and compaction occurs, `.summary.md` provides the condensed recovery context. But during normal auto execution, live conversation context is the primary source of truth.
 
 ## Backend REST API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/sessions/:id/task-auto` | Start auto mode for a task module |
-| `DELETE` | `/api/sessions/:id/task-auto` | Stop auto mode |
+| `DELETE` | `/api/sessions/:id/task-auto` | Stop auto mode (writes `.auto-stop`) |
 | `GET` | `/api/sessions/:id/task-auto` | Get auto mode status |
 | `GET` | `/api/task-auto/lookup?taskDir=<path>` | Look up which session is running auto for a given task directory. Returns `{ session_name, status }` or 404 if not found. Used by `cancel` to find the correct session to stop |
 
@@ -269,6 +288,18 @@ Request body for POST:
 | `timeoutMinutes` | number | 30 | Total execution time limit (minutes). User sets based on task difficulty |
 
 Frontend displays these as editable fields in the auto-start dialog, with sensible defaults.
+
+### Daemon Startup Sequence
+
+When `POST /api/sessions/:id/task-auto` is called:
+
+1. **Validate**: check no active auto loop for this session or task_dir
+2. **Insert** `task_auto` row into SQLite
+3. **Send** `claude "/ai-cli-task auto <taskDir>"` to the session's PTY
+4. **Start** `fs.watch` on `taskDir` for `.auto-signal` changes
+5. **Start** heartbeat polling timer (60s interval)
+
+The daemon does NOT send any further commands after step 3. Claude's internal loop handles all subsequent orchestration.
 
 ### SQLite State
 
@@ -295,12 +326,12 @@ CREATE TABLE task_auto (
 
 ## Safety
 
-- **Max iterations**: user-configurable (default 20), forced stop when reached
-- **Timeout**: user-configurable (default 30 min), forced stop when elapsed
-- **Stall detection**: heartbeat polling (60s) + pattern matching recovery, with per-step (3) and total (10) recovery limits
-- **Pause on blocked**: Auto stops immediately on `blocked` status
-- **Manual override**: User can `/ai-cli-task auto --stop` at any time
-- **Terminal check**: Always verify terminal readiness before sending commands
+- **Max iterations**: user-configurable (default 20), daemon writes `.auto-stop` when reached
+- **Timeout**: user-configurable (default 30 min), daemon writes `.auto-stop` when elapsed
+- **Stall detection**: heartbeat polling (60s) + pattern matching recovery, with per-iteration (3) and total (10) recovery limits
+- **Pause on blocked**: Auto stops immediately on `blocked` status (Claude's internal loop exits)
+- **Manual override**: User can `/ai-cli-task auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
+- **Graceful stop**: Claude checks for `.auto-stop` before each iteration, ensuring clean exit between steps (not mid-step)
 - **Single instance per session**: Only one auto loop per session (enforced by SQLite PK). If an auto task is already running, `POST` returns 409 Conflict
 - **Single instance per task**: UNIQUE constraint on `task_dir` prevents same task from running in multiple sessions
 
@@ -312,22 +343,23 @@ The frontend is a **pure observer** for auto mode, except for start/stop control
 - **Status display**: polls `GET /api/sessions/:id/task-auto`, shows in Plan panel toolbar:
   - Current iteration / max iterations
   - Elapsed time / timeout
-  - Current step (plan/check/exec)
+  - Current step (from latest `.auto-signal`)
   - Running / stopped status
-- **Stop button**: sends `DELETE /api/sessions/:id/task-auto`
-- Does NOT drive the loop — backend daemon handles all orchestration
+- **Stop button**: sends `DELETE /api/sessions/:id/task-auto` (daemon writes `.auto-stop`)
+- Does NOT drive the loop — Claude's internal loop handles all orchestration
 
 ## Cleanup
 
 When auto mode stops (complete, blocked, cancelled, or manual stop):
 1. Stop heartbeat polling timer
 2. Delete `.auto-signal` file if exists
-3. Remove `task_auto` row from SQLite (clears all stall detection state)
-4. Frontend status indicator clears on next poll
+3. Delete `.auto-stop` file if exists
+4. Remove `task_auto` row from SQLite (clears all stall detection state)
+5. Frontend status indicator clears on next poll
 
 ## Git
 
-Auto mode inherits git behavior from each sub-command it invokes. No additional git commits are made by auto itself — each `plan`, `check`, `exec`, and `report` sub-command handles its own state commits on the task branch.
+Auto mode inherits git behavior from each sub-command it invokes. No additional git commits are made by auto itself — each plan, check, exec, merge, and report step handles its own state commits on the task branch.
 
 ## Server Recovery
 
@@ -335,17 +367,21 @@ On backend server restart, auto state is recovered from SQLite:
 
 1. **Read** all `task_auto` rows with `status = 'running'`
 2. **For each active row**:
-   a. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
+   a. Check terminal state via `tmux capture-pane`:
+      - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
+      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task auto <task_dir>"` to PTY (Claude's internal loop reads `.index.md` to determine resume point)
    b. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
    c. Start heartbeat polling timer
-   d. Check for existing `.auto-signal` file — if present, it was written before crash and not yet consumed; process it normally (validate → construct command → send to PTY)
-   e. If no `.auto-signal` exists, run terminal readiness check: if shell prompt visible, treat as stall recovery (Claude may have exited without writing signal); if command running, wait for normal completion
+   d. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
 3. **Resume** normal daemon operation (signal watching + heartbeat polling)
+
+On restart, Claude's auto loop re-reads `.index.md` and `.summary.md` to reconstruct context. The conversation context from the previous session is lost, but `.summary.md` provides the condensed recovery information.
 
 ## Notes
 
-- Auto mode uses `claude "/ai-cli-task ..."` CLI invocation, not `/` slash commands
-- The daemon starts a `fs.watch` on the task module directory for `.auto-signal`
-- `.auto-signal` is a transient file — should be in `.gitignore`
-- The daemon logs all actions to server console for debugging
-- **Known trade-off**: First entry on `executing` status always runs `check --checkpoint post-exec`. If execution was incomplete (`completed_steps` < total), check will detect this and route back to exec via NEEDS_FIX, adding one extra iteration. This is acceptable because the daemon does not parse plan files to determine total steps
+- Auto mode starts with a single `claude "/ai-cli-task auto <module>"` CLI invocation; all subsequent steps execute within that same session
+- The daemon's only active intervention is writing `.auto-stop`; all other daemon activity is passive monitoring
+- `.auto-signal` and `.auto-stop` are transient files — should be in `.gitignore`
+- The daemon logs all signal events and stall detections to server console for debugging
+- **Known trade-off**: First entry on `executing` status always runs `check --checkpoint post-exec`. If execution was incomplete (`completed_steps` < total), check will detect this and route back to exec via NEEDS_FIX, adding one extra iteration. This is acceptable because the auto skill does not re-parse plan files to count total steps at entry
+- **Context window overflow**: If Claude's context compacts during a long auto run, `.summary.md` (written by each sub-command) provides recovery context. The auto loop continues normally after compaction — each sub-command re-reads relevant files as specified in its SKILL.md
