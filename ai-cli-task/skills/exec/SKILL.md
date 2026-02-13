@@ -103,3 +103,4 @@ For long-running executions, intermediate progress can be observed by:
 - When `--step N` is used, the executor verifies prerequisites for that step are met
 - After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
 - Execution does NOT automatically run tests — that is part of the post-exec evaluation
+- **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally

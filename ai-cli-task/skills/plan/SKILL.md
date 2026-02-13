@@ -194,3 +194,4 @@ Comments NEVER delete or modify existing content — they only ADD information.
 - All plan research should consider the full context of the task module (read `.target.md` and sibling plan files)
 - When researching implementation plans, use the project codebase as context (read relevant source files)
 - Cross-impact assessment should check ALL files in the task module, not just the current file
+- **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
