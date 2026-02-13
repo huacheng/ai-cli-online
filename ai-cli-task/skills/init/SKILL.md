@@ -82,7 +82,9 @@ depends_on:
 | `.index.md` | Task metadata, state machine | `init` (always) |
 | `.target.md` | Task requirements / objectives | `init` (always) |
 | `.analysis.md` | Feasibility analysis results | `check` (on demand) |
+| `.test.md` | Test/verification plan | `plan` (on demand) |
 | `.bugfix.md` | Bug-related investigation notes | `check` (on demand) |
+| `.notes.md` | Research notes & experience log | `plan`/`exec` (on demand) |
 | `.report.md` | Completion report | `report` (on demand) |
 | `.tmp-annotations.json` | Transient annotation transport | Frontend (ephemeral) |
 

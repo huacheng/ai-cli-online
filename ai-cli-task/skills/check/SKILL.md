@@ -27,7 +27,7 @@ Check the implementation plan at three lifecycle checkpoints. Acts as the decisi
 
 Evaluates whether the implementation plan is ready for execution.
 
-**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.bugfix.md` (if exists, to verify revised plan addresses execution issues)
+**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.test.md` + `.bugfix.md` (if exists, to verify revised plan addresses execution issues)
 
 **Evaluation Criteria:**
 
@@ -35,6 +35,7 @@ Evaluates whether the implementation plan is ready for execution.
 |-----------|--------|-------------|
 | **Completeness** | High | Does the plan cover all requirements in `.target.md`? |
 | **Feasibility** | High | Can the plan be implemented with current codebase/tools? |
+| **Verifiability** | High | Does `.test.md` exist with testable acceptance criteria and per-step verification? |
 | **Clarity** | Medium | Are implementation steps clear and unambiguous? |
 | **Risk** | Medium | Are risks identified and mitigated? |
 | **Dependencies** | Low | Are external dependencies (other task modules) accounted for? |
@@ -51,7 +52,7 @@ Evaluates whether the implementation plan is ready for execution.
 
 Evaluates progress during execution when issues are encountered.
 
-**Reads:** `.target.md` + plan files + `.analysis.md` + current code changes (via git diff)
+**Reads:** `.target.md` + plan files + `.test.md` + `.analysis.md` + current code changes (via git diff)
 
 **Evaluation Criteria:**
 
@@ -75,7 +76,7 @@ Evaluates progress during execution when issues are encountered.
 
 Evaluates whether execution results meet the task requirements.
 
-**Reads:** `.target.md` + plan files + code changes + test results
+**Reads:** `.target.md` + plan files + `.test.md` + code changes + test results
 
 **Evaluation Criteria:**
 

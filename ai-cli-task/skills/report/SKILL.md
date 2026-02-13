@@ -74,12 +74,14 @@ The report is written to `TASK/<module_name>/.report.md` and also printed to scr
 1. **Read** `.index.md` for task metadata
 2. **Read** `.target.md` for objectives
 3. **Read** all plan files for implementation approach
-4. **Read** `.analysis.md` for evaluation history (if exists)
-5. **Read** `.bugfix.md` for issue history (if exists)
-6. **Collect** git changes related to the task (if identifiable)
-7. **Compose** report in requested format
-8. **Write** to `.report.md`
-9. **Print** report to screen
+4. **Read** `.test.md` for verification criteria and test results (if exists)
+5. **Read** `.analysis.md` for evaluation history (if exists)
+6. **Read** `.bugfix.md` for issue history (if exists)
+7. **Read** `.notes.md` for research findings and experience log (if exists)
+8. **Collect** git changes related to the task (if identifiable)
+9. **Compose** report in requested format
+10. **Write** to `.report.md`
+11. **Print** report to screen
 
 ## State Transitions
 

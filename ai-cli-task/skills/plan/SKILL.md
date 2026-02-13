@@ -36,11 +36,14 @@ When called without annotation_file or with `--generate`:
 2. Read `.analysis.md` if exists (address check feedback from NEEDS_REVISION)
 3. Read `.bugfix.md` if exists (address mid-exec issues from REPLAN)
 4. Read project codebase for context (relevant files, CLAUDE.md conventions)
-5. Research and generate implementation plan (incorporating check feedback and bugfix history if any)
-6. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
-7. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp
-8. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
-9. Report plan summary to user
+5. Read `.notes.md` if exists (prior research findings and experience)
+6. Research and generate implementation plan (incorporating check feedback, bugfix history, and prior notes if any)
+7. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
+8. Write `.test.md` with verification criteria: acceptance criteria from `.target.md` + per-step test cases / expected outcomes
+9. Append research findings and key decisions to `.notes.md` (timestamped entries)
+10. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp
+11. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
+12. Report plan summary to user
 
 ## Mode B: Annotation (with annotation_file)
 

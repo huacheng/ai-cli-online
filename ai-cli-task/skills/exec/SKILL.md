@@ -32,10 +32,12 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 1. **Read** all plan files in the task module (non-dot-prefixed `.md` files)
 2. **Read** `.target.md` for requirements context
-3. **Read** `.analysis.md` for evaluation notes and approved approach
-4. **Read** `.bugfix.md` if exists for mid-exec issue history and fix guidance
-5. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
-6. **Build** execution order respecting any noted dependencies
+3. **Read** `.test.md` for per-step verification criteria and acceptance standards
+4. **Read** `.analysis.md` for evaluation notes and approved approach
+5. **Read** `.bugfix.md` if exists for mid-exec issue history and fix guidance
+6. **Read** `.notes.md` if exists for prior research findings and experience
+7. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
+8. **Build** execution order respecting any noted dependencies
 
 ### Per-Step Execution
 
@@ -46,11 +48,13 @@ For each implementation step:
    - Editing source code (any language: C, Python, TypeScript, shell, etc.)
    - Running shell commands or scripts that invoke external tools (game engines, build systems, media processors, etc.)
    - Configuring or orchestrating professional tools via CLI
-3. **Verify** the step succeeded:
+3. **Verify** the step succeeded against `.test.md` criteria:
    - Code changes: use `lsp_diagnostics` where available, check build/syntax
    - Tool invocations: check exit code, validate output
    - Script execution: verify expected artifacts were produced
+   - Test cases: run per-step tests defined in `.test.md` if applicable
 4. **Record** what was done (files changed, commands run, tools invoked, approach taken)
+5. **Append** notable discoveries, workarounds, or decisions to `.notes.md` (timestamped)
 
 ### Issue Handling
 
