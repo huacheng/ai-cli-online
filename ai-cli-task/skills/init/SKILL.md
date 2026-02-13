@@ -81,10 +81,10 @@ depends_on:
 |------|---------|-----------|
 | `.index.md` | Task metadata, state machine | `init` (always) |
 | `.target.md` | Task requirements / objectives | `init` (always) |
-| `.analysis.md` | Feasibility analysis results | `check` (on demand) |
+| `.analysis/` | Evaluation history (one file per assessment) | `check` (on demand) |
 | `.test.md` | Test/verification plan | `plan` (on demand) |
-| `.bugfix.md` | Bug-related investigation notes | `check` (on demand) |
-| `.notes.md` | Research notes & experience log | `plan`/`exec` (on demand) |
+| `.bugfix/` | Issue history (one file per mid-exec issue) | `check` (on demand) |
+| `.notes/` | Research notes & experience log (one file per entry) | `plan`/`exec` (on demand) |
 | `.report.md` | Completion report | `report` (on demand) |
 | `.tmp-annotations.json` | Transient annotation transport | Frontend (ephemeral) |
 

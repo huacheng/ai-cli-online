@@ -27,7 +27,7 @@ Check the implementation plan at three lifecycle checkpoints. Acts as the decisi
 
 Evaluates whether the implementation plan is ready for execution.
 
-**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.test.md` + `.bugfix.md` (if exists, to verify revised plan addresses execution issues)
+**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.test.md` + `.bugfix/` (if exists, to verify revised plan addresses execution issues)
 
 **Evaluation Criteria:**
 
@@ -44,15 +44,15 @@ Evaluates whether the implementation plan is ready for execution.
 
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
-| **PASS** | Write `.analysis.md` with approval summary | `planning` → `review` |
-| **NEEDS_REVISION** | Write `.analysis.md` with specific issues to address | Status unchanged |
-| **BLOCKED** | Write `.analysis.md` with blocking reasons | → `blocked` |
+| **PASS** | Create `.analysis/<date>-post-plan-pass.md` with approval summary | `planning` → `review` |
+| **NEEDS_REVISION** | Create `.analysis/<date>-post-plan-needs-rev.md` with specific issues | Status unchanged |
+| **BLOCKED** | Create `.analysis/<date>-post-plan-blocked.md` with blocking reasons | → `blocked` |
 
 ### 2. mid-exec
 
 Evaluates progress during execution when issues are encountered.
 
-**Reads:** `.target.md` + plan files + `.test.md` + `.analysis.md` + current code changes (via git diff)
+**Reads:** `.target.md` + plan files + `.test.md` + `.analysis/` (latest) + current code changes (via git diff)
 
 **Evaluation Criteria:**
 
@@ -68,15 +68,15 @@ Evaluates progress during execution when issues are encountered.
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
 | **CONTINUE** | Document progress, note any adjustments | Status unchanged |
-| **NEEDS_FIX** | Append specific fixable issues to `.bugfix.md` | Status unchanged |
-| **REPLAN** | Write issue analysis to `.bugfix.md` | `executing` → `re-planning` |
+| **NEEDS_FIX** | Create `.bugfix/<date>-<summary>.md` with specific fixable issues | Status unchanged |
+| **REPLAN** | Create `.bugfix/<date>-<summary>.md` with issue analysis | `executing` → `re-planning` |
 | **BLOCKED** | Write blocking analysis | → `blocked` |
 
 ### 3. post-exec
 
 Evaluates whether execution results meet the task requirements.
 
-**Reads:** `.target.md` + plan files + `.test.md` + code changes + test results
+**Reads:** `.target.md` + plan files + `.test.md` + `.analysis/` (latest) + code changes + test results
 
 **Evaluation Criteria:**
 
@@ -91,16 +91,16 @@ Evaluates whether execution results meet the task requirements.
 
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
-| **ACCEPT** | Write approval to `.analysis.md`, task-level refactoring, merge to main | `executing` → `complete` (if merge conflict → stays `executing`, report conflict) |
-| **NEEDS_FIX** | Write specific issues to `.analysis.md` | Status unchanged |
-| **REPLAN** | Write fundamental issues to `.analysis.md`, needs re-planning | `executing` → `re-planning` |
+| **ACCEPT** | Create `.analysis/<date>-post-exec-accept.md`, task-level refactoring, merge to main | `executing` → `complete` (if merge conflict → stays `executing`, report conflict) |
+| **NEEDS_FIX** | Create `.analysis/<date>-post-exec-needs-fix.md` with specific issues | Status unchanged |
+| **REPLAN** | Create `.analysis/<date>-post-exec-replan.md` with fundamental issues | `executing` → `re-planning` |
 
 ## Output Files
 
 | File | When Created | Content |
 |------|-------------|---------|
-| `.analysis.md` | post-plan, post-exec | Feasibility analysis (post-plan) or issue list (NEEDS_FIX) |
-| `.bugfix.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach |
+| `.analysis/<date>-<summary>.md` | post-plan, post-exec | Feasibility analysis (post-plan) or issue list (NEEDS_FIX). One file per assessment, preserving evaluation history |
+| `.bugfix/<date>-<summary>.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach. One file per issue |
 
 ## Execution Steps
 
@@ -161,7 +161,7 @@ When ACCEPT:
 
 - **Judgment bias**: When uncertain between PASS and NEEDS_REVISION, prefer NEEDS_REVISION. When uncertain between ACCEPT and NEEDS_FIX, prefer NEEDS_FIX. False negatives (extra iteration) are cheaper than false positives (bad code merged).
 - Evaluation should be thorough but pragmatic — focus on blocking issues, not style preferences
-- The `.analysis.md` file is overwritten on each post-plan assessment (latest analysis only)
-- The `.bugfix.md` file appends entries (preserves history of issues encountered)
+- Each assessment creates a new file in `.analysis/` (full evaluation history preserved, latest = last by filename sort)
+- Each mid-exec issue creates a new file in `.bugfix/` (one issue per file, filename includes date + summary)
 - For `post-exec`, if tests exist, they MUST be run and pass for ACCEPT
 - `depends_on` in `.index.md` should be checked: if dependencies are not `complete`, flag as risk

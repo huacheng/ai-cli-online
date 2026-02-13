@@ -27,10 +27,10 @@ TASK/
 └── <module-name>/             # One directory per task module
     ├── .index.md              # Task metadata (YAML frontmatter)
     ├── .target.md             # Requirements / objectives (human-authored)
-    ├── .analysis.md           # Feasibility analysis (written by check)
+    ├── .analysis/             # Evaluation history (one file per assessment by check)
     ├── .test.md               # Test/verification plan (written by plan, evaluated by check)
-    ├── .bugfix.md             # Issue history (appended by check mid-exec)
-    ├── .notes.md              # Research notes & experience log (appended by plan/exec)
+    ├── .bugfix/               # Issue history (one file per mid-exec issue by check)
+    ├── .notes/                # Research notes & experience log (one file per entry by plan/exec)
     ├── .report.md             # Completion report (written by report)
     ├── .tmp-annotations.json  # Transient annotation transport (frontend → plan)
     ├── .auto-signal           # Transient auto-loop signal (ephemeral)
@@ -277,7 +277,7 @@ ACCEPT triggers task-level refactoring → merge to main. If merge conflict → 
 
 `/ai-cli-task exec <task_module> [--step N]`
 
-Execute implementation plan step-by-step. Prerequisite: status `review` or `executing` (NEEDS_FIX continuation). Reads plan files + `.analysis.md`, implements changes, verifies diagnostics per step. On significant issues → signal `(mid-exec)` for mid-exec evaluation. On all steps complete → signal `(done)` for post-exec verification. Source code commits use `feat`/`fix` type.
+Execute implementation plan step-by-step. Prerequisite: status `review` or `executing` (NEEDS_FIX continuation). Reads plan files + `.analysis/` + `.test.md`, implements changes, verifies per step against `.test.md` criteria. On significant issues → signal `(mid-exec)` for mid-exec evaluation. On all steps complete → signal `(done)` for post-exec verification. Project file commits use `feat`/`fix` type.
 
 ### report
 

@@ -24,7 +24,7 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 - Task module must have status `review` (post-plan check passed) or `executing` (NEEDS_FIX continuation)
 - `.target.md` and at least one plan file must exist
-- `.analysis.md` should exist with PASS evaluation (warning if missing)
+- `.analysis/` should contain a PASS evaluation file (warning if empty/missing)
 
 ## Execution Strategy
 
@@ -33,9 +33,9 @@ Execute the implementation plan for a task module that has passed evaluation.
 1. **Read** all plan files in the task module (non-dot-prefixed `.md` files)
 2. **Read** `.target.md` for requirements context
 3. **Read** `.test.md` for per-step verification criteria and acceptance standards
-4. **Read** `.analysis.md` for evaluation notes and approved approach
-5. **Read** `.bugfix.md` if exists for mid-exec issue history and fix guidance
-6. **Read** `.notes.md` if exists for prior research findings and experience
+4. **Read** `.analysis/` latest file for evaluation notes and approved approach
+5. **Read** `.bugfix/` if exists (all files, sorted by name) for mid-exec issue history and fix guidance
+6. **Read** `.notes/` if exists (all files, sorted by name) for prior research findings and experience
 7. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
 8. **Build** execution order respecting any noted dependencies
 
@@ -54,7 +54,7 @@ For each implementation step:
    - Script execution: verify expected artifacts were produced
    - Test cases: run per-step tests defined in `.test.md` if applicable
 4. **Record** what was done (files changed, commands run, tools invoked, approach taken)
-5. **Append** notable discoveries, workarounds, or decisions to `.notes.md` (timestamped)
+5. **Create** `.notes/<YYYY-MM-DD>-<summary>.md` for notable discoveries, workarounds, or decisions
 
 ### Issue Handling
 
@@ -71,7 +71,7 @@ For each implementation step:
 2. **Update** `.index.md` status to `executing`, update timestamp
 3. **Discover** all implementation steps from plan files
 4. **Detect completed steps**: check git log for `exec step N/M done` commits to determine progress; mark those steps as completed
-5. **If NEEDS_FIX resumption**: read `.bugfix.md` (mid-exec) or `.analysis.md` (post-exec) and address fix items before continuing remaining steps
+5. **If NEEDS_FIX resumption**: read `.bugfix/` latest file (mid-exec) or `.analysis/` latest file (post-exec) and address fix items before continuing remaining steps
 6. **If** `--step N` specified, execute only that step; otherwise execute remaining incomplete steps in order
 7. **For each step:**
    a. Read required files
@@ -112,7 +112,7 @@ For long-running executions, intermediate progress can be observed by:
 
 - Each step should be atomic — if a step fails, previous steps remain applied
 - The executor should follow project coding conventions (check CLAUDE.md if present)
-- When status is `executing` (NEEDS_FIX), exec reads issues from `.analysis.md` (post-exec) or `.bugfix.md` (mid-exec) and addresses them
+- When status is `executing` (NEEDS_FIX), exec reads issues from `.analysis/` latest file (post-exec) or `.bugfix/` latest file (mid-exec) and addresses them
 - When `--step N` is used, the executor verifies prerequisites for that step are met
 - After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
 - Execution does NOT automatically run tests — that is part of the post-exec evaluation

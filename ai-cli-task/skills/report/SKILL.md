@@ -52,7 +52,7 @@ Generate a structured completion report for a task module, documenting what was 
 <!-- Test results, build status, evaluation outcomes -->
 
 ## Issues Encountered
-<!-- From .bugfix.md if exists, or "None" -->
+<!-- From .bugfix/ if exists, or "None" -->
 
 ## Dependencies
 <!-- Status of depends_on modules -->
@@ -75,9 +75,9 @@ The report is written to `TASK/<module_name>/.report.md` and also printed to scr
 2. **Read** `.target.md` for objectives
 3. **Read** all plan files for implementation approach
 4. **Read** `.test.md` for verification criteria and test results (if exists)
-5. **Read** `.analysis.md` for evaluation history (if exists)
-6. **Read** `.bugfix.md` for issue history (if exists)
-7. **Read** `.notes.md` for research findings and experience log (if exists)
+5. **Read** `.analysis/` for evaluation history (all files, sorted by name, if exists)
+6. **Read** `.bugfix/` for issue history (all files, sorted by name, if exists)
+7. **Read** `.notes/` for research findings and experience log (all files, sorted by name, if exists)
 8. **Collect** git changes related to the task (if identifiable)
 9. **Compose** report in requested format
 10. **Write** to `.report.md`
