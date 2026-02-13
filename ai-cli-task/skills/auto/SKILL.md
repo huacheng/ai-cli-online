@@ -83,7 +83,7 @@ Fields:
 - `result`: outcome of the step
 - `next`: what Claude will execute next (or `"(stop)"`)
 - `checkpoint`: context hint (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`). Empty when not applicable
-- `iteration`: current iteration count (for daemon progress tracking)
+- `iteration`: current iteration count (for daemon progress tracking). **Auto-mode only** — absent when sub-commands write `.auto-signal` in manual execution
 - `timestamp`: ISO 8601
 
 The daemon reads this via `fs.watch` to:
@@ -208,13 +208,16 @@ The auto skill runs this loop within a single Claude session:
 2. LOOP:
    a. Check for .auto-stop file → if exists, break loop
    b. Execute current step (plan/check/exec/merge/report logic per SKILL.md)
+      — SKIP the sub-command's own .auto-signal write step (auto loop handles it below)
    c. Evaluate result → determine next step (result-based routing)
-   d. Write .auto-signal (progress report for daemon)
+   d. Write .auto-signal (progress report for daemon, WITH iteration field)
    e. Increment iteration counter
    f. If next == "(stop)" → break loop
    g. Set current step = next step → continue loop
 3. Cleanup: delete .auto-signal, report final status
 ```
+
+**Signal ownership in auto mode**: Each sub-command's SKILL.md includes a "write `.auto-signal`" step. In auto mode, the auto loop **subsumes** that step — Claude writes the signal once at step 2d (with the `iteration` field included). The sub-command's own signal-write instruction is skipped to avoid double-writing. In manual (non-auto) execution, sub-commands write `.auto-signal` themselves (without `iteration` field).
 
 ### Entry Point (Status-Based Routing)
 
@@ -262,6 +265,12 @@ Because all steps run in one session, Claude naturally retains:
 - Error context from previous fix attempts
 
 The `.summary.md` file is still written by each sub-command as a **compaction safety net** — if the context window overflows and compaction occurs, `.summary.md` provides the condensed recovery context. But during normal auto execution, live conversation context is the primary source of truth.
+
+**Compaction recovery**: If context compaction occurs mid-loop, Claude loses the iteration counter and current step position. To recover:
+1. Read `.auto-signal` — the `iteration` field gives the last completed iteration count; `step` and `next` give the position in the loop
+2. Read `.index.md` — status confirms the current lifecycle phase
+3. Read `.summary.md` — condensed task context from the last sub-command
+4. Resume the loop from `next` step at `iteration + 1`
 
 ## Backend REST API
 
@@ -350,12 +359,19 @@ The frontend is a **pure observer** for auto mode, except for start/stop control
 
 ## Cleanup
 
-When auto mode stops (complete, blocked, cancelled, or manual stop):
+When auto mode stops (complete, blocked, cancelled, or manual stop), cleanup is split between Claude and the daemon:
+
+**Claude-side** (inside the session, at loop exit):
+1. Delete `.auto-signal` file if exists
+2. Delete `.auto-stop` file if exists (consumed, no longer needed)
+
+**Daemon-side** (backend, after detecting loop exit or stop):
 1. Stop heartbeat polling timer
-2. Delete `.auto-signal` file if exists
-3. Delete `.auto-stop` file if exists
-4. Remove `task_auto` row from SQLite (clears all stall detection state)
-5. Frontend status indicator clears on next poll
+2. Stop `fs.watch` on task directory
+3. Remove `task_auto` row from SQLite (clears all stall detection state)
+4. Frontend status indicator clears on next poll
+
+The daemon detects loop exit by: (a) receiving a `DELETE` API call (user stop), (b) heartbeat detecting shell prompt (Claude exited), or (c) `.auto-signal` with `next: "(stop)"` (natural completion). In all cases, daemon performs its cleanup steps above.
 
 ## Git
 
@@ -367,12 +383,13 @@ On backend server restart, auto state is recovered from SQLite:
 
 1. **Read** all `task_auto` rows with `status = 'running'`
 2. **For each active row**:
-   a. Check terminal state via `tmux capture-pane`:
+   a. **Delete stale `.auto-stop`** if exists in `task_dir` (prevents restarted Claude from immediately exiting due to leftover stop file from pre-crash state)
+   b. Check terminal state via `tmux capture-pane`:
       - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
       - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task auto <task_dir>"` to PTY (Claude's internal loop reads `.index.md` to determine resume point)
-   b. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
-   c. Start heartbeat polling timer
-   d. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
+   c. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
+   d. Start heartbeat polling timer
+   e. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
 3. **Resume** normal daemon operation (signal watching + heartbeat polling)
 
 On restart, Claude's auto loop re-reads `.index.md` and `.summary.md` to reconstruct context. The conversation context from the previous session is lost, but `.summary.md` provides the condensed recovery information.

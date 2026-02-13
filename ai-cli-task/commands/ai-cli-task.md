@@ -356,7 +356,7 @@ Generate `.report.md` from all task artifacts. Informational only — no status 
 
 `/ai-cli-task auto <task_module> [--start|--stop|--status]`
 
-Backend-driven autonomous loop: plan → check → exec → check, with self-correction. Backend daemon uses `fs.watch` on `.auto-signal` + `tmux capture-pane` readiness check.
+Single-session autonomous loop: plan → check → exec → check, with self-correction. A single Claude session internally orchestrates all steps; the backend daemon monitors progress via `fs.watch` on `.auto-signal` and enforces safety limits.
 
 **Status-based first entry:**
 
@@ -385,7 +385,7 @@ Backend-driven autonomous loop: plan → check → exec → check, with self-cor
 | exec | (step-N) | check | mid-exec | ← manual `--step N` only |
 | exec | (blocked) | (stop) | — |
 | merge | success | report | — |
-| merge | blocked | (stop) | — |
+| merge | conflict | (stop) | — |
 | report | (any) | (stop) | — |
 
 **Safety**: max iterations (default 20), timeout (default 30 min), stop on `blocked`, one auto per session (SQLite PK), one auto per task (UNIQUE).
