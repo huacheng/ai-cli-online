@@ -75,40 +75,33 @@ If terminal is not ready, the daemon retries with exponential backoff (1s, 2s, 4
 ## State Machine
 
 ```
-       ┌─────────────────────────────────────┐
-       │           AUTO LOOP                  │
-       │                                      │
- start ▼                                      │
-┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│ planning │───▶│ check    │───▶│  exec    │──┘
-│ (plan)   │    │(post-plan│    │          │
-└──────────┘    │ PASS)    │    └────┬─────┘
+       ┌──────────────────────────────────────────┐
+       │              AUTO LOOP                    │
+       │                                           │
+ start ▼                                           │
+┌──────────┐    ┌──────────┐    ┌──────────┐       │
+│ planning │───▶│ check    │───▶│  exec    │───────┘
+│ (plan)   │    │(post-plan│    │  (done)  │
+└──────────┘    │ PASS)    │    └──────────┘
        ▲        └────┬─────┘         │
-       │             │               │ issues
+       │             │               │ signal (done)
        │        NEEDS_│               ▼
        │        REVISION        ┌──────────┐
-       │             │          │check     │
-       │             ▼          │(mid-exec)│
+       │             │          │ check    │
+       │             ▼          │(post-exec)│
        │        ┌──────────┐   └────┬─────┘
        │        │ re-plan  │        │
-       └────────│          │◀───────┘ REPLAN
-                └──────────┘
-                                     │ CONTINUE
-                                     ▼
-                               ┌──────────┐
-                               │ check    │
-                               │(post-exec)│
-                               └────┬─────┘
-                                    │
-                          ┌─────────┼─────────┐
-                          ▼         ▼         ▼
-                       ACCEPT   NEEDS_FIX   REPLAN
-                          │         │         │
-                          ▼         ▼         │
-                     ┌────────┐  (re-exec)    │
-                     │complete│               │
-                     │(report)│    ◀──────────┘
-                     └────────┘
+       │        │          │  ┌─────┼─────────┐
+       │        └──────────┘  ▼     ▼         ▼
+       │             ▲     ACCEPT NEEDS_FIX  REPLAN
+       │             │        │     │         │
+       │             │        ▼     ▼         │
+       │             │   ┌────────┐ (re-exec) │
+       │             │   │complete│           │
+       │             │   │(report)│           │
+       │             │   └────────┘           │
+       │             └────────────────────────┘
+       └──────────────────────┘
 ```
 
 ## Auto Loop Steps

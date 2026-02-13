@@ -263,7 +263,7 @@ Execute implementation plan step-by-step. Prerequisite: status `review` or `exec
 
 `/ai-cli-task report <task_module> [--format full|summary]`
 
-Generate `.report.md` from all task artifacts. Informational only — no status change. For `complete` tasks, includes `git log` change history. Full format: Summary, Objective, Plan, Changes, Verification, Issues, Dependencies, Lessons.
+Generate `.report.md` from all task artifacts. Informational only — no status change. For `complete` tasks, includes change history via commit message pattern matching (works after branch deletion). Full format: Summary, Objective, Plan, Changes, Verification, Issues, Dependencies, Lessons.
 
 ### auto
 

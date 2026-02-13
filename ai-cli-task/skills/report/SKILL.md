@@ -95,4 +95,4 @@ No status change — report generation is informational. The task must already b
 - For `blocked` tasks, the report documents what was completed and what blocks remain
 - For `cancelled` tasks, the report documents the reason for cancellation
 - The report serves as a permanent record even after task files are archived
-- For `complete` tasks, report includes `git log --oneline task/<module>` as change history
+- For `complete` tasks, report includes change history via `git log --oneline --all --grep="ai-cli-task(<module>)"` (uses commit message pattern, works even after task branch deletion)
