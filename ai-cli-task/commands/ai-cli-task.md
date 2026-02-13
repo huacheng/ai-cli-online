@@ -143,9 +143,9 @@ All ai-cli-task triggered commits use `--` prefix to distinguish from user manua
 | `plan` | Plan generation / annotation processing | TASK/ directory files |
 | `check` | Check evaluation results | TASK/ directory files |
 | `exec` | Execution state changes | TASK/ directory files |
-| `feat` | New feature code during exec | Source code |
-| `fix` | Bugfix code during exec | Source code |
-| `refactor` | Code cleanup before merge | Source code |
+| `feat` | New feature code during exec | Project files |
+| `fix` | Bugfix code during exec | Project files |
+| `refactor` | Code cleanup before merge | Project files |
 | `report` | Report generation | TASK/ directory files |
 | `cancel` | Task cancellation | TASK/ directory files |
 | `merge` | Merge completed task to main | — (merge commit) |
@@ -207,6 +207,23 @@ To revert a task to a previous checkpoint:
 git log --oneline task/<module>    # find checkpoint commit
 git reset --hard <commit>          # in the task's worktree
 ```
+
+#### .auto-signal Convention
+
+Every sub-command (plan, check, exec, report) MUST write `.auto-signal` on completion, regardless of whether auto mode is active:
+
+```json
+{
+  "step": "<sub-command>",
+  "result": "<outcome>",
+  "next": "<next sub-command or (stop)>",
+  "timestamp": "<ISO 8601>"
+}
+```
+
+The `next` field follows the signal routing table documented in the `auto` sub-command. If auto mode is not active, the file is harmless (gitignored, ephemeral). This fire-and-forget pattern avoids each skill needing to detect auto mode.
+
+**Worktree note**: In worktree mode, write `.auto-signal` BEFORE worktree cleanup (e.g., check ACCEPT writes signal before removing worktree).
 
 #### .gitignore
 

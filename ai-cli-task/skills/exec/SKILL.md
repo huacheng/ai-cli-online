@@ -70,7 +70,7 @@ For each implementation step:
 5. **If NEEDS_FIX resumption**: read `.bugfix.md` (mid-exec) or `.analysis.md` (post-exec) and address fix items before continuing remaining steps
 6. **If** `--step N` specified, execute only that step; otherwise execute remaining incomplete steps in order
 7. **For each step:**
-   a. Read required source files
+   a. Read required files
    b. Implement the change
    c. Verify (diagnostics / build check)
    d. Record result

@@ -38,7 +38,7 @@ When called without annotation_file or with `--generate`:
 4. Read project codebase for context (relevant files, CLAUDE.md conventions)
 5. Research and generate implementation plan (incorporating check feedback and bugfix history if any)
 6. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
-7. Update `.index.md`: status → `planning`, update timestamp
+7. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp
 8. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
 9. Report plan summary to user
 
