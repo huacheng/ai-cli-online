@@ -145,6 +145,7 @@ All ai-cli-task triggered commits use `--` prefix to distinguish from user manua
 | `exec` | Execution state changes | TASK/ directory files |
 | `feat` | New feature code during exec | Source code |
 | `fix` | Bugfix code during exec | Source code |
+| `refactor` | Code cleanup before merge | Source code |
 | `report` | Report generation | TASK/ directory files |
 | `cancel` | Task cancellation | TASK/ directory files |
 | `merge` | Merge completed task to main | — (merge commit) |
@@ -159,6 +160,7 @@ Examples:
 -- ai-cli-task(auth-refactor):fix fix token expiration check
 -- ai-cli-task(auth-refactor):exec step 2/5 done
 -- ai-cli-task(auth-refactor):check post-exec ACCEPT → complete
+-- ai-cli-task(auth-refactor):refactor cleanup before merge
 -- ai-cli-task(auth-refactor):report generate completion report
 -- ai-cli-task(auth-refactor):cancel user cancelled
 ```
@@ -171,15 +173,14 @@ After task completion confirmed (`check --checkpoint post-exec` ACCEPT):
 
 1. **Task-level refactoring** (on task branch, before merge):
    - Review code changes for cleanup opportunities (dead code, naming, duplication)
-   - Commit: `-- ai-cli-task(<module>):fix refactor before merge`
+   - Commit: `-- ai-cli-task(<module>):refactor cleanup before merge`
 2. **Merge to main**:
    ```bash
    git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
-3. **Post-merge refactoring** (on main, after merge):
-   - Review integration points for cross-task cleanup (shared utilities, API consistency)
-   - Commit: `-- ai-cli-task(<module>):fix post-merge refactor`
+
+**Recommended:** After all related tasks merge to main, do a project-level refactoring pass on main (cross-task cleanup, shared utilities, API consistency). This is a manual activity, not part of auto mode.
 
 #### Worktree Parallel Execution
 
@@ -247,7 +248,7 @@ Decision maker at three lifecycle checkpoints:
 | **mid-exec** | `executing` | CONTINUE (no change), REPLAN→`re-planning`, BLOCKED→`blocked` |
 | **post-exec** | `executing` | ACCEPT→`complete`+merge, NEEDS_FIX (no change), REPLAN→`re-planning` |
 
-ACCEPT triggers task-level refactoring → merge to main → post-merge refactoring. If merge conflict → status stays `executing`, report conflict. Tests MUST pass for ACCEPT.
+ACCEPT triggers task-level refactoring → merge to main. If merge conflict → status stays `executing`, report conflict. Tests MUST pass for ACCEPT.
 
 ### exec
 

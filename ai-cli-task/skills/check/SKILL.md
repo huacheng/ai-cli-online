@@ -89,7 +89,7 @@ Evaluates whether execution results meet the task requirements.
 
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
-| **ACCEPT** | Write approval summary to `.analysis.md`, refactor then merge to main | `executing` → `complete` (if merge conflict → stays `executing`, report conflict) |
+| **ACCEPT** | Write approval to `.analysis.md`, task-level refactoring, merge to main | `executing` → `complete` (if merge conflict → stays `executing`, report conflict) |
 | **NEEDS_FIX** | Write specific issues to `.analysis.md` | Status unchanged |
 | **REPLAN** | Write fundamental issues to `.analysis.md`, needs re-planning | `executing` → `re-planning` |
 
@@ -143,14 +143,12 @@ post-exec REPLAN:        executing → re-planning
 
 When ACCEPT:
 1. **Task-level refactoring** on task branch (dead code, naming, duplication cleanup)
-2. Commit: `-- ai-cli-task(<module>):fix refactor before merge`
+2. Commit: `-- ai-cli-task(<module>):refactor cleanup before merge`
 3. **Merge to main**:
    ```bash
    git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
-4. **Post-merge refactoring** on main (cross-task cleanup, integration review)
-5. Commit: `-- ai-cli-task(<module>):fix post-merge refactor`
 
 ## Notes
 
