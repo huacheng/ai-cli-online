@@ -147,8 +147,9 @@ When ACCEPT:
 1. **Task-level refactoring** on task branch (dead code, naming, duplication cleanup)
 2. Commit: `-- ai-cli-task(<module>):refactor cleanup before merge`
 3. **Merge to main**:
+   - If worktree: `cd <project-root>` first (worktree is locked to task branch)
+   - `git checkout main` (non-worktree) or already on main (worktree, main worktree)
    ```bash
-   git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
 4. **Cleanup** (after successful merge):

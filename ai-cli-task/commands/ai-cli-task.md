@@ -175,8 +175,9 @@ After task completion confirmed (`check --checkpoint post-exec` ACCEPT):
    - Review code changes for cleanup opportunities (dead code, naming, duplication)
    - Commit: `-- ai-cli-task(<module>):refactor cleanup before merge`
 2. **Merge to main**:
+   - If worktree: `cd <project-root>` first (worktree is locked to task branch)
+   - `git checkout main` (non-worktree) or already on main (worktree, main worktree)
    ```bash
-   git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
 3. **Cleanup** (after successful merge):
