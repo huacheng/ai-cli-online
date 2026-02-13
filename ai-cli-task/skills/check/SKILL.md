@@ -27,7 +27,7 @@ Check the implementation plan at three lifecycle checkpoints. Acts as the decisi
 
 Evaluates whether the implementation plan is ready for execution.
 
-**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.test.md` + `.bugfix/` (if exists, to verify revised plan addresses execution issues)
+**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.summary.md` (if exists) + `.test/` (latest criteria file) + `.bugfix/` (latest file if exists, to verify revised plan addresses execution issues)
 
 **Evaluation Criteria:**
 
@@ -35,10 +35,10 @@ Evaluates whether the implementation plan is ready for execution.
 |-----------|--------|-------------|
 | **Completeness** | High | Does the plan cover all requirements in `.target.md`? |
 | **Feasibility** | High | Can the plan be implemented with current codebase/tools? |
-| **Verifiability** | High | Does `.test.md` exist with testable acceptance criteria and per-step verification? |
+| **Verifiability** | High | Does `.test/` contain criteria files with testable acceptance criteria and per-step verification? |
 | **Clarity** | Medium | Are implementation steps clear and unambiguous? |
 | **Risk** | Medium | Are risks identified and mitigated? |
-| **Dependencies** | Low | Are external dependencies (other task modules) accounted for? |
+| **Dependencies** | High | Are all `depends_on` modules `complete`? If not → BLOCKED |
 
 **Outcomes:**
 
@@ -52,13 +52,13 @@ Evaluates whether the implementation plan is ready for execution.
 
 Evaluates progress during execution when issues are encountered.
 
-**Reads:** `.target.md` + plan files + `.test.md` + `.analysis/` (latest) + current code changes (via git diff)
+**Reads:** `.target.md` + plan files + `.summary.md` (if exists) + `.test/` (latest criteria + results) + `.analysis/` (latest file only) + current code changes (via git diff)
 
 **Evaluation Criteria:**
 
 | Criterion | Weight | Description |
 |-----------|--------|-------------|
-| **Progress** | High | How much of the plan has been completed? |
+| **Progress** | High | How much of the plan has been completed? (read `completed_steps` from `.index.md`) |
 | **Deviation** | High | Has execution deviated from the plan? |
 | **Issues** | High | Are encountered issues resolvable? |
 | **Continue vs Replan** | Critical | Should execution continue or revert to planning? |
@@ -69,14 +69,14 @@ Evaluates progress during execution when issues are encountered.
 |--------|--------|-------------------|
 | **CONTINUE** | Document progress, note any adjustments | Status unchanged |
 | **NEEDS_FIX** | Create `.bugfix/<date>-<summary>.md` with specific fixable issues | Status unchanged |
-| **REPLAN** | Create `.bugfix/<date>-<summary>.md` with issue analysis | `executing` → `re-planning` |
+| **REPLAN** | Create `.bugfix/<date>-<summary>.md` with issue analysis | `executing` → `re-planning`, set `phase: needs-plan` |
 | **BLOCKED** | Create `.analysis/<date>-mid-exec-blocked.md` with blocking analysis | → `blocked` |
 
 ### 3. post-exec
 
 Evaluates whether execution results meet the task requirements.
 
-**Reads:** `.target.md` + plan files + `.test.md` + `.analysis/` (latest) + code changes + test results
+**Reads:** `.target.md` + plan files + `.summary.md` (if exists) + `.test/` (all criteria + latest results) + `.analysis/` (latest file only) + code changes + test results
 
 **Evaluation Criteria:**
 
@@ -91,9 +91,9 @@ Evaluates whether execution results meet the task requirements.
 
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
-| **ACCEPT** | Create `.analysis/<date>-post-exec-accept.md`, task-level refactoring, merge to main | `executing` → `complete` (if merge conflict → stays `executing`, report conflict) |
+| **ACCEPT** | Create `.analysis/<date>-post-exec-accept.md`, write `.test/<date>-post-exec-results.md` | Status unchanged (`executing`), signal → `merge` sub-command |
 | **NEEDS_FIX** | Create `.analysis/<date>-post-exec-needs-fix.md` with specific issues | Status unchanged |
-| **REPLAN** | Create `.analysis/<date>-post-exec-replan.md` with fundamental issues | `executing` → `re-planning` |
+| **REPLAN** | Create `.analysis/<date>-post-exec-replan.md` with fundamental issues | `executing` → `re-planning`, set `phase: needs-plan` |
 
 ## Output Files
 
@@ -101,6 +101,7 @@ Evaluates whether execution results meet the task requirements.
 |------|-------------|---------|
 | `.analysis/<date>-<summary>.md` | post-plan, post-exec | Feasibility analysis (post-plan) or issue list (NEEDS_FIX). One file per assessment, preserving evaluation history |
 | `.bugfix/<date>-<summary>.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach. One file per issue |
+| `.test/<date>-<checkpoint>-results.md` | mid-exec, post-exec | Test outcomes for criteria verification. One file per checkpoint evaluation |
 
 ## Execution Steps
 
@@ -109,27 +110,31 @@ Evaluates whether execution results meet the task requirements.
    - `post-plan`: requires status `planning` or `re-planning`
    - `mid-exec`: requires status `executing`
    - `post-exec`: requires status `executing`
-3. **Read** all relevant files per checkpoint
-4. **Evaluate** against criteria
-5. **Write** analysis to appropriate system file
-6. **Update** `.index.md` status and timestamp per outcome
-7. **Report** evaluation result with detailed reasoning
+3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status. If any is not `complete`, verdict is BLOCKED with dependency details
+4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
+5. **Evaluate** against criteria
+6. **Write** analysis to appropriate system file
+7. **Write** `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions
+8. **Update** `.index.md` status and timestamp per outcome
+9. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
+10. **Report** evaluation result with detailed reasoning
 
 ## State Transitions
 
 ```
 post-plan PASS:          planning → review
-post-plan NEEDS_REVISION: (no change)
+post-plan PASS:          re-planning → review
+post-plan NEEDS_REVISION: (no change, files committed)
 post-plan BLOCKED:       → blocked
 
 mid-exec CONTINUE:       (no change)
-mid-exec NEEDS_FIX:      (no change)
-mid-exec REPLAN:         executing → re-planning
+mid-exec NEEDS_FIX:      (no change, files committed)
+mid-exec REPLAN:         executing → re-planning, phase: needs-plan
 mid-exec BLOCKED:        → blocked
 
-post-exec ACCEPT:        executing → complete
-post-exec NEEDS_FIX:     (no change)
-post-exec REPLAN:        executing → re-planning
+post-exec ACCEPT:        (no change, signal → merge)
+post-exec NEEDS_FIX:     (no change, files committed)
+post-exec REPLAN:        executing → re-planning, phase: needs-plan
 ```
 
 ## Git
@@ -137,25 +142,34 @@ post-exec REPLAN:        executing → re-planning
 | Outcome | Commit Message |
 |---------|---------------|
 | PASS | `-- ai-cli-task(<module>):check post-plan PASS → review` |
-| ACCEPT | `-- ai-cli-task(<module>):check post-exec ACCEPT → complete` + merge to main |
+| ACCEPT | `-- ai-cli-task(<module>):check post-exec ACCEPT` |
 | REPLAN | `-- ai-cli-task(<module>):check replan → re-planning` |
 | BLOCKED | `-- ai-cli-task(<module>):check blocked → blocked` |
-| NEEDS_REVISION / NEEDS_FIX | No commit (status unchanged) |
+| NEEDS_REVISION | `-- ai-cli-task(<module>):check post-plan NEEDS_REVISION` |
+| NEEDS_FIX (mid-exec) | `-- ai-cli-task(<module>):check mid-exec NEEDS_FIX` |
+| NEEDS_FIX (post-exec) | `-- ai-cli-task(<module>):check post-exec NEEDS_FIX` |
+| CONTINUE | `-- ai-cli-task(<module>):check mid-exec CONTINUE` |
 
-### Refactoring & Merge
+All outcomes commit their output files (`.analysis/` or `.bugfix/`), regardless of whether status changes.
 
-When ACCEPT:
-1. **Task-level refactoring** on task branch (dead code, naming, duplication cleanup)
-2. Commit: `-- ai-cli-task(<module>):refactor cleanup before merge`
-3. **Merge to main**:
-   - If worktree: `cd <project-root>` first (worktree is locked to task branch)
-   - `git checkout main` (non-worktree) or already on main (worktree, main worktree)
-   ```bash
-   git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
-   ```
-4. **Cleanup** (after successful merge):
-   - If worktree exists: `git worktree remove .worktrees/task-<module>`
-   - Delete merged branch: `git branch -d task/<module>`
+## .auto-signal
+
+Every check outcome writes `.auto-signal` on completion:
+
+| Checkpoint | Result | Signal |
+|------------|--------|--------|
+| post-plan | PASS | `{ "step": "check", "result": "PASS", "next": "exec", "checkpoint": "", "timestamp": "..." }` |
+| post-plan | NEEDS_REVISION | `{ "step": "check", "result": "NEEDS_REVISION", "next": "plan", "checkpoint": "", "timestamp": "..." }` |
+| post-plan | BLOCKED | `{ "step": "check", "result": "BLOCKED", "next": "(stop)", "checkpoint": "", "timestamp": "..." }` |
+| mid-exec | CONTINUE | `{ "step": "check", "result": "CONTINUE", "next": "exec", "checkpoint": "", "timestamp": "..." }` |
+| mid-exec | NEEDS_FIX | `{ "step": "check", "result": "NEEDS_FIX", "next": "exec", "checkpoint": "mid-exec", "timestamp": "..." }` |
+| mid-exec | REPLAN | `{ "step": "check", "result": "REPLAN", "next": "plan", "checkpoint": "", "timestamp": "..." }` |
+| mid-exec | BLOCKED | `{ "step": "check", "result": "BLOCKED", "next": "(stop)", "checkpoint": "", "timestamp": "..." }` |
+| post-exec | ACCEPT | `{ "step": "check", "result": "ACCEPT", "next": "merge", "checkpoint": "", "timestamp": "..." }` |
+| post-exec | NEEDS_FIX | `{ "step": "check", "result": "NEEDS_FIX", "next": "exec", "checkpoint": "post-exec", "timestamp": "..." }` |
+| post-exec | REPLAN | `{ "step": "check", "result": "REPLAN", "next": "plan", "checkpoint": "", "timestamp": "..." }` |
+
+When ACCEPT, the `merge` sub-command handles refactoring, merge, conflict resolution, and cleanup. See `skills/merge/SKILL.md`.
 
 ## Notes
 
@@ -163,5 +177,6 @@ When ACCEPT:
 - Evaluation should be thorough but pragmatic — focus on blocking issues, not style preferences
 - Each assessment creates a new file in `.analysis/` (full evaluation history preserved, latest = last by filename sort)
 - Each mid-exec issue creates a new file in `.bugfix/` (one issue per file, filename includes date + summary)
-- For `post-exec`, if tests exist, they MUST be run and pass for ACCEPT
-- `depends_on` in `.index.md` should be checked: if dependencies are not `complete`, flag as risk
+- For `post-exec`, if tests exist (`.test/` criteria files), they MUST be run and pass for ACCEPT
+- Check writes test results to `.test/<date>-<checkpoint>-results.md` (e.g., `2024-01-15-post-exec-results.md`) documenting test outcomes
+- `depends_on` in `.index.md` MUST be validated: if any dependency is not `complete`, verdict is BLOCKED (not just flagged as risk)

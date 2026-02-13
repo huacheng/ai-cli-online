@@ -54,14 +54,40 @@ After each step completes, Claude writes a signal file to the task module:
   "step": "check",
   "result": "PASS",
   "next": "exec",
+  "checkpoint": "",
   "timestamp": "2024-01-01T00:00:00Z"
 }
 ```
 
+Fields:
+- `step`: the sub-command that just completed
+- `result`: outcome of the step
+- `next`: next sub-command to run (or `"(stop)"`)
+- `checkpoint`: hint for the next command when it needs a checkpoint parameter (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`). Empty when not applicable
+- `timestamp`: ISO 8601
+
 The backend daemon detects this via `fs.watch` and:
 1. Checks terminal readiness (`tmux capture-pane` — looks for shell prompt)
-2. Sends the next command to PTY: `claude "/ai-cli-task <next_skill> <task_module>"`
-3. Deletes the `.auto-signal` file
+2. Reads the signal file and **validates** before use (see Signal Validation below)
+3. Constructs next command from validated fields: `claude "/ai-cli-task <next> <task_module> [--checkpoint <checkpoint>]"`
+4. Sends the command to PTY
+5. Deletes the `.auto-signal` file
+
+### Signal Validation (Security)
+
+The daemon MUST validate `.auto-signal` before constructing PTY commands to prevent command injection:
+
+| Field | Validation | Allowed Values |
+|-------|-----------|----------------|
+| `step` | Whitelist | `plan`, `check`, `exec`, `merge`, `report` |
+| `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(annotations)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `success`, `blocked`, `(generated)` |
+| `next` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `(stop)` |
+| `checkpoint` | Whitelist | `""`, `post-plan`, `mid-exec`, `post-exec` |
+| `timestamp` | Format check | ISO 8601 |
+
+- **Reject** any signal with fields not matching the whitelist — do NOT pass to PTY
+- **No string interpolation**: construct the command from validated enum values, not raw string concatenation from the signal file
+- **Log rejected signals** for debugging
 
 ### Terminal Readiness Detection
 
@@ -75,7 +101,7 @@ If terminal is not ready, the daemon retries with exponential backoff (1s, 2s, 4
 ## State Machine
 
 ```
-AUTO LOOP (3 phases)
+AUTO LOOP (4 phases)
 
 Phase 1: Planning
   plan ──→ check(post-plan) ─── PASS ──────────→ [Phase 2]
@@ -92,13 +118,19 @@ Phase 2: Execution
         └─ (done) ──→ [Phase 3]
 
 Phase 3: Verification
-  check(post-exec) ─── ACCEPT ──→ complete → report → (stop)
+  check(post-exec) ─── ACCEPT ──→ [Phase 4]
           │                │
        NEEDS_FIX        REPLAN ──→ [Phase 1]
           │
           └──→ exec (re-exec) → [Phase 3]
 
-Terminal: BLOCKED at any check → (stop)
+Phase 4: Merge & Report
+  merge ─── success ──→ report → (stop)
+    │
+    └── conflict unresolvable (after 3 retries, stays executing) → (stop)
+
+Terminal: BLOCKED at any check → (stop, status → blocked)
+Terminal: merge conflict → (stop, status stays executing — retryable)
 ```
 
 ## Auto Loop Steps
@@ -108,11 +140,11 @@ Terminal: BLOCKED at any check → (stop)
 
 | Current Status | Auto Action |
 |----------------|-------------|
-| `draft` | Run `plan --generate` (or with annotations if `.tmp-annotations.json` present) |
+| `draft` | Validate `.target.md` has substantive content (not just template placeholders) → if empty, stop and report "fill `.target.md` first". Otherwise run `plan --generate` |
 | `planning` | Run `check --checkpoint post-plan` |
 | `review` | Run `exec` |
 | `executing` | Run `check --checkpoint post-exec` |
-| `re-planning` | Run `check --checkpoint post-plan` (on revised plan) |
+| `re-planning` | Read `phase` field: if `needs-plan` → run `plan --generate`; if `needs-check` → run `check --checkpoint post-plan`; if empty → default to `plan --generate` (safe fallback) |
 | `complete` | Run `report`, then stop loop |
 | `blocked` | Stop loop, report blocking reason |
 | `cancelled` | Stop loop |
@@ -128,23 +160,28 @@ Terminal: BLOCKED at any check → (stop)
 
 The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, NEEDS_FIX):
 
-| step | result | next | Rationale |
-|------|--------|------|-----------|
-| check | PASS | exec | Plan approved, proceed to execution |
-| check | NEEDS_REVISION | plan | Plan needs revision, re-generate first |
-| check | ACCEPT | report | Task complete, generate report |
-| check | NEEDS_FIX | exec | Minor issues, re-execute to fix first |
-| check | REPLAN | plan | Fundamental issues, revise plan |
-| check | BLOCKED | (stop) | Cannot continue |
-| check (mid-exec) | CONTINUE | exec | Progress OK, resume execution |
-| check (mid-exec) | NEEDS_FIX | exec | Fixable issues, exec addresses then continues |
-| check (mid-exec) | REPLAN | plan | Fundamental issues, revise plan |
-| check (mid-exec) | BLOCKED | (stop) | Cannot continue |
-| plan | (any) | check | Plan ready, assess it |
-| exec | (done) | check --checkpoint post-exec | All steps completed, verify results |
-| exec | (mid-exec) | check --checkpoint mid-exec | Significant issue encountered, checkpoint |
-| exec | (blocked) | (stop) | Cannot continue |
-| report | (any) | (stop) | Loop complete |
+| step | result | next | checkpoint | Rationale |
+|------|--------|------|------------|-----------|
+| check | PASS | exec | — | Plan approved, proceed to execution |
+| check | NEEDS_REVISION | plan | — | Plan needs revision, re-generate first |
+| check | ACCEPT | merge | — | Task verified, merge to main |
+| check | NEEDS_FIX | exec | mid-exec / post-exec | Minor issues, re-execute to fix first |
+| check | REPLAN | plan | — | Fundamental issues, revise plan |
+| check | BLOCKED | (stop) | — | Cannot continue |
+| check (mid-exec) | CONTINUE | exec | — | Progress OK, resume execution |
+| check (mid-exec) | NEEDS_FIX | exec | mid-exec | Fixable issues, exec addresses then continues |
+| check (mid-exec) | REPLAN | plan | — | Fundamental issues, revise plan |
+| check (mid-exec) | BLOCKED | (stop) | — | Cannot continue |
+| plan | (any) | check | post-plan | Plan ready, assess it |
+| exec | (done) | check | post-exec | All steps completed, verify results |
+| exec | (mid-exec) | check | mid-exec | Significant issue encountered, checkpoint |
+| exec | (step-N) | check | mid-exec | Single step completed (from manual `--step N`), mid-exec checkpoint |
+| exec | (blocked) | (stop) | — | Cannot continue |
+| merge | success | report | — | Merge complete, generate report |
+| merge | blocked | (stop) | — | Merge conflict unresolvable |
+| report | (any) | (stop) | — | Loop complete |
+
+**Note on `(step-N)`:** This signal is produced only when `exec --step N` is invoked manually (targeted single-step execution). In normal auto flow, the daemon sends `exec` without `--step`, and exec runs all remaining steps sequentially. The `(step-N)` routing is defensive — if someone manually triggers `--step N` during an active auto loop, the daemon knows to route to mid-exec check.
 
 Without signal-based routing, NEEDS_REVISION and NEEDS_FIX would cause infinite loops (status unchanged → same command re-sent → same result).
 

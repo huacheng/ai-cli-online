@@ -49,7 +49,7 @@ Generate a structured completion report for a task module, documenting what was 
 <!-- List of files modified/created/deleted with brief descriptions -->
 
 ## Verification
-<!-- Test results, build status, evaluation outcomes -->
+<!-- From .test/ criteria and results files, build status, evaluation outcomes -->
 
 ## Issues Encountered
 <!-- From .bugfix/ if exists, or "None" -->
@@ -71,17 +71,21 @@ The report is written to `TASK/<module_name>/.report.md` and also printed to scr
 
 ## Execution Steps
 
-1. **Read** `.index.md` for task metadata
+1. **Read** `.index.md` for task metadata (including `completed_steps`)
 2. **Read** `.target.md` for objectives
 3. **Read** all plan files for implementation approach
-4. **Read** `.test.md` for verification criteria and test results (if exists)
-5. **Read** `.analysis/` for evaluation history (all files, sorted by name, if exists)
-6. **Read** `.bugfix/` for issue history (all files, sorted by name, if exists)
-7. **Read** `.notes/` for research findings and experience log (all files, sorted by name, if exists)
-8. **Collect** git changes related to the task (if identifiable)
-9. **Compose** report in requested format
-10. **Write** to `.report.md`
-11. **Print** report to screen
+4. **Read** `.summary.md` if exists (condensed context overview)
+5. **Read** `.test/` for verification criteria and test results (all files, sorted by name, if exists)
+6. **Read** `.analysis/` for evaluation history (all files, sorted by name, if exists)
+7. **Read** `.bugfix/` for issue history (all files, sorted by name, if exists)
+8. **Read** `.notes/` for research findings and experience log (all files, sorted by name, if exists)
+9. **Collect** git changes related to the task (if identifiable)
+10. **Compose** report in requested format
+11. **Write** to `.report.md`
+12. **Write** `.auto-signal`: `{ step: "report", result: "(generated)", next: "(stop)", checkpoint: "" }`
+13. **Print** report to screen
+
+**Note**: Report is a terminal step — it reads ALL history files (not just latest) to produce a comprehensive record. `.summary.md` is used as an overview, not a replacement for full history in report context.
 
 ## State Transitions
 
@@ -90,6 +94,12 @@ No status change — report generation is informational. The task must already b
 ## Git
 
 - `-- ai-cli-task(<module>):report generate completion report`
+
+## .auto-signal
+
+`{ "step": "report", "result": "(generated)", "next": "(stop)", "checkpoint": "", "timestamp": "..." }`
+
+Report is always a terminal step — `next` is always `(stop)`.
 
 ## Notes
 

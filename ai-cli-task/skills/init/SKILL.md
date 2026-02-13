@@ -43,6 +43,8 @@ The `.index.md` file uses YAML frontmatter as the single source of truth for tas
 ---
 title: "Human-readable task title"
 status: draft
+phase: ""
+completed_steps: 0
 created: 2024-01-01T00:00:00Z
 updated: 2024-01-01T00:00:00Z
 depends_on: []
@@ -82,9 +84,10 @@ depends_on:
 | `.index.md` | Task metadata, state machine | `init` (always) |
 | `.target.md` | Task requirements / objectives | `init` (always) |
 | `.analysis/` | Evaluation history (one file per assessment) | `check` (on demand) |
-| `.test.md` | Test/verification plan | `plan` (on demand) |
+| `.test/` | Test criteria & results (one file per phase) | `plan`/`exec`/`check` (on demand) |
 | `.bugfix/` | Issue history (one file per mid-exec issue) | `check` (on demand) |
 | `.notes/` | Research notes & experience log (one file per entry) | `plan`/`exec` (on demand) |
+| `.summary.md` | Condensed context summary | `plan`/`check`/`exec` (on demand) |
 | `.report.md` | Completion report | `report` (on demand) |
 | `.tmp-annotations.json` | Transient annotation transport | Frontend (ephemeral) |
 
@@ -110,38 +113,42 @@ Created automatically by `init` if `TASK/` directory does not exist. `init` appe
 1. **Validate** module_name: Unicode letters, digits, hyphens, underscores (`[\p{L}\p{N}_-]+`), no whitespace, no leading dot, no path separators
 2. **Check** `TASK/` directory exists; create with root `.index.md` if missing
 3. **Check** `TASK/<module_name>/` does not already exist; abort with error if it does
-4. **Git**: create branch `task/<module_name>` from current HEAD
-5. **If `--worktree`**: `git worktree add .worktrees/task-<module_name> task/<module_name>`
-6. **If not worktree**: `git checkout task/<module_name>`
-7. **Create** `TASK/<module_name>/` directory (in worktree if applicable)
-8. **Create** `TASK/<module_name>/.index.md` with YAML frontmatter:
+4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
+5. **Check working tree clean**: verify no uncommitted changes (`git status --porcelain`). If dirty, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first
+6. **Git**: create branch `task/<module_name>` from current HEAD
+7. **If `--worktree`**: `git worktree add .worktrees/task-<module_name> task/<module_name>`
+8. **If not worktree**: `git checkout task/<module_name>`
+9. **Create** `TASK/<module_name>/` directory (in worktree if applicable)
+10. **Create** `TASK/<module_name>/.index.md` with YAML frontmatter:
    - `title`: from `--title` argument or module_name
    - `status`: `draft`
+   - `phase`: `""` (empty)
+   - `completed_steps`: `0`
    - `created`: current ISO timestamp
    - `updated`: current ISO timestamp
    - `depends_on`: `[]`
    - `tags`: parsed from `--tags` argument or `[]`
    - `branch`: `task/<module_name>`
    - `worktree`: `.worktrees/task-<module_name>` (or empty if no worktree)
-9. **Create** `TASK/<module_name>/.target.md` with a template header:
-   ```markdown
-   # Task Target: <title>
+11. **Create** `TASK/<module_name>/.target.md` with a template header:
+    ```markdown
+    # Task Target: <title>
 
-   ## Objective
+    ## Objective
 
-   <!-- Describe the goal of this task -->
+    <!-- Describe the goal of this task -->
 
-   ## Requirements
+    ## Requirements
 
-   <!-- List specific requirements -->
+    <!-- List specific requirements -->
 
-   ## Constraints
+    ## Constraints
 
-   <!-- Any constraints or limitations -->
-   ```
-10. **Update** `TASK/.index.md`: append a line referencing the new module (if not already listed)
-11. **Git commit**: `-- ai-cli-task(<module_name>):init initialize task module`
-12. **Report**: path, files created, branch name, worktree path (if any), next step hint
+    <!-- Any constraints or limitations -->
+    ```
+12. **Update** `TASK/.index.md`: append a line referencing the new module (if not already listed)
+13. **Git commit**: `-- ai-cli-task(<module_name>):init initialize task module`
+14. **Report**: path, files created, branch name, worktree path (if any), next step hint
 
 ## Git
 
@@ -157,3 +164,5 @@ Created automatically by `init` if `TASK/` directory does not exist. `init` appe
 - System files (dot-prefixed) should not be manually edited except `.target.md`
 - After init, the typical workflow is: edit `.target.md` → `/ai-cli-task plan` → `/ai-cli-task check` → `/ai-cli-task exec`
 - With `--worktree`, the task runs in an isolated directory; multiple tasks can execute simultaneously
+- **Branch collision check**: if `task/<module_name>` branch already exists (from a previous cancelled/completed task), init aborts. User should delete the old branch first (`git branch -d task/<name>`) or choose a different module name
+- **Clean working tree**: init requires no uncommitted changes to avoid mixing unrelated work into the task branch. User should `git commit` or `git stash` first
