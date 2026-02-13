@@ -946,7 +946,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return map;
   }, [annotations.additions]);
 
-  const hasAnnotations = annotations.additions.length > 0 || annotations.deletions.length > 0 || annotations.replacements.length > 0 || annotations.comments.length > 0;
+  const hasUnsent = annCounts.unsent > 0;
 
   // markdown can be empty string for a valid empty file — still show the annotation UI
   // The parent (PlanPanel) only renders this component when planFilePath is set
@@ -967,9 +967,9 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         <button
           className="pane-btn"
           onClick={handleExecute}
-          disabled={!hasAnnotations}
+          disabled={!hasUnsent}
           title="Send all annotations to Chat editor"
-          style={hasAnnotations ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}
+          style={hasUnsent ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}
         >
           Send
         </button>
