@@ -179,6 +179,9 @@ After task completion confirmed (`check --checkpoint post-exec` ACCEPT):
    git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
+3. **Cleanup** (after successful merge):
+   - If worktree exists: `git worktree remove .worktrees/task-<module>`
+   - Delete merged branch: `git branch -d task/<module>`
 
 **Recommended:** After all related tasks merge to main, do a project-level refactoring pass on main (cross-task cleanup, shared utilities, API consistency). This is a manual activity, not part of auto mode.
 

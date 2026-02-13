@@ -149,6 +149,9 @@ When ACCEPT:
    git checkout main
    git merge task/<module> --no-ff -m "-- ai-cli-task(<module>):merge merge completed task"
    ```
+4. **Cleanup** (after successful merge):
+   - If worktree exists: `git worktree remove .worktrees/task-<module>`
+   - Delete merged branch: `git branch -d task/<module>`
 
 ## Notes
 
