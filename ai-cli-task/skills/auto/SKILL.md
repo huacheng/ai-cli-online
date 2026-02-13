@@ -75,33 +75,28 @@ If terminal is not ready, the daemon retries with exponential backoff (1s, 2s, 4
 ## State Machine
 
 ```
-       ┌──────────────────────────────────────────┐
-       │              AUTO LOOP                    │
-       │                                           │
- start ▼                                           │
-┌──────────┐    ┌──────────┐    ┌──────────┐       │
-│ planning │───▶│ check    │───▶│  exec    │───────┘
-│ (plan)   │    │(post-plan│    │  (done)  │
-└──────────┘    │ PASS)    │    └──────────┘
-       ▲        └────┬─────┘         │
-       │             │               │ signal (done)
-       │        NEEDS_│               ▼
-       │        REVISION        ┌──────────┐
-       │             │          │ check    │
-       │             ▼          │(post-exec)│
-       │        ┌──────────┐   └────┬─────┘
-       │        │ re-plan  │        │
-       │        │          │  ┌─────┼─────────┐
-       │        └──────────┘  ▼     ▼         ▼
-       │             ▲     ACCEPT NEEDS_FIX  REPLAN
-       │             │        │     │         │
-       │             │        ▼     ▼         │
-       │             │   ┌────────┐ (re-exec) │
-       │             │   │complete│           │
-       │             │   │(report)│           │
-       │             │   └────────┘           │
-       │             └────────────────────────┘
-       └──────────────────────┘
+AUTO LOOP (3 phases)
+
+Phase 1: Planning
+  plan ──→ check(post-plan) ─── PASS ──────────→ [Phase 2]
+                │
+                NEEDS_REVISION ──→ plan (retry)
+
+Phase 2: Execution
+  exec ─┬─ (mid-exec) ──→ check(mid-exec) ─── CONTINUE ──→ exec (resume)
+        │                         │
+        │                    REPLAN ──→ [Phase 1]
+        │
+        └─ (done) ──→ [Phase 3]
+
+Phase 3: Verification
+  check(post-exec) ─── ACCEPT ──→ complete → report → (stop)
+          │                │
+       NEEDS_FIX        REPLAN ──→ [Phase 1]
+          │
+          └──→ exec (re-exec) → [Phase 3]
+
+Terminal: BLOCKED at any check → (stop)
 ```
 
 ## Auto Loop Steps
@@ -139,8 +134,12 @@ The `next` field is critical for breaking self-loop scenarios (NEEDS_REVISION, N
 | check | NEEDS_FIX | exec | Minor issues, re-execute to fix first |
 | check | REPLAN | plan | Fundamental issues, revise plan |
 | check | BLOCKED | (stop) | Cannot continue |
+| check (mid-exec) | CONTINUE | exec | Progress OK, resume execution |
+| check (mid-exec) | REPLAN | plan | Issues found, revise plan |
+| check (mid-exec) | BLOCKED | (stop) | Cannot continue |
 | plan | (any) | check | Plan ready, assess it |
-| exec | (done) | check --checkpoint post-exec | Execution phase done (full or partial), verify |
+| exec | (done) | check --checkpoint post-exec | All steps completed, verify results |
+| exec | (mid-exec) | check --checkpoint mid-exec | Significant issue encountered, checkpoint |
 | exec | (blocked) | (stop) | Cannot continue |
 | report | (any) | (stop) | Loop complete |
 

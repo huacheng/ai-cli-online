@@ -34,12 +34,13 @@ When called without annotation_file or with `--generate`:
 
 1. Read `.target.md` for requirements
 2. Read `.analysis.md` if exists (address check feedback from NEEDS_REVISION)
-3. Read project codebase for context (relevant source files, CLAUDE.md conventions)
-4. Research and generate implementation plan (incorporating check feedback if any)
-5. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
-6. Update `.index.md`: status → `planning`, update timestamp
-7. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
-8. Report plan summary to user
+3. Read `.bugfix.md` if exists (address mid-exec issues from REPLAN)
+4. Read project codebase for context (relevant source files, CLAUDE.md conventions)
+5. Research and generate implementation plan (incorporating check feedback and bugfix history if any)
+6. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
+7. Update `.index.md`: status → `planning`, update timestamp
+8. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
+9. Report plan summary to user
 
 ## Mode B: Annotation (with annotation_file)
 

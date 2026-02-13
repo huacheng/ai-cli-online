@@ -257,7 +257,7 @@ ACCEPT triggers task-level refactoring → merge to main. If merge conflict → 
 
 `/ai-cli-task exec <task_module> [--step N]`
 
-Execute implementation plan step-by-step. Prerequisite: status `review` or `executing` (NEEDS_FIX continuation). Reads plan files + `.analysis.md`, implements changes, verifies diagnostics per step. On significant issues → interactive: suggest `check --checkpoint mid-exec`; auto: signal `(done)` for post-exec evaluation. Source code commits use `feat`/`fix` type.
+Execute implementation plan step-by-step. Prerequisite: status `review` or `executing` (NEEDS_FIX continuation). Reads plan files + `.analysis.md`, implements changes, verifies diagnostics per step. On significant issues → signal `(mid-exec)` for mid-exec evaluation. On all steps complete → signal `(done)` for post-exec verification. Source code commits use `feat`/`fix` type.
 
 ### report
 
@@ -288,11 +288,14 @@ Backend-driven autonomous loop: plan → check → exec → check, with self-cor
 |------|--------|------|
 | check | PASS | exec |
 | check | NEEDS_REVISION | plan |
+| check | CONTINUE | exec |
 | check | ACCEPT | report |
 | check | NEEDS_FIX | exec |
 | check | REPLAN / BLOCKED | plan / (stop) |
 | plan | (any) | check |
-| exec | (done) / (blocked) | check post-exec / (stop) |
+| exec | (done) | check post-exec |
+| exec | (mid-exec) | check mid-exec |
+| exec | (blocked) | (stop) |
 | report | (any) | (stop) |
 
 **Safety**: max iterations (default 20), timeout (default 30 min), stop on `blocked`, one auto per session (SQLite PK), one auto per task (UNIQUE).

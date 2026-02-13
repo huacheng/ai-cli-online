@@ -51,7 +51,7 @@ For each implementation step:
 |-----------|--------|
 | Step succeeds | Record in progress log, continue |
 | Minor deviation needed | Adjust and document, continue |
-| Significant issue | Stop execution. Interactive: suggest `check --checkpoint mid-exec`. Auto: signal `(done)`, post-exec check evaluates partial result |
+| Significant issue | Stop execution, signal `(mid-exec)`. Interactive: suggest `check --checkpoint mid-exec`. Auto: daemon routes to mid-exec evaluation |
 | Blocking dependency | Set status to `blocked`, report which dependency |
 
 ## Execution Steps
@@ -67,8 +67,8 @@ For each implementation step:
    d. Record result
 6. **After all steps** (or on failure):
    - Update `.index.md` timestamp
-   - If all steps complete: suggest running `/ai-cli-task check --checkpoint post-exec`
-   - If issue encountered: interactive → suggest mid-exec check; auto → signal `(done)` for post-exec evaluation
+   - If all steps complete: signal `(done)`, suggest running `/ai-cli-task check --checkpoint post-exec`
+   - If significant issue: signal `(mid-exec)`, suggest running `/ai-cli-task check --checkpoint mid-exec`
 7. **Report** execution summary with per-step results
 
 ## State Transitions

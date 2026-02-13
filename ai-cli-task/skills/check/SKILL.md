@@ -27,7 +27,7 @@ Check the implementation plan at three lifecycle checkpoints. Acts as the decisi
 
 Evaluates whether the implementation plan is ready for execution.
 
-**Reads:** `.target.md` + all user-created plan `.md` files in the module
+**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.bugfix.md` (if exists, to verify revised plan addresses execution issues)
 
 **Evaluation Criteria:**
 
