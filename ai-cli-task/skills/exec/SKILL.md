@@ -41,10 +41,16 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 For each implementation step:
 
-1. **Read** relevant source files in the project codebase
-2. **Implement** the change as described in the plan
-3. **Verify** the change compiles / has no syntax errors (use `lsp_diagnostics` where available)
-4. **Record** what was done (file changed, lines modified, approach taken)
+1. **Read** relevant files (source code, configs, scripts, documentation)
+2. **Implement** the change as described in the plan — this may include:
+   - Editing source code (any language: C, Python, TypeScript, shell, etc.)
+   - Running shell commands or scripts that invoke external tools (game engines, build systems, media processors, etc.)
+   - Configuring or orchestrating professional tools via CLI
+3. **Verify** the step succeeded:
+   - Code changes: use `lsp_diagnostics` where available, check build/syntax
+   - Tool invocations: check exit code, validate output
+   - Script execution: verify expected artifacts were produced
+4. **Record** what was done (files changed, commands run, tools invoked, approach taken)
 
 ### Issue Handling
 
