@@ -195,3 +195,4 @@ Comments NEVER delete or modify existing content — they only ADD information.
 - When researching implementation plans, use the project codebase as context (read relevant source files)
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
+- **Evidence-based decisions**: Actively use shell commands to fetch external information (curl docs/APIs, npm info, package changelogs, GitHub issues, etc.) to support planning decisions with evidence rather than relying solely on internal knowledge
