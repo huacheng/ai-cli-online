@@ -168,7 +168,7 @@ Comments NEVER delete or modify existing content — they only ADD information.
 7. **Execute** changes per severity level
 8. **Update** the task file with resolved changes and inline markers for pending items
 9. **Update** `.index.md` in the task module:
-   - Set `status` to `planning` (if was `draft`) or keep current
+   - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
    - Update `updated` timestamp
 10. **Clean up** the `.tmp-annotations.json` file (delete after processing)
 11. **Git commit**: `-- ai-cli-task(<module>):plan annotations processed`

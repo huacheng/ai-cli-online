@@ -70,7 +70,7 @@ Evaluates progress during execution when issues are encountered.
 | **CONTINUE** | Document progress, note any adjustments | Status unchanged |
 | **NEEDS_FIX** | Create `.bugfix/<date>-<summary>.md` with specific fixable issues | Status unchanged |
 | **REPLAN** | Create `.bugfix/<date>-<summary>.md` with issue analysis | `executing` → `re-planning` |
-| **BLOCKED** | Write blocking analysis | → `blocked` |
+| **BLOCKED** | Create `.analysis/<date>-mid-exec-blocked.md` with blocking analysis | → `blocked` |
 
 ### 3. post-exec
 

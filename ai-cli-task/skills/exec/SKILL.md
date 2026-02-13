@@ -102,11 +102,11 @@ For long-running executions, intermediate progress can be observed by:
 ## Git
 
 - On start: `-- ai-cli-task(<module>):exec execution started`
-- Source code (feature): `-- ai-cli-task(<module>):feat <description>`
-- Source code (bugfix): `-- ai-cli-task(<module>):fix <description>`
+- Project files (feature): `-- ai-cli-task(<module>):feat <description>`
+- Project files (bugfix): `-- ai-cli-task(<module>):fix <description>`
 - Per step progress: `-- ai-cli-task(<module>):exec step N/M done`
 - On blocked: `-- ai-cli-task(<module>):exec blocked`
-- Source code changes use `feat`/`fix` type, state file changes use `exec` type
+- Project file changes use `feat`/`fix` type, state file changes use `exec` type
 
 ## Notes
 
@@ -115,6 +115,6 @@ For long-running executions, intermediate progress can be observed by:
 - When status is `executing` (NEEDS_FIX), exec reads issues from `.analysis/` latest file (post-exec) or `.bugfix/` latest file (mid-exec) and addresses them
 - When `--step N` is used, the executor verifies prerequisites for that step are met
 - After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
-- Execution does NOT automatically run tests — that is part of the post-exec evaluation
+- Per-step verification against `.test.md` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`
 - **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: When uncertain about APIs, library usage, or compatibility, use shell commands to verify (curl official docs, check installed versions, read node_modules source, etc.) before implementing
