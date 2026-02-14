@@ -1,6 +1,6 @@
 ---
 name: init
-description: Initialize a new task module in TASK/ directory with system files, git branch, and optional worktree
+description: Initialize a new task module in AiTasks/ directory with system files, git branch, and optional worktree
 arguments:
   - name: module_name
     description: "Name of the task module directory to create (e.g., auth-refactor, add-search)"
@@ -21,7 +21,7 @@ arguments:
 
 # /ai-cli-task init — Initialize Task Module
 
-Create a new task module under the project's `TASK/` directory with the standard system file structure.
+Create a new task module under the project's `AiTasks/` directory with the standard system file structure.
 
 ## Usage
 
@@ -32,7 +32,7 @@ Create a new task module under the project's `TASK/` directory with the standard
 ## Directory Structure Created
 
 ```
-TASK/
+AiTasks/
 └── <module_name>/
     ├── .index.md       # Task metadata (YAML frontmatter) — machine-readable
     └── .target.md      # Task target / requirements — human-authored
@@ -97,12 +97,12 @@ depends_on:
 
 User-created `.md` files (without dot prefix) are task plan documents authored via the Plan annotation panel.
 
-## Root TASK/.index.md Format
+## Root AiTasks/.index.md Format
 
-The root `TASK/.index.md` is a module listing auto-managed by `init`:
+The root `AiTasks/.index.md` is a module listing auto-managed by `init`:
 
 ```markdown
-# TASK
+# AiTasks
 
 - [auth-refactor](./auth-refactor/.index.md) — User auth refactoring
 - [add-search-v2](./add-search-v2/.index.md) — Add search functionality v2
@@ -110,22 +110,22 @@ The root `TASK/.index.md` is a module listing auto-managed by `init`:
 
 Each line: `- [<module_name>](./<module_name>/.index.md) — <title>`
 
-Created automatically by `init` if `TASK/` directory does not exist. `init` appends one line per new module. No other sub-command modifies this file.
+Created automatically by `init` if `AiTasks/` directory does not exist. `init` appends one line per new module. No other sub-command modifies this file.
 
 When the root index grows large (50+ entries), consider manually reorganizing into sections (`## Active`, `## Completed`, `## Archived`) for readability. This is a manual maintenance activity.
 
 ## Execution Steps
 
 1. **Validate** module_name: ASCII letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`), no whitespace, no leading dot, no path separators
-2. **Check** `TASK/` directory exists; create with root `.index.md` if missing
-3. **Check** `TASK/<module_name>/` does not already exist; abort with error if it does
+2. **Check** `AiTasks/` directory exists; create with root `.index.md` if missing
+3. **Check** `AiTasks/<module_name>/` does not already exist; abort with error if it does
 4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
 5. **Check working tree clean**: verify no uncommitted changes (`git status --porcelain`). If dirty, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first
 6. **Git**: create branch `task/<module_name>` from current HEAD
 7. **If `--worktree`**: `git worktree add .worktrees/task-<module_name> task/<module_name>`
 8. **If not worktree**: `git checkout task/<module_name>`
-9. **Create** `TASK/<module_name>/` directory (in worktree if applicable)
-10. **Create** `TASK/<module_name>/.index.md` with YAML frontmatter:
+9. **Create** `AiTasks/<module_name>/` directory (in worktree if applicable)
+10. **Create** `AiTasks/<module_name>/.index.md` with YAML frontmatter:
    - `title`: from `--title` argument or module_name
    - `status`: `draft`
    - `phase`: `""` (empty)
@@ -136,7 +136,7 @@ When the root index grows large (50+ entries), consider manually reorganizing in
    - `tags`: parsed from `--tags` argument or `[]`
    - `branch`: `task/<module_name>`
    - `worktree`: `.worktrees/task-<module_name>` (or empty if no worktree)
-11. **Create** `TASK/<module_name>/.target.md` using domain-specific template:
+11. **Create** `AiTasks/<module_name>/.target.md` using domain-specific template:
     - If `--type` is specified, validate value matches `[a-zA-Z0-9_:-]+`; reject with error if invalid
     - If `--type` is specified and a matching template exists in `references/target-templates/<type>.md`, copy it (replacing `<title>` placeholder)
     - If `--type` is specified, also set `.index.md` `type` field to the given value
@@ -156,7 +156,7 @@ When the root index grows large (50+ entries), consider manually reorganizing in
 
     <!-- Any constraints or limitations -->
     ```
-12. **Update** `TASK/.index.md`: append a line referencing the new module (if not already listed)
+12. **Update** `AiTasks/.index.md`: append a line referencing the new module (if not already listed)
 13. **Git commit**: `-- ai-cli-task(<module_name>):init initialize task module`
 14. **Report**: path, files created, branch name, worktree path (if any), next step hint
 

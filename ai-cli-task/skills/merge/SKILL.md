@@ -3,7 +3,7 @@ name: merge
 description: Merge completed task branch to main — with conflict resolution, verification retry, and cleanup
 arguments:
   - name: task_module
-    description: "Path to the task module directory (e.g., TASK/auth-refactor)"
+    description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
     required: true
 ---
 
@@ -74,7 +74,7 @@ On successful merge:
    c. Each resolution: fix conflicts → verify (build + test) → if pass commit, if fail abort and retry
    d. If all 3 attempts fail → stay `executing`, abort merge, report unresolvable conflicts
 8. **Phase 4**: Post-merge cleanup (status update → `complete`, write `.summary.md`, worktree removal, branch deletion)
-9. **Write** `.auto-signal` to the **main worktree's** `TASK/<module>/` directory (NOT the task worktree's copy) — MUST be written AFTER Phase 4 status update to `complete`, so the daemon reads correct status when routing to `report`. In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path
+9. **Write** `.auto-signal` to the **main worktree's** `AiTasks/<module>/` directory (NOT the task worktree's copy) — MUST be written AFTER Phase 4 status update to `complete`, so the daemon reads correct status when routing to `report`. In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path
 10. **Report** merge result
 
 ## State Transitions
@@ -108,5 +108,5 @@ On successful merge:
 - On merge failure, status stays `executing` (not `blocked`) so merge can be retried. The user should manually resolve conflicts and then run `/ai-cli-task merge` again
 - After manual resolution, if the user has already merged manually, they can update `.index.md` status to `complete` directly
 - Pre-merge refactoring is optional — if no cleanup needed, skip directly to merge
-- **Worktree signal race prevention**: In worktree mode, `.auto-signal` is written to the main worktree's `TASK/<module>/` path (not the task worktree), ensuring the daemon can read it after worktree removal. The daemon MUST watch the main worktree path for all signal files
-- **Concurrency**: Merge acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **Worktree signal race prevention**: In worktree mode, `.auto-signal` is written to the main worktree's `AiTasks/<module>/` path (not the task worktree), ensuring the daemon can read it after worktree removal. The daemon MUST watch the main worktree path for all signal files
+- **Concurrency**: Merge acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

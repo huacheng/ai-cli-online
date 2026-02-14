@@ -3,7 +3,7 @@ name: auto
 description: Autonomous execution loop — single Claude session orchestrates plan/check/exec cycle internally
 arguments:
   - name: task_module
-    description: "Path to the task module directory (e.g., TASK/auth-refactor)"
+    description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
     required: true
   - name: action
     description: "Action: start, stop, or status"
@@ -255,7 +255,7 @@ The `.summary.md` file is still written by each sub-command as a **compaction sa
 Request body for POST:
 ```json
 {
-  "taskDir": "/absolute/path/to/TASK/module-name",
+  "taskDir": "/absolute/path/to/AiTasks/module-name",
   "maxIterations": 20,
   "timeoutMinutes": 30
 }
@@ -263,7 +263,7 @@ Request body for POST:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `taskDir` | string | (required) | Absolute path to task module in **main worktree** (e.g., `/project/TASK/auth-refactor`). In worktree mode, this is still the main worktree path — NOT the task worktree path. Daemon's `fs.watch` monitors this path for `.auto-signal` |
+| `taskDir` | string | (required) | Absolute path to task module in **main worktree** (e.g., `/project/AiTasks/auth-refactor`). In worktree mode, this is still the main worktree path — NOT the task worktree path. Daemon's `fs.watch` monitors this path for `.auto-signal` |
 | `maxIterations` | number | 20 | Max plan/check/exec cycles before forced stop |
 | `timeoutMinutes` | number | 30 | Total execution time limit (minutes). User sets based on task difficulty |
 

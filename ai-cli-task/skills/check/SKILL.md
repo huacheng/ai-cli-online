@@ -3,7 +3,7 @@ name: check
 description: Check plan feasibility at key checkpoints — post-plan, mid-execution, post-execution
 arguments:
   - name: task_module
-    description: "Path to the task module directory (e.g., TASK/auth-refactor)"
+    description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
     required: true
   - name: checkpoint
     description: "Evaluation checkpoint: post-plan, mid-exec, post-exec"
@@ -189,6 +189,6 @@ Verification methods MUST match the task domain. Read `type` from `.index.md` an
 - For `post-exec`, if tests exist (`.test/` criteria files), they MUST be run and pass for ACCEPT
 - Check writes test results to `.test/<date>-<checkpoint>-results.md` (e.g., `2024-01-15-post-exec-results.md`) documenting test outcomes
 - `depends_on` in `.index.md` MUST be validated: if any dependency is not met (simple string → `complete`, extended object → at-or-past `min_status`), verdict is BLOCKED (not just flagged as risk)
-- **Concurrency**: Check acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **Concurrency**: Check acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **No mental math**: When evaluation involves numerical reasoning (performance estimates, size calculations, threshold comparisons, timing analysis), write a script and run it in shell instead of computing mentally. Scripts produce verifiable, reproducible results
 - **Five-perspective audit**: For thorough plan evaluation, apply security / performance / extensibility / consistency / correctness checks systematically. See `references/five-perspective-audit.md` for the full checklist

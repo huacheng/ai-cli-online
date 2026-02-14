@@ -3,7 +3,7 @@ name: exec
 description: Execute the implementation plan for a reviewed task module
 arguments:
   - name: task_module
-    description: "Path to the task module directory (e.g., TASK/auth-refactor)"
+    description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
     required: true
   - name: step
     description: "Execute a specific step number (optional, executes all if omitted)"
@@ -136,4 +136,4 @@ For long-running executions, intermediate progress can be observed by:
 - Per-step verification against `.test/` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`
 - **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: When uncertain about APIs, library usage, or compatibility, use shell commands to verify (curl official docs, check installed versions, read node_modules source, etc.) before implementing
-- **Concurrency**: Exec acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **Concurrency**: Exec acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

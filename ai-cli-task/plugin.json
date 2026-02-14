@@ -1,12 +1,12 @@
 {
   "name": "ai-cli-task",
-  "version": "0.1.0",
-  "description": "Task lifecycle management for ai-cli-online — plan, check, execute, and track tasks through structured TASK/ directory workflow",
+  "version": "0.2.0",
+  "description": "Task lifecycle management — plan, check, execute, and track tasks through structured AiTasks/ directory workflow",
   "author": {
     "name": "huacheng"
   },
-  "repository": "https://github.com/huacheng/ai-cli-online",
-  "homepage": "https://github.com/huacheng/ai-cli-online#ai-cli-task",
+  "repository": "https://github.com/huacheng/moonview",
+  "homepage": "https://github.com/huacheng/moonview#ai-cli-task",
   "license": "MIT",
   "keywords": [
     "task-management",

@@ -11,7 +11,7 @@ arguments:
 
 # /ai-cli-task — Task Lifecycle Management
 
-Single entry point for task lifecycle management in the `TASK/` directory.
+Single entry point for task lifecycle management in the `AiTasks/` directory.
 
 ## Arguments
 
@@ -19,10 +19,10 @@ Single entry point for task lifecycle management in the `TASK/` directory.
 
 ## Shared Context
 
-### TASK/ Directory Convention
+### AiTasks/ Directory Convention
 
 ```
-TASK/
+AiTasks/
 ├── .index.md                  # Root index (task module listing)
 ├── .experience/               # Cross-task knowledge base (by type, distilled from completed tasks)
 │   ├── software.md            # Lessons from completed software tasks
@@ -216,7 +216,7 @@ depends_on:
   - { module: "api-design", min_status: "review" }  # extended: requires at least review
 ```
 
-Simple string `"auth-refactor"` → `TASK/auth-refactor`, requires status `complete`.
+Simple string `"auth-refactor"` → `AiTasks/auth-refactor`, requires status `complete`.
 
 Extended object `{ module, min_status }` → requires the dependency to be at **or past** `min_status` in the state machine progression: `draft` < `planning` < `review` < `executing` < `complete`. Status `blocked`, `re-planning`, `cancelled` do not satisfy any `min_status`.
 
@@ -243,16 +243,16 @@ All ai-cli-task triggered commits use `--` prefix to distinguish from user manua
 
 | type | Scenario | Commit Scope |
 |------|----------|-------------|
-| `init` | Task initialization | TASK/ directory files |
-| `plan` | Plan generation / annotation processing | TASK/ directory files |
-| `check` | Check evaluation results | TASK/ directory files |
-| `exec` | Execution state changes | TASK/ directory files |
+| `init` | Task initialization | AiTasks/ directory files |
+| `plan` | Plan generation / annotation processing | AiTasks/ directory files |
+| `check` | Check evaluation results | AiTasks/ directory files |
+| `exec` | Execution state changes | AiTasks/ directory files |
 | `feat` | New feature code during exec | Project files |
 | `fix` | Bugfix code during exec | Project files |
 | `refactor` | Code cleanup before merge | Project files |
 | `merge` | Merge to main + conflict resolution | — (merge commit) |
-| `report` | Report generation | TASK/ directory files |
-| `cancel` | Task cancellation | TASK/ directory files |
+| `report` | Report generation | AiTasks/ directory files |
+| `cancel` | Task cancellation | AiTasks/ directory files |
 
 Examples:
 ```
@@ -272,7 +272,7 @@ Examples:
 -- ai-cli-task(auth-refactor):cancel user cancelled
 ```
 
-Commit scope: TASK/ directory files (state/plan) or project files (feat/fix).
+Commit scope: AiTasks/ directory files (state/plan) or project files (feat/fix).
 
 #### Refactoring & Merge
 
@@ -328,19 +328,19 @@ Every sub-command (plan, check, exec, merge, report) MUST write `.auto-signal` o
 - The `checkpoint` field provides context for the next command (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`) when the `next` command needs it. Optional — omit when not applicable. If auto mode is not active, the file is harmless (gitignored, ephemeral). This fire-and-forget pattern avoids each skill needing to detect auto mode.
 - **Atomic write**: `.auto-signal` MUST be written atomically — write to `.auto-signal.tmp` first, then `rename` to `.auto-signal`. POSIX `rename` is atomic, preventing the daemon from reading partially written JSON.
 
-**Worktree note**: In worktree mode, `.auto-signal` MUST be written to the **main worktree's** `TASK/<module>/` directory (not the task worktree copy) to survive worktree removal during merge cleanup.
+**Worktree note**: In worktree mode, `.auto-signal` MUST be written to the **main worktree's** `AiTasks/<module>/` directory (not the task worktree copy) to survive worktree removal during merge cleanup.
 
 #### .gitignore
 
 Add to project `.gitignore`:
 ```
 .worktrees/
-TASK/**/.tmp-annotations.json
-TASK/**/.auto-signal
-TASK/**/.auto-signal.tmp
-TASK/**/.auto-stop
-TASK/**/.lock
-TASK/.experience/.lock
+AiTasks/**/.tmp-annotations.json
+AiTasks/**/.auto-signal
+AiTasks/**/.auto-signal.tmp
+AiTasks/**/.auto-stop
+AiTasks/**/.lock
+AiTasks/.experience/.lock
 ```
 
 ---
@@ -351,38 +351,38 @@ All sub-commands that accept `<task_module>` MUST validate the path before proce
 
 | Check | Rule | Example |
 |-------|------|---------|
-| **Path containment** | Resolved path must be under `TASK/` directory (no `..` traversal) | `TASK/../etc/passwd` → REJECT |
+| **Path containment** | Resolved path must be under `AiTasks/` directory (no `..` traversal) | `AiTasks/../etc/passwd` → REJECT |
 | **Module name** | Must match `[a-zA-Z0-9_-]+` (ASCII letters/digits/hyphens/underscores only) | `auth-refactor` ✓, `../../foo` ✗ |
 | **No symlinks** | Task module directory must not be a symlink (prevent symlink-based escape) | REJECT if `lstat` ≠ `stat` |
 | **Existence** | Directory must exist (except for `init` which creates it) | REJECT if missing |
 
-Validation is performed by resolving the absolute path and confirming it starts with the project's `TASK/` prefix. This prevents path traversal attacks where a crafted module name could read/write files outside the task directory.
+Validation is performed by resolving the absolute path and confirming it starts with the project's `AiTasks/` prefix. This prevents path traversal attacks where a crafted module name could read/write files outside the task directory.
 
 ### Concurrency Protection
 
-Without worktree mode, only one task should be actively operated at a time. Sub-commands that modify state (`plan`, `exec`, `check`, `merge`) MUST check for an active lockfile (`TASK/<module>/.lock`) before proceeding:
+Without worktree mode, only one task should be actively operated at a time. Sub-commands that modify state (`plan`, `exec`, `check`, `merge`) MUST check for an active lockfile (`AiTasks/<module>/.lock`) before proceeding:
 
-1. **Acquire**: Attempt to create `TASK/<module>/.lock` with `O_CREAT | O_EXCL` (atomic create-if-not-exists). Write `{ session, pid, timestamp }` to identify the holder
+1. **Acquire**: Attempt to create `AiTasks/<module>/.lock` with `O_CREAT | O_EXCL` (atomic create-if-not-exists). Write `{ session, pid, timestamp }` to identify the holder
 2. **If lock exists**: Read lock content, check if holding process is still alive (kill -0). If dead → remove stale lock and retry. If alive → REJECT with error identifying the holding session
 3. **Release**: Delete `.lock` on sub-command completion (including error paths)
-4. **Worktree mode**: Lock not required — each worktree has its own copy of TASK/ files
+4. **Worktree mode**: Lock not required — each worktree has its own copy of AiTasks/ files
 5. **Stale lock recovery**: Use rename-based recovery instead of delete+create. When detecting a stale lock (holder dead): `rename` the stale `.lock` to `.lock.stale.<pid>`, then acquire normally with `O_CREAT | O_EXCL`. If the rename fails (another process already recovered), retry from step 1. Clean up `.lock.stale.*` files after successful acquisition
 
 ### .experience/ Write Protection
 
-`TASK/.experience/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `TASK/.experience/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file.
+`AiTasks/.experience/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experience/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file.
 
 ### .index.md Corruption Recovery
 
 If `.index.md` YAML frontmatter fails to parse (malformed YAML), sub-commands MUST attempt recovery before failing:
 
-1. **Git recovery**: `git show HEAD:TASK/<module>/.index.md` — restore from latest committed version
+1. **Git recovery**: `git show HEAD:AiTasks/<module>/.index.md` — restore from latest committed version
 2. **If git recovery fails**: Reconstruct minimal `.index.md` with `status: draft`, `phase: ""`, preserve only what's parseable
 3. **Log**: Record corruption event and recovery action in `.analysis/<date>-index-recovery.md`
 
 ### Lifecycle Hooks (Extension Point)
 
-Status transitions can optionally trigger external notifications. If `TASK/.hooks.md` exists, sub-commands read it for hook configuration:
+Status transitions can optionally trigger external notifications. If `AiTasks/.hooks.md` exists, sub-commands read it for hook configuration:
 
 ```markdown
 # Lifecycle Hooks
@@ -395,7 +395,7 @@ Status transitions can optionally trigger external notifications. If `TASK/.hook
 <!-- Notification when a task becomes blocked -->
 ```
 
-Hooks are **best-effort** — failures are logged but do not block the status transition. This is an optional extension; the system works without `TASK/.hooks.md`.
+Hooks are **best-effort** — failures are logged but do not block the status transition. This is an optional extension; the system works without `AiTasks/.hooks.md`.
 
 ---
 

@@ -3,7 +3,7 @@ name: cancel
 description: Cancel a task module — set status to cancelled, stop auto if running, optionally clean up worktree
 arguments:
   - name: task_module
-    description: "Path to the task module directory (e.g., TASK/auth-refactor)"
+    description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
     required: true
   - name: reason
     description: "Cancellation reason (recorded in .index.md)"

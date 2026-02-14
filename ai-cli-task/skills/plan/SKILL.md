@@ -38,7 +38,7 @@ When called without annotation_file or with `--generate`:
 4. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
 5. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
 6. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
-7. Read `TASK/.experience/<type>.md` if exists — cross-task experience from completed tasks of the same domain type (lessons learned, patterns, tool choices)
+7. Read `AiTasks/.experience/<type>.md` if exists — cross-task experience from completed tasks of the same domain type (lessons learned, patterns, tool choices)
 8. Read project codebase for context (relevant files, CLAUDE.md conventions)
 9. Read `.notes/` latest file only if exists (prior research findings and experience)
 10. **Research domain best practices**: Based on the determined task type, use shell commands (curl, web search, npm info, etc.) to find established methodologies, tools, and patterns for that domain. Do not rely solely on internal knowledge
@@ -125,5 +125,5 @@ Plan methodology MUST adapt to the task domain. Different domains require differ
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: Actively use shell commands to fetch external information (curl docs/APIs, npm info, package changelogs, GitHub issues, etc.) to support planning decisions with evidence rather than relying solely on internal knowledge
-- **Concurrency**: Plan acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **Concurrency**: Plan acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **Task-type-aware test design**: `.test/` criteria must use domain-appropriate verification methods (e.g., unit tests for code, SSIM/PSNR for image processing, SNR for audio/DSP, schema validation for data pipelines). Research established best practices for the task domain before writing test criteria. See `check/SKILL.md` Task-Type-Aware Verification section for the full domain reference table
