@@ -41,6 +41,22 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const togglePlan = useStore((s) => s.togglePlan);
   const { chatOpen, planOpen } = terminal.panels;
 
+  // Poll CWD for display in title bar
+  const [cwd, setCwd] = useState('');
+  useEffect(() => {
+    if (!token || !terminal.connected) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const dir = await fetchCwd(token, terminal.id);
+        if (!cancelled) setCwd(dir);
+      } catch { /* ignore */ }
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [token, terminal.id, terminal.connected]);
+
   const handleSplit = useCallback(async (direction: 'horizontal' | 'vertical') => {
     let cwd: string | undefined;
     if (token) {
@@ -301,20 +317,39 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         flexShrink: 0,
         height: '24px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <span style={{
             display: 'inline-block',
             width: '6px',
             height: '6px',
             borderRadius: '50%',
             backgroundColor: terminal.connected ? 'var(--accent-green)' : 'var(--accent-red)',
+            flexShrink: 0,
           }} />
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flexShrink: 0 }}>
             {terminal.id}
             {terminal.connected
               ? (terminal.sessionResumed ? ' (resumed)' : '')
               : ' (disconnected)'}
           </span>
+          {cwd && (
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--text-secondary)',
+                opacity: 0.6,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                direction: 'rtl',
+                textAlign: 'left',
+                minWidth: 0,
+              }}
+              title={cwd}
+            >
+              {cwd}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {/* Hidden file input */}
