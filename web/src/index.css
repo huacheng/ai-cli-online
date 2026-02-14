@@ -469,7 +469,7 @@ body.resizing-panes-h * {
 .slash-cmd {
   color: var(--accent-blue);
   font-weight: 600;
-  min-width: 120px;
+  min-width: 180px;
   font-family: 'JetBrains Mono', 'LXGW WenKai Mono', monospace;
 }
 

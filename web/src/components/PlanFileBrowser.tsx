@@ -48,10 +48,10 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
       const data = await fetchFiles(token, sessionId, currentDir);
       // Show .md files + subdirectories, sort: INDEX.md first, then dirs, then files
       const entries = data.files
-        .filter((f) => (f.type === 'file' && f.name.toLowerCase().endsWith('.md')) || f.type === 'directory')
+        .filter((f) => (f.type === 'file' && (f.name.toLowerCase().endsWith('.md') || f.name === '.index.json')) || f.type === 'directory')
         .sort((a, b) => {
-          const aIsIndex = a.type === 'file' && a.name === '.index.md';
-          const bIsIndex = b.type === 'file' && b.name === '.index.md';
+          const aIsIndex = a.type === 'file' && a.name === '.index.json';
+          const bIsIndex = b.type === 'file' && b.name === '.index.json';
           if (aIsIndex && !bIsIndex) return -1;
           if (!aIsIndex && bIsIndex) return 1;
           if (a.type === 'directory' && b.type !== 'directory') return -1;
@@ -231,11 +231,11 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
               style={{ cursor: 'pointer' }}
             >
               <span className="plan-file-browser__icon">
-                {isDir ? '\u{1F4C1}' : file.name === '.index.md' ? '\u{1F512}' : '\u25A1'}
+                {isDir ? '\u{1F4C1}' : file.name === '.index.json' ? '\u{1F512}' : '\u25A1'}
               </span>
               <span className="plan-file-browser__name">{file.name}{isDir ? '/' : ''}</span>
               {!isDir && <span className="plan-file-browser__size">{formatSize(file.size)}</span>}
-              {file.name !== '.index.md' && (
+              {file.name !== '.index.json' && (
                 <button
                   className="pane-btn pane-btn--danger pane-btn--sm plan-file-browser__delete"
                   onClick={(e) => { e.stopPropagation(); handleDelete(file); }}

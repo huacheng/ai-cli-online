@@ -383,7 +383,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: '0 20px' }}>
               <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>AiTasks/ directory not found</span>
               <span style={{ color: 'var(--text-secondary)', fontSize: 12, textAlign: 'center' }}>
-                Run <code style={{ color: 'var(--accent-blue)', backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 3 }}>/ai-cli-task:ai-cli-task init &lt;name&gt;</code> in the terminal to create a task
+                Run <code style={{ color: 'var(--accent-blue)', backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 3 }}>/ai-cli-task:init &lt;name&gt;</code> in the terminal to create a task
               </span>
             </div>
           ) : planSelectedFile && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
@@ -400,7 +400,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               onRefresh={handlePlanRefresh}
               onClose={handleCloseFile}
               onContentSaved={handleContentSaved}
-              readOnly={planSelectedFile.endsWith('/.index.md')}
+              readOnly={planSelectedFile.endsWith('/.index.json')}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
