@@ -6,7 +6,7 @@
 
 在浏览器中运行的 AI 开发环境。持久化终端会话、结构化任务生命周期、自主执行 — 单个 Node.js 进程即可运行。
 
-专为在不稳定网络下运行 Claude Code、Codex 或任意 AI 编码代理而构建。tmux 保证断网后进程存活；浏览器 UI 在终端旁提供规划、批注和对话面板。
+专为在不稳定网络下运行 Claude Code、Codex CLI、Gemini CLI 或任意 AI CLI 而构建。tmux 保证断网后进程存活；浏览器 UI 在终端旁提供规划、批注和对话面板。
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 

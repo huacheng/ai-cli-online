@@ -6,7 +6,7 @@
 
 An AI-powered development environment that runs in your browser. Persistent terminal sessions, structured task lifecycle, and autonomous execution — all through a single Node.js process.
 
-Built for running Claude Code, Codex, or any AI coding agent over unstable networks. tmux keeps everything alive when connections drop; the browser UI provides planning, annotation, and chat panels alongside the terminal.
+Built for running Claude Code, Codex CLI, Gemini CLI, or any other AI CLI over unstable networks. tmux keeps everything alive when connections drop; the browser UI provides planning, annotation, and chat panels alongside the terminal.
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 
