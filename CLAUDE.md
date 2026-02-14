@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（TASK/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色），以及 Header 版本号显示（构建时从 package.json 注入）。
+AI-CLI-Online 通过 xterm.js + tmux 让用户在浏览器中使用完整的终端环境。tmux 保证断网后进程存活，固定 socket 路径使服务重启后自动重连。支持 Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Xterm | Plan] + [Chat]，三区域可同时显示）、Plan 批注系统（AiTasks/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色），以及 Header 版本号显示（构建时从 package.json 注入）。
 
 ## 架构
 
@@ -63,9 +63,9 @@ ai-cli-online/
 │           ├── TabBar.tsx             # Tab 多标签页栏 (新增/切换/关闭/重命名)
 │           ├── TerminalView.tsx       # xterm.js 终端视图 (WebGL addon + Dark/Light 双主题)
 │           ├── TerminalPane.tsx       # 终端面板 (2D 网格: [Xterm | Plan] + [Chat])
-│           ├── PlanPanel.tsx          # Plan 批注面板 (内联, TASK/ 目录多文件批注)
+│           ├── PlanPanel.tsx          # Plan 批注面板 (内联, AiTasks/ 目录多文件批注)
 │           ├── PlanAnnotationRenderer.tsx  # Plan 批注渲染器 (内联批注 + Mermaid 图表)
-│           ├── PlanFileBrowser.tsx    # Plan 文件浏览器 (TASK/ 目录树 + 新建文件)
+│           ├── PlanFileBrowser.tsx    # Plan 文件浏览器 (AiTasks/ 目录树 + 新建文件)
 │           ├── MarkdownEditor.tsx     # Chat 编辑器 (多行编辑 + 斜杠命令 + 草稿持久化)
 │           ├── MarkdownToc.tsx        # Markdown 目录导航 (heading 提取 + 锚点跳转)
 │           ├── ErrorBoundary.tsx      # React 错误边界
@@ -344,7 +344,7 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 
 内联面板（非全屏覆盖层），位于终端左侧全高显示，宽度可拖拽调整（20%-80%，持久化 localStorage）。
 
-- **PlanFileBrowser**: 左侧文件树，浏览 TASK/ 目录下的 `.md` 文件，支持新建文件
+- **PlanFileBrowser**: 左侧文件树，浏览 AiTasks/ 目录下的 `.md` 文件，支持新建文件
 - **PlanAnnotationRenderer**: 中间批注编辑器，Markdown 内容逐行渲染 + 内联批注
   - 4 种批注类型:
     - **Insert** (`+` 黄色): 行间插入，点击 InsertZone 输入内容
