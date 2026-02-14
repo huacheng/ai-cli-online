@@ -337,7 +337,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
               style={{
                 fontSize: '11px',
                 color: 'var(--text-secondary)',
-                opacity: 0.6,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

@@ -97,7 +97,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
   sendInputRef.current = sendInput;
   sendResizeRef.current = sendResize;
 
-  const { showPasteFloat, removePasteFloat } = usePasteFloat(
+  const { removePasteFloat } = usePasteFloat(
     (text) => sendInputRef.current(text)
   );
 
@@ -157,14 +157,11 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       removePasteFloat();
-      if (!navigator.clipboard?.readText) {
-        showPasteFloat(e.clientX, e.clientY);
-        return;
-      }
+      if (!navigator.clipboard?.readText) return;
       navigator.clipboard.readText().then((text) => {
         if (text) sendInputRef.current(text);
       }).catch(() => {
-        showPasteFloat(e.clientX, e.clientY);
+        // Clipboard API denied — user can use Ctrl+Shift+V instead
       });
     };
 

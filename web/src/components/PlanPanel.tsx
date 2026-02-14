@@ -7,7 +7,6 @@ import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileS
 import { fetchFiles } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { fetchFileContent } from '../api/docs';
-import { fetchPluginStatus } from '../api/annotations';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -113,12 +112,24 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
         if (!cancelled) setPlanLoading(false);
       }
 
-      // Check if ai-cli-task plugin is installed
+      // Check if ai-cli-task plugin is installed by reading installed_plugins.json
       try {
         if (cancelled) return;
-        const installed = await fetchPluginStatus(token, 'ai-cli-task@moonview');
-        if (!cancelled && !installed) setShowPluginPrompt(true);
-      } catch { /* ignore */ }
+        const res2 = await fetchFiles(token, sessionId);
+        if (cancelled) return;
+        const home = res2.home || '';
+        if (home) {
+          const pluginFile = `${home}/.claude/plugins/installed_plugins.json`;
+          const result = await fetchFileContent(token, sessionId, pluginFile, 0);
+          if (!cancelled && result) {
+            try {
+              const parsed = JSON.parse(result.content);
+              const pluginMap = parsed.plugins || parsed;
+              if (!('ai-cli-task@moonview' in pluginMap)) setShowPluginPrompt(true);
+            } catch { setShowPluginPrompt(true); }
+          }
+        }
+      } catch { /* ignore — file not accessible or doesn't exist */ }
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
