@@ -6,50 +6,10 @@ import { useTextareaUndo, handleTabKey, autoRows } from '../hooks/useTextareaKit
 import { useMermaidRender } from '../hooks/useMermaidRender';
 import { fetchAnnotation, saveAnnotationRemote, writeTaskAnnotations } from '../api/annotations';
 import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
+import type { AddAnnotation, DeleteAnnotation, ReplaceAnnotation, CommentAnnotation, PlanAnnotations } from '../types/annotations';
+import { EMPTY_ANNOTATIONS } from '../types/annotations';
 
-/* ── Data Types ── */
-
-export interface AddAnnotation {
-  id: string;
-  afterTokenIndex: number;
-  sourceLine: number;
-  content: string;
-}
-
-export interface DeleteAnnotation {
-  id: string;
-  tokenIndices: number[];
-  startLine: number;
-  endLine: number;
-  selectedText: string;
-}
-
-export interface ReplaceAnnotation {
-  id: string;
-  tokenIndices: number[];
-  startLine: number;
-  endLine: number;
-  selectedText: string;
-  content: string;
-}
-
-export interface CommentAnnotation {
-  id: string;
-  tokenIndices: number[];
-  startLine: number;
-  endLine: number;
-  selectedText: string;
-  content: string;
-}
-
-export interface PlanAnnotations {
-  additions: AddAnnotation[];
-  deletions: DeleteAnnotation[];
-  replacements: ReplaceAnnotation[];
-  comments: CommentAnnotation[];
-}
-
-const EMPTY_ANNOTATIONS: PlanAnnotations = { additions: [], deletions: [], replacements: [], comments: [] };
+export type { AddAnnotation, DeleteAnnotation, ReplaceAnnotation, CommentAnnotation, PlanAnnotations };
 
 /* ── Helpers ── */
 

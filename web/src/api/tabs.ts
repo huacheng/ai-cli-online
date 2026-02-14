@@ -1,29 +1,22 @@
-import { API_BASE, authHeaders } from './client';
+import { API_BASE } from './client';
+import { settingsApi } from './apiClient';
+import type { TabsLayoutResponse } from './types';
 import type { PersistedTabsState } from '../types';
 
 export async function fetchTabsLayout(token: string): Promise<PersistedTabsState | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/settings/tabs-layout`, {
-      headers: authHeaders(token),
-    });
-    if (!res.ok) return null;
-    const data: { layout: PersistedTabsState | null } = await res.json();
+    const data = await settingsApi.get<TabsLayoutResponse>(token, 'tabs-layout');
     return data.layout;
-  } catch (e) {
-    console.warn('[tabs] fetchTabsLayout failed:', e);
+  } catch {
     return null;
   }
 }
 
 export async function saveTabsLayout(token: string, layout: PersistedTabsState): Promise<void> {
   try {
-    await fetch(`${API_BASE}/api/settings/tabs-layout`, {
-      method: 'PUT',
-      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ layout }),
-    });
-  } catch (e) {
-    console.warn('[tabs] saveTabsLayout failed:', e);
+    await settingsApi.put(token, 'tabs-layout', { layout });
+  } catch {
+    // ignore save errors
   }
 }
 
@@ -32,7 +25,7 @@ export function saveTabsLayoutBeacon(token: string, layout: PersistedTabsState):
     const url = `${API_BASE}/api/settings/tabs-layout`;
     const body = JSON.stringify({ layout, token });
     navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-  } catch (e) {
-    console.warn('[tabs] saveTabsLayoutBeacon failed:', e);
+  } catch {
+    // ignore beacon errors
   }
 }

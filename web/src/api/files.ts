@@ -1,22 +1,12 @@
-import type { FileEntry } from 'ai-cli-online-shared';
-import { API_BASE, authHeaders } from './client';
-
-export type { FileEntry };
-
-export interface FilesResponse {
-  cwd: string;
-  home?: string;
-  files: FileEntry[];
-}
+import { API_BASE } from './client';
+import { sessionApi } from './apiClient';
+import type { FilesResponse, TouchResponse, MkdirResponse } from './types';
+export type { FileEntry } from './types';
+export type { FilesResponse };
 
 export async function fetchFiles(token: string, sessionId: string, path?: string): Promise<FilesResponse> {
-  const params = path ? `?path=${encodeURIComponent(path)}` : '';
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/files${params}`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) throw new Error('Failed to list files');
-  return res.json();
+  const query = path ? { path } : undefined;
+  return sessionApi.get<FilesResponse>(token, sessionId, 'files', query);
 }
 
 export function uploadFiles(
@@ -57,59 +47,24 @@ export function uploadFiles(
 }
 
 export async function fetchCwd(token: string, sessionId: string): Promise<string> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/cwd`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) throw new Error('Failed to fetch cwd');
-  const data = await res.json();
+  const data = await sessionApi.get<{ cwd: string }>(token, sessionId, 'cwd');
   return data.cwd;
 }
 
-export async function touchFile(token: string, sessionId: string, name: string): Promise<{ ok: boolean; path: string; existed?: boolean }> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/touch`,
-    {
-      method: 'POST',
-      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    },
-  );
-  if (!res.ok) throw new Error('Failed to create file');
-  return res.json();
+export async function touchFile(token: string, sessionId: string, name: string): Promise<TouchResponse> {
+  return sessionApi.post<TouchResponse>(token, sessionId, 'touch', { name });
 }
 
-export async function mkdirPath(token: string, sessionId: string, path: string): Promise<{ ok: boolean; path: string }> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/mkdir`,
-    {
-      method: 'POST',
-      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    },
-  );
-  if (!res.ok) throw new Error('Failed to create directory');
-  return res.json();
+export async function mkdirPath(token: string, sessionId: string, path: string): Promise<MkdirResponse> {
+  return sessionApi.post<MkdirResponse>(token, sessionId, 'mkdir', { path });
 }
 
 export async function deleteItem(token: string, sessionId: string, path: string): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/rm`,
-    {
-      method: 'DELETE',
-      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    },
-  );
-  if (!res.ok) throw new Error('Failed to delete');
+  return sessionApi.del(token, sessionId, 'rm', { path });
 }
 
 export async function downloadCwd(token: string, sessionId: string): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download-cwd`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) throw new Error('Download failed');
+  const res = await sessionApi.getBlob(token, sessionId, 'download-cwd');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -124,17 +79,11 @@ export async function downloadCwd(token: string, sessionId: string): Promise<voi
 }
 
 export async function downloadFile(token: string, sessionId: string, filePath: string): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/download?path=${encodeURIComponent(filePath)}`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) throw new Error('Download failed');
-
+  const res = await sessionApi.getBlob(token, sessionId, 'download', { path: filePath });
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  // Extract filename from path
   a.download = filePath.split('/').pop() || 'download';
   document.body.appendChild(a);
   a.click();
