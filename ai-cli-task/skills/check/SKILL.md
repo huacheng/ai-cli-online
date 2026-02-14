@@ -38,14 +38,14 @@ Evaluates whether the implementation plan is ready for execution.
 | **Verifiability** | High | Does `.test/` contain criteria files with testable acceptance criteria and per-step verification? Are test/verification methods appropriate for the task type (see Task-Type-Aware Verification below)? |
 | **Clarity** | Medium | Are implementation steps clear and unambiguous? |
 | **Risk** | Medium | Are risks identified and mitigated? |
-| **Dependencies** | High | Are all `depends_on` modules `complete`? If not → BLOCKED |
+| **Dependencies** | High | Are all `depends_on` modules meeting their required status? (simple → `complete`, extended → at-or-past `min_status`) If not → BLOCKED |
 
 **Outcomes:**
 
 | Result | Action | Status Transition |
 |--------|--------|-------------------|
 | **PASS** | Create `.analysis/<date>-post-plan-pass.md` with approval summary | `planning` → `review` |
-| **NEEDS_REVISION** | Create `.analysis/<date>-post-plan-needs-rev.md` with specific issues | Status unchanged |
+| **NEEDS_REVISION** | Create `.analysis/<date>-post-plan-needs-revision.md` with specific issues | Status unchanged |
 | **BLOCKED** | Create `.analysis/<date>-post-plan-blocked.md` with blocking reasons | → `blocked` |
 
 ### 2. mid-exec
@@ -112,7 +112,7 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
    - `post-plan`: requires status `planning` or `re-planning`
    - `mid-exec`: requires status `executing`
    - `post-exec`: requires status `executing`
-3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status. If any is not `complete`, verdict is BLOCKED with dependency details
+3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
 4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
 5. **Evaluate** against criteria
 6. **Write** analysis to appropriate system file (`.analysis/` or `.bugfix/`)
@@ -188,4 +188,7 @@ Verification methods MUST match the task domain. Read `type` from `.index.md` an
 - Each mid-exec issue creates a new file in `.bugfix/` (one issue per file, filename includes date + summary)
 - For `post-exec`, if tests exist (`.test/` criteria files), they MUST be run and pass for ACCEPT
 - Check writes test results to `.test/<date>-<checkpoint>-results.md` (e.g., `2024-01-15-post-exec-results.md`) documenting test outcomes
-- `depends_on` in `.index.md` MUST be validated: if any dependency is not `complete`, verdict is BLOCKED (not just flagged as risk)
+- `depends_on` in `.index.md` MUST be validated: if any dependency is not met (simple string → `complete`, extended object → at-or-past `min_status`), verdict is BLOCKED (not just flagged as risk)
+- **Concurrency**: Check acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **No mental math**: When evaluation involves numerical reasoning (performance estimates, size calculations, threshold comparisons, timing analysis), write a script and run it in shell instead of computing mentally. Scripts produce verifiable, reproducible results
+- **Five-perspective audit**: For thorough plan evaluation, apply security / performance / extensibility / consistency / correctness checks systematically. See `references/five-perspective-audit.md` for the full checklist

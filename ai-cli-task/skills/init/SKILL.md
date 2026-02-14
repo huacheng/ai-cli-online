@@ -73,12 +73,12 @@ worktree: ".worktrees/task-module-name"   # empty if not using worktree
 
 ### depends_on Format
 
-Dependencies use TASK-root-relative paths:
+Dependencies reference other task modules. Two formats — simple string (requires `complete`) and extended object (custom minimum status):
 
 ```yaml
 depends_on:
-  - "auth-refactor"           # Another task module at TASK/auth-refactor
-  - "api-redesign/endpoints"  # Sub-path reference
+  - "auth-refactor"                                  # Simple: requires complete
+  - { module: "api-design", min_status: "review" }   # Extended: requires at least review
 ```
 
 ## System Files (dot-prefixed)

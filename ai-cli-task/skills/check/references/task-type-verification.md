@@ -20,6 +20,7 @@ Read the `type` field from `.index.md` (set by `plan` during generation). If `ty
 | **Screenwriting** | Film/TV script, storyboard, dialogue | Script format compliance (industry standard), scene structure, dialogue flow, continuity checks |
 | **Science (physics/chemistry/biology/medicine/math/econ)** | Research, experiment, simulation, paper | Reproducibility verification, statistical significance, peer methodology comparison, citation validity, numerical result cross-check |
 | **Mechatronics / Control** | Embedded, PLC, robotics, motor, PID | Control stability analysis, hardware-in-loop simulation, timing constraints, safety margin verification |
+| **AI Skill / Plugin** | Skill, plugin, agent, prompt, MCP | Skill invocation testing, prompt quality review, frontmatter validation, trigger accuracy, progressive disclosure compliance |
 
 ## Requirements
 

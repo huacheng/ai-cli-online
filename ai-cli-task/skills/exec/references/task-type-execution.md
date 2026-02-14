@@ -22,6 +22,7 @@ Read the `type` field from `.index.md` (set by `plan` during generation). Apply 
 | `screenwriting` | Write scenes in industry format (Fountain/Final Draft), maintain continuity notes |
 | `science:*` | Run experiments/simulations, collect data, perform statistical analysis, write up findings |
 | `mechatronics` | Write firmware/control code, run simulations (Simulink, LTspice, etc.), verify timing and stability |
+| `ai-skill` | Write SKILL.md/frontmatter, design prompts/agents, configure hooks/MCP servers, test invocations |
 
 ## Domain-Specific Verification Methods
 
@@ -39,6 +40,7 @@ Read the `type` field from `.index.md` (set by `plan` during generation). Apply 
 | `screenwriting` | Format compliance, scene structure validation, dialogue flow, continuity checks |
 | `science:*` | Reproducibility verification, statistical significance, numerical cross-check against literature |
 | `mechatronics` | Control stability analysis (Bode/Nyquist), timing constraint verification, safety margin checks |
+| `ai-skill` | Skill invocation test, prompt output review, frontmatter schema validation, trigger condition testing |
 
 ## Requirements
 

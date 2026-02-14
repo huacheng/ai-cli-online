@@ -25,7 +25,7 @@ Execute the implementation plan for a task module that has passed evaluation.
 - Task module must have status `review` (post-plan check passed) or `executing` (NEEDS_FIX continuation)
 - `.target.md` and at least one plan file must exist
 - `.analysis/` should contain a PASS evaluation file (warning if empty/missing)
-- **Dependency gate**: All `depends_on` modules in `.index.md` must have status `complete`. If any dependency is not `complete`, exec REJECTS with error listing blocking dependencies and their current statuses
+- **Dependency gate**: All `depends_on` modules must meet their required status — simple string entries require `complete`, extended `{ module, min_status }` entries require at-or-past `min_status` (see depends_on Format in `commands/ai-cli-task.md`). If any dependency is not met, exec REJECTS with error listing blocking dependencies and their current statuses
 
 ## Execution Strategy
 
@@ -68,7 +68,7 @@ For each implementation step:
 ## Execution Steps
 
 1. **Read** `.index.md` — validate status is `review` or `executing`
-2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status. If any is not `complete`, REJECT with error listing blocking dependencies
+2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
 3. **Update** `.index.md` status to `executing`, update timestamp
 4. **Discover** all implementation steps from plan files
 5. **Detect completed steps**: read `completed_steps` field from `.index.md` frontmatter to determine progress; skip steps ≤ `completed_steps`
@@ -136,3 +136,4 @@ For long-running executions, intermediate progress can be observed by:
 - Per-step verification against `.test/` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`
 - **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: When uncertain about APIs, library usage, or compatibility, use shell commands to verify (curl official docs, check installed versions, read node_modules source, etc.) before implementing
+- **Concurrency**: Exec acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

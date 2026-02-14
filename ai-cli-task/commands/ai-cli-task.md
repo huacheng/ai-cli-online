@@ -122,11 +122,14 @@ The `type` field identifies the task's domain, set by `plan` (generate mode) aft
 | `science:math` | Mathematics, statistics, formal proofs | Theorem proving, numerical analysis, statistical modeling |
 | `science:econ` | Economics, quantitative finance | Econometrics, market modeling, risk analysis |
 | `mechatronics` | Embedded systems, robotics, PLC, control systems | Motor control, PID tuning, sensor integration, SCADA |
-| (custom) | Any domain not listed above | Free-form string describing the domain |
+| `ai-skill` | AI skill/plugin/agent/prompt development | Claude Code skills, MCP servers, prompt engineering, agent workflows |
+| (custom) | Any domain not listed above | Must match `[a-zA-Z0-9_:-]+` (e.g., `robotics`, `game-design`) |
 
 Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_taxonomy) — use `science:<domain>` for unlisted fields (e.g., `science:astro`, `science:neuro`, `science:materials`).
 
 Type is determined once during planning and persists throughout the task lifecycle. If a re-plan changes the task's nature, `plan` may update the type.
+
+**Type field validation**: Custom type values must match `[a-zA-Z0-9_:-]+` — no spaces, path separators, or dots. `plan` MUST validate before writing to `.index.md`. `report` MUST validate before using as `.experience/<type>.md` filename to prevent path traversal.
 
 **Unknown type fallback**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec): `"Unknown type '<value>', falling back to software methodology"`. This ensures the pipeline never blocks on an unrecognized type.
 
@@ -162,13 +165,13 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 | State ↓ \ Command → | plan | check post-plan | check mid-exec | check post-exec | exec | merge | report | cancel |
 |---|---|---|---|---|---|---|---|---|
 | `draft` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
-| `planning` | =`planning` | PASS→`review` / NEEDS_REV=`planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
+| `planning` | =`planning` | PASS→`review` / NEEDS_REVISION=`planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `review` | →`re-planning` | ⊘ | ⊘ | ⊘ | →`executing` | ⊘ | — | →`cancelled` |
 | `executing` | →`re-planning` | ⊘ | CONT=`executing` / NEEDS_FIX=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT=`executing` (signal→merge) / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) / →`blocked` (dependency) | →`complete` / =`executing` (conflict) | — | →`cancelled` |
-| `re-planning` | =`re-planning` | PASS→`review` / NEEDS_REV=`re-planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
+| `re-planning` | =`re-planning` | PASS→`review` / NEEDS_REVISION=`re-planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
 | `complete` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | ⊘ |
 | `blocked` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
-| `cancelled` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | — (no-op) |
+| `cancelled` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | ⊘ |
 
 **Legend:** `→X` transition, `=X` self-loop (stays same status), `⊘` rejected, `—` no status change.
 
@@ -337,6 +340,7 @@ TASK/**/.auto-signal
 TASK/**/.auto-signal.tmp
 TASK/**/.auto-stop
 TASK/**/.lock
+TASK/.experience/.lock
 ```
 
 ---

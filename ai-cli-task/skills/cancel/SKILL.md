@@ -37,6 +37,8 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
    - If found (200): call `DELETE /api/sessions/<session_name>/task-auto`
    - If not found (404): no auto loop running, skip
    - Delete `.auto-signal` file if exists
+   - Delete `.auto-stop` file if exists
+   - Delete `.lock` file if exists (release any stale lock from the cancelled session)
 3. **If uncommitted changes exist**, git commit snapshot: `-- ai-cli-task(<module>):cancel pre-cancel snapshot`
 4. **Update** `.index.md`:
    - Set `status` to `cancelled`
@@ -54,7 +56,7 @@ Any non-terminal status → `cancelled`. Terminal statuses (`complete`, `cancell
 
 ## Notes
 
-- Cancel is rejected on terminal statuses: `complete` (use a separate workflow to reopen) and `cancelled` (no-op)
+- Cancel is rejected on terminal statuses: `complete` (use a separate workflow to reopen) and `cancelled` (already terminal)
 - If the task has uncommitted code changes in a worktree, `--cleanup` will warn before deleting
 - Without `--cleanup`, the branch and worktree are preserved for reference
 - A cancelled task can be referenced by `report` for documentation purposes

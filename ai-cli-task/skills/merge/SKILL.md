@@ -21,7 +21,7 @@ Merge a completed task's branch into main, with automated conflict resolution an
 
 - Task status must be `executing`
 - Latest `.analysis/` file must contain an ACCEPT verdict (from `check --checkpoint post-exec`)
-- **Dependency gate**: All `depends_on` modules in `.index.md` must have status `complete`. If any dependency is not `complete`, merge REJECTS with error listing blocking dependencies and their current statuses
+- **Dependency gate**: All `depends_on` modules must meet their required status — simple string entries require `complete`, extended `{ module, min_status }` entries require at-or-past `min_status` (see depends_on Format in `commands/ai-cli-task.md`). If any dependency is not met, merge REJECTS with error listing blocking dependencies and their current statuses
 
 ## Merge Strategy
 
@@ -55,14 +55,15 @@ If merge conflict detected:
 On successful merge:
 
 1. **Update** `.index.md` status → `complete`, update timestamp
-2. **If worktree exists**: `git worktree remove .worktrees/task-<module>`
-3. **Delete** merged branch: `git branch -d task/<module>`
-4. **Commit** state: `-- ai-cli-task(<module>):merge task completed`
+2. **Write** `.summary.md` with final task summary: completion status, plan overview, key changes, verification outcome, lessons learned (integrate from directory summaries)
+3. **If worktree exists**: `git worktree remove .worktrees/task-<module>`
+4. **Delete** merged branch: `git branch -d task/<module>`
+5. **Commit** state: `-- ai-cli-task(<module>):merge task completed`
 
 ## Execution Steps
 
 1. **Read** `.index.md` — validate status is `executing`
-2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status. If any is not `complete`, REJECT with error listing blocking dependencies
+2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
 3. **Verify** ACCEPT verdict: check latest `.analysis/` file for `post-exec-accept`
 4. **Read** `.summary.md` for task context (plan overview, completed steps, key decisions)
 5. **Phase 1**: Task-level refactoring on task branch
@@ -72,8 +73,8 @@ On successful merge:
    b. Attempt resolution (up to 3 tries)
    c. Each resolution: fix conflicts → verify (build + test) → if pass commit, if fail abort and retry
    d. If all 3 attempts fail → stay `executing`, abort merge, report unresolvable conflicts
-8. **Write** `.auto-signal` to the **main worktree's** `TASK/<module>/` directory (NOT the task worktree's copy). In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path
-9. **Phase 4**: Post-merge cleanup (status update → `complete`, worktree removal, branch deletion)
+8. **Phase 4**: Post-merge cleanup (status update → `complete`, write `.summary.md`, worktree removal, branch deletion)
+9. **Write** `.auto-signal` to the **main worktree's** `TASK/<module>/` directory (NOT the task worktree's copy) — MUST be written AFTER Phase 4 status update to `complete`, so the daemon reads correct status when routing to `report`. In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path
 10. **Report** merge result
 
 ## State Transitions
@@ -108,3 +109,4 @@ On successful merge:
 - After manual resolution, if the user has already merged manually, they can update `.index.md` status to `complete` directly
 - Pre-merge refactoring is optional — if no cleanup needed, skip directly to merge
 - **Worktree signal race prevention**: In worktree mode, `.auto-signal` is written to the main worktree's `TASK/<module>/` path (not the task worktree), ensuring the daemon can read it after worktree removal. The daemon MUST watch the main worktree path for all signal files
+- **Concurrency**: Merge acquires `TASK/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

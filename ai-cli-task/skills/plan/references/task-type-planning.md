@@ -22,6 +22,7 @@ Analyze `.target.md` to classify the task domain. Write the determined type to `
 | `screenwriting` | Logline → treatment → beat sheet → scene breakdown → draft | Industry format (Final Draft/Fountain), three-act structure, dialogue rhythm, visual storytelling |
 | `science:*` | Literature review → hypothesis → methodology → experiment/simulation → analysis → conclusions | Reproducibility, statistical rigor, peer methodology alignment, citation of prior art, numerical validation |
 | `mechatronics` | System architecture → hardware/software partitioning → control design → integration → testing | Timing constraints, safety margins, control stability (Bode/Nyquist), sensor calibration, fail-safe design |
+| `ai-skill` | Skill specification → prompt/agent design → tool integration → invocation testing → documentation | Prompt quality, progressive disclosure, frontmatter schema, trigger conditions, skill-creator guidelines compliance |
 
 ## Requirements
 
