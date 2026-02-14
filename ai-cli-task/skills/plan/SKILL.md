@@ -33,7 +33,7 @@ Two modes: generate an implementation plan from `.target.md`, or process annotat
 When called without annotation_file or with `--generate`:
 
 1. Read `.target.md` for requirements
-2. **Determine task type**: Analyze `.target.md` content to identify the task domain (see Task-Type-Aware Planning below). Set `type` field in `.index.md`
+2. **Determine task type**: Analyze `.target.md` content to identify the task domain (see Task-Type-Aware Planning below). Validate type value matches `[a-zA-Z0-9_:-]+`. Set `type` field in `.index.md`
 3. Read `.summary.md` if exists (condensed context from prior runs — primary context source)
 4. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
 5. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
@@ -115,7 +115,7 @@ Both modes write `.auto-signal` on completion:
 
 Plan methodology MUST adapt to the task domain. Different domains require different design approaches, tool choices, and milestones.
 
-> **See `references/task-type-planning.md`** for the full domain planning table (12 task types), type determination rules, and requirements.
+> **See `references/task-type-planning.md`** for the full domain planning table, type determination rules, and requirements.
 
 ## Notes
 

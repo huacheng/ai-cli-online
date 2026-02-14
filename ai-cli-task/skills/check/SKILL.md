@@ -99,7 +99,7 @@ Evaluates whether execution results meet the task requirements.
 
 | File | When Created | Content |
 |------|-------------|---------|
-| `.analysis/<date>-<summary>.md` | post-plan, post-exec | Feasibility analysis (post-plan) or issue list (NEEDS_FIX). One file per assessment, preserving evaluation history |
+| `.analysis/<date>-<summary>.md` | post-plan, mid-exec (BLOCKED), post-exec | Feasibility analysis, blocking analysis, or issue list. One file per assessment, preserving evaluation history |
 | `.bugfix/<date>-<summary>.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach. One file per issue |
 | `.test/<date>-<checkpoint>-results.md` | mid-exec, post-exec | Test outcomes for criteria verification. One file per checkpoint evaluation |
 
@@ -115,8 +115,8 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
 3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
 4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
 5. **Evaluate** against criteria
-6. **Write** analysis to appropriate system file (`.analysis/` or `.bugfix/`)
-7. **Update** the target directory's `summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/summary.md` or `.bugfix/summary.md`)
+6. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
+7. **Update** each written directory's `summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/summary.md`, `.bugfix/summary.md`, `.test/summary.md` as applicable per checkpoint)
 8. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
 9. **Update** `.index.md` status and timestamp per outcome
 10. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
@@ -153,7 +153,7 @@ post-exec REPLAN:        executing → re-planning, phase: needs-plan
 | NEEDS_FIX (post-exec) | `-- ai-cli-task(<module>):check post-exec NEEDS_FIX` |
 | CONTINUE | `-- ai-cli-task(<module>):check mid-exec CONTINUE` |
 
-All outcomes commit their output files (`.analysis/` or `.bugfix/`), regardless of whether status changes.
+All outcomes commit their output files and state updates, regardless of whether status changes.
 
 ## .auto-signal
 
@@ -178,7 +178,7 @@ When ACCEPT, the `merge` sub-command handles refactoring, merge, conflict resolu
 
 Verification methods MUST match the task domain. Read `type` from `.index.md` and apply domain-appropriate verification. If test methods are mismatched for the task type → verdict is NEEDS_REVISION.
 
-> **See `references/task-type-verification.md`** for the full domain reference table (12 task domains), determination rules, and requirements.
+> **See `references/task-type-verification.md`** for the full domain reference table, determination rules, and requirements.
 
 ## Notes
 

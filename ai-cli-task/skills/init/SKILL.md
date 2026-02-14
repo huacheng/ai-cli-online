@@ -137,6 +137,7 @@ When the root index grows large (50+ entries), consider manually reorganizing in
    - `branch`: `task/<module_name>`
    - `worktree`: `.worktrees/task-<module_name>` (or empty if no worktree)
 11. **Create** `TASK/<module_name>/.target.md` using domain-specific template:
+    - If `--type` is specified, validate value matches `[a-zA-Z0-9_:-]+`; reject with error if invalid
     - If `--type` is specified and a matching template exists in `references/target-templates/<type>.md`, copy it (replacing `<title>` placeholder)
     - If `--type` is specified, also set `.index.md` `type` field to the given value
     - Otherwise, use the default template:

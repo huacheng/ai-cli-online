@@ -129,7 +129,7 @@ Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_tax
 
 Type is determined once during planning and persists throughout the task lifecycle. If a re-plan changes the task's nature, `plan` may update the type.
 
-**Type field validation**: Custom type values must match `[a-zA-Z0-9_:-]+` — no spaces, path separators, or dots. `plan` MUST validate before writing to `.index.md`. `report` MUST validate before using as `.experience/<type>.md` filename to prevent path traversal.
+**Type field validation**: Custom type values must match `[a-zA-Z0-9_:-]+` — no spaces, path separators, or dots. `init` (from `--type` argument) and `plan` MUST validate before writing to `.index.md`. `report` MUST validate before using as `.experience/<type>.md` filename to prevent path traversal.
 
 **Unknown type fallback**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec): `"Unknown type '<value>', falling back to software methodology"`. This ensures the pipeline never blocks on an unrecognized type.
 
