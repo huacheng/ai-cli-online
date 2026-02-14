@@ -201,7 +201,7 @@ AiTasks/
 Plan 面板发送批注到 AI 的两步流程：
 
 1. **写入临时文件**: `POST /api/sessions/:sessionId/task-annotations` → 写 `.tmp-annotations.json` 到任务模块目录
-2. **发送命令到终端**: `/ai-cli-task plan <filePath> <annFilePath> --silent` → plan skill 读取并处理批注 → 删除临时文件
+2. **发送命令到终端**: `/ai-cli-task:plan <filePath> <annFilePath> --silent` → plan skill 读取并处理批注 → 删除临时文件
 
 ## 布局系统
 
@@ -472,7 +472,7 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
 - **MarkdownToc**: 右侧目录导航，从 Markdown heading 提取锚点
 - 批注 Send 流程:
   1. `POST /api/sessions/:sessionId/task-annotations` 写 `.tmp-annotations.json` 到任务模块目录
-  2. 发送 `/ai-cli-task plan <filePath> <annFilePath> --silent` 到终端
+  2. 发送 `/ai-cli-task:plan <filePath> <annFilePath> --silent` 到终端
   3. plan skill 读取并处理批注 → 删除临时文件
 - 批注 JSON 格式（4 种 `string[][]` 数组）:
   - Insert (3 元素): `["Line{N}:...before20chars", "content", "after20chars..."]`
