@@ -266,7 +266,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
               className="md-editor-divider-h"
               onMouseDown={handlePlanDividerMouseDown}
               style={{
-                width: '2px',
+                width: '3px',
                 flexShrink: 0,
                 cursor: 'col-resize',
                 backgroundColor: 'var(--border)',

@@ -251,7 +251,7 @@ button:focus-visible {
 
 /* ── Editor resize divider ── */
 .md-editor-divider {
-  height: 2px;
+  height: 3px;
   background: var(--border);
   cursor: row-resize;
   flex-shrink: 0;
