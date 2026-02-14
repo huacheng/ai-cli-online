@@ -235,7 +235,7 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
               </span>
               <span className="plan-file-browser__name">{file.name}{isDir ? '/' : ''}</span>
               {!isDir && <span className="plan-file-browser__size">{formatSize(file.size)}</span>}
-              {file.name !== '.index.json' && (
+              {!file.name.startsWith('.') && (
                 <button
                   className="pane-btn pane-btn--danger pane-btn--sm plan-file-browser__delete"
                   onClick={(e) => { e.stopPropagation(); handleDelete(file); }}
