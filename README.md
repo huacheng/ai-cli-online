@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-A lightweight web terminal for accessing Claude Code / Codex or any CLI from your browser. 
+An AI-powered development environment that runs in your browser. Persistent terminal sessions, structured task lifecycle, and autonomous execution — all through a single Node.js process.
 
-Ideal for **unstable networks** where SSH drops frequently, or as a **local stateful terminal** that preserves sessions, layouts, and drafts across refreshes.
+Built for running Claude Code, Codex, or any AI coding agent over unstable networks. tmux keeps everything alive when connections drop; the browser UI provides planning, annotation, and chat panels alongside the terminal.
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 
@@ -14,49 +14,110 @@ Ideal for **unstable networks** where SSH drops frequently, or as a **local stat
 
 ![screenshot](screenshot.jpg)
 
-## Features
+## What It Does
 
-- **Full Web Terminal** — xterm.js with WebGL rendering, binary protocol for ultra-low latency
-- **Session Persistence** — tmux keeps processes alive through disconnects; fixed socket path ensures auto-reconnect even after server restarts
-- **Multi-Tab** — independent terminal groups with layout persistence across browser refreshes
+**Terminal + Planning + Execution in one screen:**
+
+```
+┌─ Tabs ──────────────────────────────────────────────────────┐
+│ ┌─ Plan Panel ──────┬─ Terminal ────────────────────────┐   │
+│ │ AiTasks/ browser   │                                   │   │
+│ │ Markdown viewer    │  $ /ai-cli-task auto my-feature   │   │
+│ │ Inline annotations │  ▶ planning...                    │   │
+│ │ (insert/delete/    │  ▶ check(post-plan): PASS         │   │
+│ │  replace/comment)  │  ▶ executing step 1/4...          │   │
+│ │                    │  ▶ executing step 2/4...          │   │
+│ │ Mermaid diagrams   │  ...                              │   │
+│ │                    ├───────────────────────────────────┤   │
+│ │                    │ Chat Editor                        │   │
+│ │                    │ Multi-line Markdown + /commands    │   │
+│ └────────────────────┴───────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Plan Panel** — browse `AiTasks/` files, annotate documents with 4 annotation types, send structured feedback to AI
+- **Terminal** — full xterm.js with WebGL rendering, binary protocol for ultra-low latency
+- **Chat Editor** — multi-line Markdown editor with slash commands, server-side draft persistence
+- All three panels can be open simultaneously, each independently resizable
+
+## AI Task Lifecycle
+
+The `ai-cli-task` plugin provides an 8-skill lifecycle for structured AI task execution:
+
+```
+init → plan → check → exec → check → merge → report
+                ↑        ↓
+              re-plan ←──┘ (on issues)
+```
+
+| Skill | What it does |
+|-------|-------------|
+| **init** | Create task module (`AiTasks/<name>/`), git branch, optional worktree |
+| **plan** | Generate implementation plan or process human annotations |
+| **check** | Evaluate feasibility at 3 checkpoints (post-plan / mid-exec / post-exec) |
+| **exec** | Execute plan steps with per-step verification |
+| **merge** | Merge task branch to main with conflict resolution (up to 3 retries) |
+| **report** | Generate completion report, distill lessons to experience database |
+| **auto** | Run the full lifecycle autonomously in a single Claude session |
+| **cancel** | Stop execution, set status to cancelled, optional cleanup |
+
+### Auto Mode
+
+```bash
+/ai-cli-task auto my-feature
+```
+
+One command triggers the entire lifecycle. A single Claude session runs plan → check → exec → merge → report internally, sharing context across all steps. A daemon monitors progress via `.auto-signal` files, enforces timeouts, and detects stalls.
+
+### Task Structure
+
+```
+AiTasks/
+├── .index.md                    # Module listing
+├── .experience/                 # Cross-task knowledge base (by domain type)
+│   ├── software.md
+│   └── <type>.md
+└── my-feature/
+    ├── .index.md                # Status, phase, timestamps, dependencies (YAML)
+    ├── .target.md               # Requirements (human-authored)
+    ├── .summary.md              # Condensed context (prevents context overflow)
+    ├── .analysis/               # Evaluation history
+    ├── .test/                   # Test criteria & results
+    ├── .bugfix/                 # Issue history
+    ├── .notes/                  # Research findings
+    ├── .report.md               # Completion report
+    └── plan.md                  # Implementation plan
+```
+
+### Type-Aware Execution
+
+Tasks are classified by domain type (`software`, `dsp`, `ml`, `literary`, `science:physics`, etc.). Each type adapts planning methodology, execution tools, and verification criteria. Completed task lessons are stored in `.experience/<type>.md` and referenced by future tasks of the same type.
+
+## Terminal Features
+
+- **Session Persistence** — tmux keeps processes alive through disconnects; fixed socket path ensures auto-reconnect after server restarts
+- **Multi-Tab** — independent terminal groups with layout persistence across refreshes
 - **Split Panes** — horizontal / vertical splits, arbitrarily nested
-- **Mermaid Diagrams** — Gantt charts, flowcharts, and other Mermaid diagrams render inline with dark theme; CDN fallback for reliability
-- **Plan Annotations** — 4 annotation types (insert / delete / replace / comment) on document content with persistent storage; selection float button group for quick action
-- **Editor Panel** — multi-line editing with server-side draft persistence (SQLite), undo stack, and slash commands (`/history`, etc.)
-- **Copy & Paste** — mouse selection auto-copies to clipboard; right-click pastes into terminal
-- **File Transfer** — upload files to CWD, browse and download via REST API
-- **Scroll History** — capture-pane scrollback viewer with ANSI color preservation
-- **Session Management** — sidebar to restore, delete, rename sessions, and close individual terminals (with confirmation)
-- **CJK Font Support** — LXGW WenKai Mono via CDN with unicode-range subsetting; browser loads only needed CJK glyphs on demand
-- **Font Size Control** — adjustable terminal font size (A−/A+) with server-side persistence
-- **Version Display** — current version shown in header, auto-injected from `package.json` at build time
-- **Network Indicator** — real-time RTT latency display with signal bars
-- **Auto Reconnect** — exponential backoff with jitter to prevent thundering herd
-- **Secure Auth** — token authentication with timing-safe comparison
-- **Security Hardening** — symlink traversal protection, unauthenticated WebSocket connection limits, TOCTOU download guard, CSP headers (frame-ancestors, base-uri, form-action)
+- **Binary Protocol** — 1-byte prefix frames for terminal I/O, TCP Nagle disabled, WebSocket compression
+- **WebGL Rendering** — 3-10x throughput vs canvas
+- **Copy & Paste** — mouse selection auto-copies; right-click pastes
+- **Scroll History** — capture-pane scrollback with ANSI color preservation
+- **File Transfer** — upload/download files, browse directories, download CWD as tar.gz
+- **Network Indicator** — real-time RTT latency with signal bars
+- **Auto Reconnect** — exponential backoff with jitter
 
-## Comparison: AI-Cli Online vs OpenClaw
+## Annotation System
 
-| Dimension | AI-Cli Online | OpenClaw |
-|-----------|--------------|----------|
-| **Positioning** | Lightweight web terminal | AI agent orchestration platform |
-| **Core Use Case** | Browser-based remote terminal access | Multi-channel AI assistant |
-| **Terminal Emulation** | xterm.js + WebGL | None |
-| **Session Persistence** | tmux (survives disconnects) | Gateway in-memory state |
-| **Multi-Tab / Split** | Tabs + arbitrarily nested panes | None |
-| **Message Channels** | WebSocket (single channel) | 16+ (WhatsApp / Telegram / Slack / Discord...) |
-| **Native Apps** | None (pure web) | macOS + iOS + Android |
-| **Voice Interaction** | None | Voice Wake + Talk Mode |
-| **AI Agent** | None built-in (run any CLI) | Pi Agent runtime + multi-agent routing |
-| **Canvas / UI** | Plan annotations (Markdown) | A2UI real-time visual workspace |
-| **File Transfer** | REST API upload / download | Channel-native media |
-| **Security Model** | Token auth + timing-safe | Device pairing + DM policy + Docker sandbox |
-| **Extensibility** | Shell scripts | 33 extensions + 60+ skills + ClawHub |
-| **Transport** | Binary frames (ultra-low latency) | JSON WebSocket |
-| **Deployment** | Single-node Node.js | Single-node + Tailscale Serve/Funnel |
-| **Tech Stack** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **Package Size** | ~1 MB | ~300 MB+ |
-| **Install** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
+The Plan panel provides 4 annotation types for structured AI feedback:
+
+| Type | Icon | Description |
+|------|------|------------|
+| **Insert** | `+` | Add content at a specific location |
+| **Delete** | `−` | Mark text for removal |
+| **Replace** | `↔` | Substitute old text with new |
+| **Comment** | `?` | Ask questions or leave notes |
+
+Annotations are persisted (localStorage + SQLite) and sent to the AI as structured JSON. The `plan` skill processes them — triaging by impact, applying changes, and updating task files.
 
 ## Quick Start
 
@@ -106,49 +167,64 @@ See `server/.env.example` for all available options.
 ## Architecture
 
 ```
-Browser (xterm.js + WebGL) <-- WebSocket binary/JSON --> Express (node-pty) <--> tmux session --> shell
+Browser (xterm.js + WebGL)
+  ├── Plan Panel (annotation editor)
+  ├── Chat Editor (Markdown + /commands)
+  └── Terminal View (WebGL renderer)
+        │
+        ↕ WebSocket binary/JSON + REST API
+        │
+Express Server (Node.js)
+  ├── WebSocket ↔ PTY relay
+  ├── tmux session manager
+  ├── File transfer API
+  ├── SQLite (drafts, annotations, settings)
+  └── Route modules (sessions, files, editor, settings)
+        │
+        ↕ PTY / tmux sockets
+        │
+tmux sessions → shell → Claude Code / AI agents
+  └── AiTasks/ lifecycle (init/plan/check/exec/merge/report/auto)
 ```
 
-- **Frontend**: React + Zustand + xterm.js (WebGL renderer)
+- **Frontend**: React + Zustand + xterm.js (WebGL)
 - **Backend**: Node.js + Express + node-pty + WebSocket + better-sqlite3
 - **Session Manager**: tmux (persistent terminal sessions)
-- **Layout System**: Tabs + recursive tree structure (LeafNode / SplitNode)
+- **Layout**: Tabs + recursive split tree (LeafNode / SplitNode)
 - **Transport**: Binary frames (hot path) + JSON (control messages)
-- **Data Persistence**: SQLite (editor drafts)
-
-### Performance
-
-- **Binary protocol** — 1-byte prefix frames for terminal I/O, eliminating JSON overhead
-- **TCP Nagle disabled** — `setNoDelay(true)` removes up to 40 ms keystroke delay
-- **WebSocket compression** — `perMessageDeflate` (level 1, threshold 128 B), 50-70% bandwidth reduction
-- **WebGL renderer** — 3-10x rendering throughput vs canvas
-- **Parallel initialization** — PTY creation, tmux config, and resize run concurrently
-- **Smart re-render** — responsive layout hook, conditional Zustand selectors, batched stat calls
+- **Task System**: 8-skill plugin with state machine, dependency gates, and experience database
 
 ## Project Structure
 
 ```
 ai-cli-online/
-├── shared/          # Shared type definitions (ClientMessage, ServerMessage)
-├── server/          # Backend (TypeScript)
-│   └── src/
-│       ├── index.ts      # Main entry (HTTP + WebSocket + REST API)
-│       ├── websocket.ts  # WebSocket <-> PTY relay (binary + JSON)
-│       ├── tmux.ts       # tmux session management
-│       ├── files.ts      # File operations
-│       ├── pty.ts        # node-pty wrapper
-│       ├── db.ts         # SQLite database (draft persistence)
-│       ├── auth.ts       # Auth utilities
-│       └── types.ts      # Type definitions
-├── web/             # Frontend (React + Vite)
-│   └── src/
-│       ├── App.tsx        # Main app component
-│       ├── store.ts       # Zustand state management
-│       ├── components/    # UI components
-│       ├── hooks/         # React hooks
-│       └── api/           # API client
-├── start.sh         # Production start script
-└── package.json     # Monorepo config
+├── shared/              # Shared type definitions
+├── server/src/
+│   ├── index.ts         # Main entry (middleware + routes + server)
+│   ├── websocket.ts     # WebSocket ↔ PTY relay (binary + JSON)
+│   ├── tmux.ts          # tmux session management
+│   ├── files.ts         # File operations + path validation
+│   ├── pty.ts           # node-pty wrapper
+│   ├── db.ts            # SQLite database
+│   ├── auth.ts          # Auth utilities
+│   ├── middleware/       # Auth middleware
+│   └── routes/          # REST API routes (sessions, files, editor, settings)
+├── web/src/
+│   ├── App.tsx           # Main app (Login / TabBar / Terminal / Theme)
+│   ├── store/            # Zustand store (modular slices)
+│   ├── components/
+│   │   ├── TerminalPane.tsx              # 2D grid layout (Plan + Terminal + Chat)
+│   │   ├── TerminalView.tsx              # xterm.js terminal
+│   │   ├── PlanPanel.tsx                 # Plan annotation panel
+│   │   ├── PlanAnnotationRenderer.tsx    # Markdown + inline annotations
+│   │   ├── PlanFileBrowser.tsx           # AiTasks/ file browser
+│   │   ├── MarkdownEditor.tsx            # Chat editor
+│   │   └── ...
+│   ├── hooks/            # React hooks (WebSocket, file stream, resize, etc.)
+│   └── api/              # Typed API client modules
+├── bin/                  # npx entry point
+├── start.sh              # Production start script
+└── install-service.sh    # systemd + nginx installer
 ```
 
 ## Development
@@ -176,6 +252,15 @@ The install script will:
 1. Create a systemd service for auto-start and process management
 2. Detect nginx and optionally configure reverse proxy (WebSocket support, SSL, `client_max_body_size`)
 3. Auto-set `HTTPS_ENABLED=false` and `TRUST_PROXY=1` in `server/.env` when nginx is enabled
+
+## Security
+
+- Token authentication with timing-safe comparison
+- Symlink traversal protection on all file operations
+- Unauthenticated WebSocket connection limits
+- TOCTOU download guard (streaming size check)
+- CSP headers (frame-ancestors, base-uri, form-action)
+- Rate limiting (configurable read/write thresholds)
 
 ## License
 

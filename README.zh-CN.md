@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-轻量级 Web 终端，在浏览器中访问 Claude Code / Codex 或任意 CLI。
+在浏览器中运行的 AI 开发环境。持久化终端会话、结构化任务生命周期、自主执行 — 单个 Node.js 进程即可运行。
 
-适合**网络不稳定、SSH 经常断线**的场景，也可作为**本地有状态终端**使用 — 会话、布局和草稿在刷新后自动恢复。
+专为在不稳定网络下运行 Claude Code、Codex 或任意 AI 编码代理而构建。tmux 保证断网后进程存活；浏览器 UI 在终端旁提供规划、批注和对话面板。
 
 **npm:** https://www.npmjs.com/package/ai-cli-online | **GitHub:** https://github.com/huacheng/ai-cli-online
 
@@ -14,49 +14,110 @@
 
 ![screenshot](screenshot.jpg)
 
-## 功能特性
+## 核心能力
 
-- **完整 Web 终端** — xterm.js + WebGL 渲染，二进制协议实现超低延迟
+**终端 + 规划 + 执行，一屏完成：**
+
+```
+┌─ 标签页 ────────────────────────────────────────────────────┐
+│ ┌─ Plan 面板 ──────┬─ 终端 ─────────────────────────────┐   │
+│ │ AiTasks/ 文件浏览 │                                    │   │
+│ │ Markdown 查看器   │  $ /ai-cli-task auto my-feature    │   │
+│ │ 内联批注          │  ▶ 规划中...                        │   │
+│ │ (插入/删除/       │  ▶ 检查(post-plan): 通过            │   │
+│ │  替换/评注)       │  ▶ 执行步骤 1/4...                  │   │
+│ │                   │  ▶ 执行步骤 2/4...                  │   │
+│ │ Mermaid 图表      │  ...                               │   │
+│ │                   ├────────────────────────────────────┤   │
+│ │                   │ Chat 编辑器                         │   │
+│ │                   │ 多行 Markdown + /命令               │   │
+│ └───────────────────┴────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Plan 面板** — 浏览 `AiTasks/` 文件，4 种批注类型标注文档，向 AI 发送结构化反馈
+- **终端** — 完整 xterm.js + WebGL 渲染，二进制协议实现超低延迟
+- **Chat 编辑器** — 多行 Markdown 编辑器，斜杠命令，草稿服务端持久化
+- 三个面板可同时打开，各自独立调整大小
+
+## AI 任务生命周期
+
+`ai-cli-task` 插件提供 8 个 skill 的完整任务执行生命周期：
+
+```
+init → plan → check → exec → check → merge → report
+                ↑        ↓
+              re-plan ←──┘ (遇到问题时)
+```
+
+| Skill | 功能 |
+|-------|------|
+| **init** | 创建任务模块 (`AiTasks/<name>/`)，git 分支，可选 worktree |
+| **plan** | 生成实施计划或处理人工批注 |
+| **check** | 在 3 个检查点评估可行性 (post-plan / mid-exec / post-exec) |
+| **exec** | 逐步执行计划，每步验证 |
+| **merge** | 合并任务分支到主干，冲突解决（最多 3 次重试） |
+| **report** | 生成完成报告，提炼经验到知识库 |
+| **auto** | 在单个 Claude 会话中自主运行完整生命周期 |
+| **cancel** | 停止执行，设为已取消，可选清理 |
+
+### 自主模式
+
+```bash
+/ai-cli-task auto my-feature
+```
+
+一条命令触发完整生命周期。单个 Claude 会话在内部依次运行 plan → check → exec → merge → report，所有步骤共享上下文。守护进程通过 `.auto-signal` 文件监控进度，强制超时，检测停滞。
+
+### 任务结构
+
+```
+AiTasks/
+├── .index.md                    # 模块索引
+├── .experience/                 # 跨任务知识库（按领域类型分类）
+│   ├── software.md
+│   └── <type>.md
+└── my-feature/
+    ├── .index.md                # 状态、阶段、时间戳、依赖 (YAML)
+    ├── .target.md               # 需求描述（人工编写）
+    ├── .summary.md              # 浓缩上下文（防止上下文溢出）
+    ├── .analysis/               # 评估历史
+    ├── .test/                   # 测试标准与结果
+    ├── .bugfix/                 # 问题历史
+    ├── .notes/                  # 研究发现
+    ├── .report.md               # 完成报告
+    └── plan.md                  # 实施计划
+```
+
+### 类型感知执行
+
+任务按领域类型分类（`software`、`dsp`、`ml`、`literary`、`science:physics` 等）。每种类型会调整规划方法、执行工具和验证标准。已完成任务的经验存储在 `.experience/<type>.md` 中，供同类型的后续任务参考。
+
+## 终端特性
+
 - **会话持久化** — tmux 保证断网后进程存活；固定 socket 路径，服务重启后自动重连
 - **Tab 多标签页** — 独立终端分组，布局跨刷新持久化
 - **分屏布局** — 水平/垂直任意嵌套分割
-- **Mermaid 图表** — 甘特图、流程图等 Mermaid 图表暗色主题内联渲染，CDN 双源容错
-- **Plan 批注** — 4 种批注类型（插入/删除/替换/评注），选中文本弹出浮动按钮组，持久化存储
-- **编辑器面板** — 多行编辑 + 草稿服务端持久化 (SQLite) + undo 撤销栈 + 斜杠命令（`/history` 等）
-- **复制粘贴** — 鼠标选中自动复制到剪贴板，右键粘贴到终端
-- **文件传输** — 上传文件到 CWD，浏览/下载通过 REST API
+- **二进制协议** — 1 字节前缀帧用于终端 I/O，TCP Nagle 禁用，WebSocket 压缩
+- **WebGL 渲染** — 吞吐量比 canvas 提升 3-10 倍
+- **复制粘贴** — 鼠标选中自动复制，右键粘贴
 - **滚动历史** — capture-pane 回看，保留 ANSI 颜色
-- **会话管理** — 侧边栏管理 session（恢复/删除/重命名）
-- **中文等宽字体** — 通过 CDN 加载霞鹜文楷等宽 (LXGW WenKai Mono)，unicode-range 按需分片，浏览器仅下载实际用到的字符
-- **字体大小控制** — 可调节终端字体大小 (A−/A+)，设置服务端持久化
-- **版本号显示** — Header 显示当前版本号，构建时从 `package.json` 自动注入
-- **网络指示器** — 实时 RTT 延迟显示 + 信号条
+- **文件传输** — 上传/下载文件，浏览目录，CWD 打包下载为 tar.gz
+- **网络指示器** — 实时 RTT 延迟 + 信号条
 - **自动重连** — 指数退避 + jitter 防雷群效应
-- **安全认证** — Token 认证 + timing-safe 比较
-- **安全加固** — symlink 穿越防护、未认证 WebSocket 连接限制、TOCTOU 下载防护、CSP Headers (frame-ancestors / base-uri / form-action)
 
-## 功能对比：AI-Cli Online vs OpenClaw
+## 批注系统
 
-| 维度 | AI-Cli Online | OpenClaw |
-|------|--------------|----------|
-| **定位** | 轻量 Web 终端 | AI Agent 编排平台 |
-| **核心用途** | 浏览器远程终端访问 | 多渠道 AI 助手 |
-| **终端仿真** | xterm.js + WebGL | 无 |
-| **会话持久化** | tmux（断网存活） | Gateway 内存状态 |
-| **多标签/分屏** | Tab + 任意嵌套分屏 | 无 |
-| **消息渠道** | WebSocket 单通道 | 16+（WhatsApp / Telegram / Slack / Discord...） |
-| **原生应用** | 无（纯 Web） | macOS + iOS + Android |
-| **语音交互** | 无 | Voice Wake + Talk Mode |
-| **AI Agent** | 无内置（运行任意 CLI） | Pi Agent 运行时 + 多 Agent 路由 |
-| **Canvas/UI** | Plan 批注系统（Markdown） | A2UI 实时可视化工作区 |
-| **文件传输** | REST API 上传/下载 | 渠道原生媒体 |
-| **安全模型** | Token auth + timing-safe | 设备配对 + DM 策略 + Docker 沙箱 |
-| **可扩展性** | Shell 脚本 | 33 扩展 + 60+ Skills + ClawHub |
-| **传输协议** | 二进制帧（超低延迟） | JSON WebSocket |
-| **部署** | 单机 Node.js | 单机 + Tailscale Serve/Funnel |
-| **技术栈** | React + Express + node-pty | Lit + Express + Pi Agent |
-| **包大小** | ~1 MB | ~300 MB+ |
-| **安装** | `npx ai-cli-online` | `npm i -g openclaw && openclaw onboard` |
+Plan 面板提供 4 种批注类型，用于向 AI 发送结构化反馈：
+
+| 类型 | 图标 | 说明 |
+|------|------|------|
+| **插入** | `+` | 在指定位置添加内容 |
+| **删除** | `−` | 标记待删除的文本 |
+| **替换** | `↔` | 用新文本替换旧文本 |
+| **评注** | `?` | 提问或留下备注 |
+
+批注双层持久化（localStorage + SQLite），以结构化 JSON 发送给 AI。`plan` skill 处理批注 — 按影响分级、应用变更、更新任务文件。
 
 ## 快速开始
 
@@ -106,49 +167,64 @@ TRUST_PROXY=1                    # nginx 反代时设为 1
 ## 架构
 
 ```
-浏览器 (xterm.js + WebGL) <-- WebSocket binary/JSON --> Express (node-pty) <--> tmux session --> shell
+浏览器 (xterm.js + WebGL)
+  ├── Plan 面板 (批注编辑器)
+  ├── Chat 编辑器 (Markdown + /命令)
+  └── 终端视图 (WebGL 渲染器)
+        │
+        ↕ WebSocket binary/JSON + REST API
+        │
+Express 服务 (Node.js)
+  ├── WebSocket ↔ PTY relay
+  ├── tmux 会话管理
+  ├── 文件传输 API
+  ├── SQLite (草稿、批注、设置)
+  └── 路由模块 (sessions, files, editor, settings)
+        │
+        ↕ PTY / tmux sockets
+        │
+tmux sessions → shell → Claude Code / AI agents
+  └── AiTasks/ 生命周期 (init/plan/check/exec/merge/report/auto)
 ```
 
-- **前端**: React + Zustand + xterm.js（WebGL 渲染）
+- **前端**: React + Zustand + xterm.js (WebGL)
 - **后端**: Node.js + Express + node-pty + WebSocket + better-sqlite3
 - **会话管理**: tmux（持久化终端会话）
-- **布局系统**: Tab 标签页 + 递归树形结构（LeafNode / SplitNode）
+- **布局系统**: Tab 标签页 + 递归分割树（LeafNode / SplitNode）
 - **传输协议**: 二进制帧（热路径）+ JSON（控制消息）
-- **数据持久化**: SQLite（编辑器草稿）
-
-### 性能优化
-
-- **二进制协议** — 1 字节前缀帧用于终端 I/O，消除 JSON 序列化开销
-- **TCP Nagle 禁用** — `setNoDelay(true)` 消除最多 40 ms 按键延迟
-- **WebSocket 压缩** — `perMessageDeflate`（level 1，threshold 128 B），带宽减少 50-70%
-- **WebGL 渲染器** — 渲染吞吐量提升 3-10 倍
-- **并行初始化** — PTY 创建、tmux 配置、resize 并行执行
-- **智能重渲染** — 响应式布局 hook、条件 Zustand selector、分批 stat 调用
+- **任务系统**: 8-skill 插件，状态机 + 依赖门控 + 经验知识库
 
 ## 项目结构
 
 ```
 ai-cli-online/
-├── shared/          # 共享类型定义 (ClientMessage, ServerMessage)
-├── server/          # 后端服务 (TypeScript)
-│   └── src/
-│       ├── index.ts      # 主入口 (HTTP + WebSocket + REST API)
-│       ├── websocket.ts  # WebSocket <-> PTY 双向 relay (二进制 + JSON)
-│       ├── tmux.ts       # tmux 会话管理
-│       ├── files.ts      # 文件操作
-│       ├── pty.ts        # node-pty 封装
-│       ├── db.ts         # SQLite 数据库 (草稿持久化)
-│       ├── auth.ts       # 认证工具
-│       └── types.ts      # 类型定义
-├── web/             # 前端应用 (React + Vite)
-│   └── src/
-│       ├── App.tsx        # 主应用组件
-│       ├── store.ts       # Zustand 状态管理
-│       ├── components/    # UI 组件
-│       ├── hooks/         # React Hooks
-│       └── api/           # API 客户端
-├── start.sh         # 生产启动脚本
-└── package.json     # Monorepo 配置
+├── shared/              # 共享类型定义
+├── server/src/
+│   ├── index.ts         # 主入口 (中间件 + 路由 + 服务)
+│   ├── websocket.ts     # WebSocket ↔ PTY relay (二进制 + JSON)
+│   ├── tmux.ts          # tmux 会话管理
+│   ├── files.ts         # 文件操作 + 路径校验
+│   ├── pty.ts           # node-pty 封装
+│   ├── db.ts            # SQLite 数据库
+│   ├── auth.ts          # 认证工具
+│   ├── middleware/       # 认证中间件
+│   └── routes/          # REST API 路由 (sessions, files, editor, settings)
+├── web/src/
+│   ├── App.tsx           # 主应用 (登录 / TabBar / 终端 / 主题)
+│   ├── store/            # Zustand 状态管理 (模块化切片)
+│   ├── components/
+│   │   ├── TerminalPane.tsx              # 2D 网格布局 (Plan + 终端 + Chat)
+│   │   ├── TerminalView.tsx              # xterm.js 终端
+│   │   ├── PlanPanel.tsx                 # Plan 批注面板
+│   │   ├── PlanAnnotationRenderer.tsx    # Markdown + 内联批注
+│   │   ├── PlanFileBrowser.tsx           # AiTasks/ 文件浏览器
+│   │   ├── MarkdownEditor.tsx            # Chat 编辑器
+│   │   └── ...
+│   ├── hooks/            # React Hooks (WebSocket, 文件流, resize 等)
+│   └── api/              # 类型化 API 客户端模块
+├── bin/                  # npx 入口
+├── start.sh              # 生产启动脚本
+└── install-service.sh    # systemd + nginx 安装器
 ```
 
 ## 开发
@@ -176,6 +252,15 @@ sudo journalctl -u ai-cli-online -f      # 查看日志
 1. 创建 systemd 服务，支持开机自启和进程管理
 2. 检测 nginx 并可选配置反向代理（WebSocket 支持、SSL、`client_max_body_size`）
 3. nginx 启用时自动设置 `HTTPS_ENABLED=false` 和 `TRUST_PROXY=1`
+
+## 安全
+
+- Token 认证 + timing-safe 比较
+- 所有文件操作的 symlink 穿越防护
+- 未认证 WebSocket 连接限制
+- TOCTOU 下载防护（流式大小检查）
+- CSP Headers (frame-ancestors, base-uri, form-action)
+- 限速（可配置读/写阈值）
 
 ## License
 
