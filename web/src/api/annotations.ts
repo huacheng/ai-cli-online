@@ -50,15 +50,3 @@ export async function writeTaskAnnotations(
   return res.json();
 }
 
-export async function fetchPluginStatus(
-  token: string,
-  name: string,
-): Promise<boolean> {
-  const res = await fetch(
-    `${API_BASE}/api/plugin-status?name=${encodeURIComponent(name)}`,
-    { headers: authHeaders(token) },
-  );
-  if (!res.ok) return false;
-  const data = await res.json();
-  return !!data.installed;
-}

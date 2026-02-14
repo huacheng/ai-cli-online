@@ -182,21 +182,27 @@ function hasAnnotations(annotations: PlanAnnotations): boolean {
   return annotations.additions.length > 0 || annotations.deletions.length > 0 || annotations.replacements.length > 0 || annotations.comments.length > 0;
 }
 
+/** Shell-quote a path: wrap in single quotes, escape embedded single quotes */
+function shellQuote(s: string): string {
+  if (/^[a-zA-Z0-9_./:@=-]+$/.test(s)) return s; // safe chars — no quoting needed
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
 /** Generate /ai-cli-task plan command for a single file */
 export function generatePlanCommand(
   filePath: string,
   annFilePath: string,
 ): string {
-  return `/ai-cli-task plan ${filePath} ${annFilePath} --silent`;
+  return `/ai-cli-task plan ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
 }
 
-/** Generate aggregated /ai-cli-task plan commands across multiple files */
-export function generateMultiFileSummary(
-  fileCommands: Array<{ filePath: string; annFilePath: string }>
-): string {
-  return fileCommands
-    .map(({ filePath, annFilePath }) => generatePlanCommand(filePath, annFilePath))
-    .join('\n');
+/** Derive module path: AiTasks/<module>/ from a full file path */
+function deriveModulePath(filePath: string): string {
+  const parts = filePath.split('/');
+  const aiTasksIdx = parts.indexOf('AiTasks');
+  return aiTasksIdx >= 0 && aiTasksIdx + 1 < parts.length
+    ? parts.slice(0, aiTasksIdx + 2).join('/')
+    : filePath.substring(0, filePath.lastIndexOf('/'));
 }
 
 /* ── Component ── */
@@ -828,12 +834,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     const newAnns = getNewAnnotations();
     if (!hasAnnotations(newAnns)) return;
     const annJson = buildAnnotationJson(newAnns, sourceLines);
-    // Derive module path: AiTasks/<module>/ from filePath
-    const parts = filePath.split('/');
-    const aiTasksIdx = parts.indexOf('AiTasks');
-    const modulePath = aiTasksIdx >= 0 && aiTasksIdx + 1 < parts.length
-      ? parts.slice(0, aiTasksIdx + 2).join('/')
-      : filePath.substring(0, filePath.lastIndexOf('/'));
+    const modulePath = deriveModulePath(filePath);
     try {
       const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
       const cmd = generatePlanCommand(filePath, annFilePath);
@@ -875,7 +876,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         if (containerRef.current) containerRef.current.scrollTop = top;
       });
     },
-  }), [getNewAnnotations, sourceLines, filePath, activeInsert, handleAddAnnotation, pendingAction, handleSubmitPendingAction]);
+  }), [getNewAnnotations, activeInsert, handleAddAnnotation, pendingAction, handleSubmitPendingAction]);
 
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -915,11 +916,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       singleAnns.comments.push(c);
     }
     const annJson = buildAnnotationJson(singleAnns, sourceLines);
-    const parts = filePath.split('/');
-    const aiTasksIdx = parts.indexOf('AiTasks');
-    const modulePath = aiTasksIdx >= 0 && aiTasksIdx + 1 < parts.length
-      ? parts.slice(0, aiTasksIdx + 2).join('/')
-      : filePath.substring(0, filePath.lastIndexOf('/'));
+    const modulePath = deriveModulePath(filePath);
     try {
       const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
       const cmd = generatePlanCommand(filePath, annFilePath);
@@ -1112,7 +1109,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         {onClose && (
           <button
             className="pane-btn pane-btn--danger"
-            onClick={() => { handleExecute(); onClose(); }}
+            onClick={async () => { await handleExecute(); onClose(); }}
             title="Send annotations &amp; close file"
           >
             &times;

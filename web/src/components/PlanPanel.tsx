@@ -13,8 +13,6 @@ interface PlanPanelProps {
   token: string;
   connected: boolean;
   onRequestFileStream?: (path: string) => void;
-  onCancelFileStream?: () => void;
-  onForwardToChat?: (summary: string) => void;
   onSendToTerminal?: (text: string) => void;
 }
 
@@ -63,9 +61,6 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   const [planLoading, setPlanLoading] = useState(false);
   // When AiTasks/ directory is not found, show init guidance
   const [showInitGuide, setShowInitGuide] = useState(false);
-  // Cache file content for multi-file annotation aggregation on close
-  const planContentCacheRef = useRef(new Map<string, string>());
-
   const planAnnotationRef = useRef<PlanAnnotationRendererHandle>(null);
 
   // Persist selected file to localStorage (50ms debounce)
@@ -88,9 +83,11 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     setPlanLoading(true);
     setShowInitGuide(false);
     (async () => {
+      let home = '';
       try {
         const res = await fetchFiles(token, sessionId);
         if (cancelled) return;
+        home = res.home || '';
         const aiTasksEntry = res.files.find((f: FileEntry) => f.name === 'AiTasks' && f.type === 'directory');
         if (aiTasksEntry) {
           const dirPath = res.cwd + '/AiTasks';
@@ -115,9 +112,6 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       // Check if ai-cli-task plugin is installed by reading installed_plugins.json
       try {
         if (cancelled) return;
-        const res2 = await fetchFiles(token, sessionId);
-        if (cancelled) return;
-        const home = res2.home || '';
         if (home) {
           const pluginFile = `${home}/.claude/plugins/installed_plugins.json`;
           const result = await fetchFileContent(token, sessionId, pluginFile, 0);
@@ -157,7 +151,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   useEffect(() => {
     if (fileStream.state.status === 'complete' && planSelectedFile) {
       setPlanMarkdown(fileStream.state.content);
-      planContentCacheRef.current.set(planSelectedFile, fileStream.state.content);
+
       planMtimeRef.current = Date.now();
     }
   }, [fileStream.state.status, fileStream.state.content, planSelectedFile]);
@@ -172,7 +166,6 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
         if (result) {
           // File changed — update content
           setPlanMarkdown(result.content);
-          planContentCacheRef.current.set(planSelectedFile!, result.content);
           planMtimeRef.current = result.mtime;
         }
       } catch { /* ignore network errors */ }
@@ -206,13 +199,10 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   const handlePlanFileSelect = useCallback((fullPath: string) => {
     if (fullPath === planSelectedFile) return;
     savePlanScrollPosition();
-    if (planSelectedFile && planMarkdown) {
-      planContentCacheRef.current.set(planSelectedFile, planMarkdown);
-    }
     setPlanSelectedFile(fullPath);
     setPlanMarkdown('');
     planStreamedRef.current = null;
-  }, [planSelectedFile, planMarkdown, savePlanScrollPosition]);
+  }, [planSelectedFile, savePlanScrollPosition]);
 
   // Handle file deletion — clear selection if deleted file is currently selected
   const handlePlanFileDelete = useCallback((fullPath: string) => {
@@ -221,7 +211,6 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       setPlanMarkdown('');
       planStreamedRef.current = null;
     }
-    planContentCacheRef.current.delete(fullPath);
   }, [planSelectedFile]);
 
   // Handle new file creation from PlanFileBrowser
@@ -239,13 +228,10 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   // Handle close file — deselect current file (does NOT close the Plan panel)
   const handleCloseFile = useCallback(() => {
     savePlanScrollPosition();
-    if (planSelectedFile && planMarkdown) {
-      planContentCacheRef.current.set(planSelectedFile, planMarkdown);
-    }
     setPlanSelectedFile(null);
     setPlanMarkdown('');
     planStreamedRef.current = null;
-  }, [planSelectedFile, planMarkdown, savePlanScrollPosition]);
+  }, [savePlanScrollPosition]);
 
   // Refresh current plan file
   const handlePlanRefresh = useCallback(() => {

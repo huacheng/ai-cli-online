@@ -431,29 +431,6 @@ async function main() {
     }
   });
 
-  // --- Plugin status API ---
-
-  app.get('/api/plugin-status', async (req, res) => {
-    if (!checkAuth(req, res)) return;
-    const name = req.query.name as string;
-    if (!name || typeof name !== 'string') {
-      res.status(400).json({ error: 'name query parameter required' });
-      return;
-    }
-    try {
-      const home = process.env.HOME || '/root';
-      const pluginFile = join(home, '.claude/plugins/installed_plugins.json');
-      const data = await readFile(pluginFile, 'utf-8');
-      const parsed = JSON.parse(data);
-      const pluginMap = parsed.plugins || parsed;
-      const installed = name in pluginMap;
-      res.json({ installed, name });
-    } catch {
-      // File doesn't exist or parse error — plugin not installed
-      res.json({ installed: false, name });
-    }
-  });
-
   // --- Pane command API ---
 
   // Get current pane command (to detect if claude is running)
@@ -639,7 +616,12 @@ async function main() {
     }
     try {
       const cwd = await getCwd(sessionName);
-      const resolved = await validatePathNoSymlink(filePath, cwd);
+      let resolved = await validatePathNoSymlink(filePath, cwd);
+      // Fallback: allow absolute paths under HOME (e.g., ~/.claude/plugins/)
+      if (!resolved) {
+        const home = process.env.HOME || '/root';
+        resolved = await validatePathNoSymlink(filePath, home);
+      }
       if (!resolved) {
         res.status(400).json({ error: 'Invalid path' });
         return;

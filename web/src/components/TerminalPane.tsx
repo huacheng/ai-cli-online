@@ -243,13 +243,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     }
   }, []);
 
-  // Plan close -> forward annotations to chat editor
-  const handlePlanForwardToChat = useCallback((summary: string) => {
-    if (summary && editorRef.current) {
-      editorRef.current.fillContent(summary);
-    }
-  }, []);
-
   // Chat vertical divider drag
   const handleChatDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -579,8 +572,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 token={token || ''}
                 connected={terminal.connected}
                 onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
-                onCancelFileStream={() => terminalViewRef.current?.cancelFileStream()}
-                onForwardToChat={handlePlanForwardToChat}
                 onSendToTerminal={handlePlanSendToTerminal}
               />
             </div>
