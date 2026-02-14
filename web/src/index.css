@@ -1227,3 +1227,23 @@ body.resizing-panes-h * {
   color: var(--text-secondary);
   font-style: italic;
 }
+
+/* ── Plan Edit Textarea (full-file edit mode) ── */
+.plan-edit-textarea {
+  width: 100%;
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', 'LXGW WenKai Mono', Menlo, Monaco, 'Courier New', monospace;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  tab-size: 2;
+}
+
+.plan-edit-textarea::placeholder {
+  color: var(--scrollbar-thumb-hover);
+  font-style: italic;
+}

@@ -147,8 +147,8 @@ bash start.sh
 | DEFAULT_WORKING_DIR | 默认工作目录 | $HOME |
 | HTTPS_ENABLED | 是否启用 HTTPS | true (需要 server/certs/) |
 | TRUST_PROXY | 反向代理信任层数 | (空，不信任) |
-| RATE_LIMIT_READ | 只读 API 限速 (次/分钟) | 180 |
-| RATE_LIMIT_WRITE | 写入 API 限速 (次/分钟) | 60 |
+| RATE_LIMIT_READ | 只读 API 限速 (次/分钟) | 300 |
+| RATE_LIMIT_WRITE | 写入 API 限速 (次/分钟) | 100 |
 
 ## AI 任务生命周期
 
@@ -189,7 +189,7 @@ AiTasks/
     ├── .notes/                  # 研究发现
     ├── .tmp-annotations.json    # 前端批注传输（临时文件）
     ├── .auto-signal             # auto 模式进度报告
-    └── plan.md                  # 实施计划
+    └── .plan.md                 # 实施计划
 ```
 
 ### 批注发送流程

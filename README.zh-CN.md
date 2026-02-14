@@ -86,7 +86,7 @@ AiTasks/
     ├── .bugfix/                 # 问题历史
     ├── .notes/                  # 研究发现
     ├── .report.md               # 完成报告
-    └── plan.md                  # 实施计划
+    └── .plan.md                 # 实施计划
 ```
 
 ### 类型感知执行

@@ -33,8 +33,8 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '';
 const TRUST_PROXY = process.env.TRUST_PROXY || '';
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
 const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
-const RATE_LIMIT_READ = parseInt(process.env.RATE_LIMIT_READ || '180', 10);
-const RATE_LIMIT_WRITE = parseInt(process.env.RATE_LIMIT_WRITE || '60', 10);
+const RATE_LIMIT_READ = parseInt(process.env.RATE_LIMIT_READ || '300', 10);
+const RATE_LIMIT_WRITE = parseInt(process.env.RATE_LIMIT_WRITE || '100', 10);
 
 const CERT_PATH = join(__dirname, '../certs/server.crt');
 const KEY_PATH = join(__dirname, '../certs/server.key');
@@ -78,15 +78,21 @@ async function main() {
     frameguard: { action: 'deny' },
   }));
 
-  app.use('/api/', rateLimit({
-    windowMs: 60 * 1000,
-    max: (req) => req.method === 'GET' ? RATE_LIMIT_READ : RATE_LIMIT_WRITE,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many requests' },
-  }));
+  // Separate rate limiters for read (GET) and write (POST/PUT/DELETE) so polling doesn't starve writes
+  const rlOpts = { windowMs: 60 * 1000, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests' } };
+  const readLimiter = rateLimit({ ...rlOpts, max: RATE_LIMIT_READ });
+  const writeLimiter = rateLimit({ ...rlOpts, max: RATE_LIMIT_WRITE });
+  app.use('/api/', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') return readLimiter(req, res, next);
+    return writeLimiter(req, res, next);
+  });
 
-  app.use(express.json({ limit: '256kb' }));
+  // Default JSON body parser; file-content PUT has its own larger-limit parser in editor router
+  const defaultJsonParser = express.json({ limit: '256kb' });
+  app.use((req, res, next) => {
+    if (req.method === 'PUT' && req.path.endsWith('/file-content')) return next();
+    defaultJsonParser(req, res, next);
+  });
 
   if (CORS_ORIGIN) {
     app.use((_req, res, next) => {

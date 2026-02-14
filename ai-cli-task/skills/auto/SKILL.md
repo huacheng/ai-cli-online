@@ -374,5 +374,5 @@ On restart, Claude's auto loop re-reads `.index.md` and `.summary.md` to reconst
 - The daemon's only active intervention is writing `.auto-stop`; all other daemon activity is passive monitoring
 - `.auto-signal` and `.auto-stop` are transient files — should be in `.gitignore`
 - The daemon logs all signal events and stall detections to server console for debugging
-- **Known trade-off**: First entry on `executing` status always runs `check --checkpoint post-exec`. If execution was incomplete (`completed_steps` < total), check will detect this and route back to exec via NEEDS_FIX, adding one extra iteration. This is acceptable because the auto skill does not re-parse plan files to count total steps at entry
+- **Known trade-off**: First entry on `executing` status always runs `check --checkpoint post-exec`. If execution was incomplete (`completed_steps` < total), check will detect this and route back to exec via NEEDS_FIX, adding one extra iteration. This is acceptable because the auto skill does not re-parse `.plan.md` to count total steps at entry
 - **Context window overflow**: If Claude's context compacts during a long auto run, `.summary.md` (written by each sub-command) provides recovery context. The auto loop continues normally after compaction — each sub-command re-reads relevant files as specified in its SKILL.md

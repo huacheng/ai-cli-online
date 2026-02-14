@@ -16,3 +16,16 @@ export async function fetchFileContent(
   if (since) query.since = String(since);
   return sessionApi.getOptional<FileContentResult>(token, sessionId, 'file-content', query);
 }
+
+/**
+ * Save file content (write back to disk).
+ * Only works for files under AiTasks/ directories.
+ */
+export async function saveFileContent(
+  token: string,
+  sessionId: string,
+  path: string,
+  content: string,
+): Promise<{ ok: boolean; mtime: number }> {
+  return sessionApi.putJson<{ ok: boolean; mtime: number }>(token, sessionId, 'file-content', { path, content });
+}

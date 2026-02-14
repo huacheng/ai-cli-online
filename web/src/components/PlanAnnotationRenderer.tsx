@@ -6,6 +6,7 @@ import { useMermaidRender } from '../hooks/useMermaidRender';
 import { useAnnotationPersistence } from '../hooks/useAnnotationPersistence';
 import { writeTaskAnnotations } from '../api/annotations';
 import { saveAnnotationRemote } from '../api/annotations';
+import { saveFileContent } from '../api/docs';
 import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
 import { AnnotationDropdown } from './AnnotationDropdown';
 import { AnnotationCard } from './AnnotationCard';
@@ -39,12 +40,98 @@ interface Props {
   onSend?: (summary: string) => void;
   onRefresh?: () => void;
   onClose?: () => void;
+  onContentSaved?: (newContent: string, mtime: number) => void;
   expanded?: boolean;
   readOnly?: boolean;
 }
 
-export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, token, onExecute, onSend, onRefresh, onClose, expanded, readOnly }, ref) {
+export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, Props>(function PlanAnnotationRenderer({ markdown, filePath, sessionId, token, onExecute, onSend, onRefresh, onClose, onContentSaved, expanded, readOnly }, ref) {
   const fontSize = useStore((s) => s.fontSize);
+
+  // ── Send status feedback ──
+  const [sendStatus, setSendStatus] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+  const sendStatusTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const flashStatus = useCallback((type: 'ok' | 'err', msg: string) => {
+    clearTimeout(sendStatusTimerRef.current);
+    setSendStatus({ type, msg });
+    sendStatusTimerRef.current = setTimeout(() => setSendStatus(null), type === 'ok' ? 2500 : 5000);
+  }, []);
+  useEffect(() => () => clearTimeout(sendStatusTimerRef.current), []);
+
+  // ── Edit mode state ──
+  const [editMode, setEditMode] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const latency = useStore((s) => s.latency);
+
+  // Dual-layer edit persistence: L1 localStorage 50ms, L2 server adaptive
+  const editLsKey = `plan-edit:${sessionId}:${filePath}`;
+  const editL1TimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const editL2TimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const editL2InFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!editMode) return;
+    // L1: 50ms → localStorage
+    clearTimeout(editL1TimerRef.current);
+    editL1TimerRef.current = setTimeout(() => {
+      try { localStorage.setItem(editLsKey, editContent); } catch { /* full */ }
+    }, 50);
+    // L2: adaptive → server (save draft to file on disk)
+    clearTimeout(editL2TimerRef.current);
+    const syncInterval = Math.max(200, (latency ?? 30) * 3);
+    editL2TimerRef.current = setTimeout(() => {
+      if (editL2InFlightRef.current) return;
+      editL2InFlightRef.current = true;
+      saveFileContent(token, sessionId, filePath, editContent)
+        .then((result) => { onContentSaved?.(editContent, result.mtime); })
+        .catch(() => {})
+        .finally(() => { editL2InFlightRef.current = false; });
+    }, syncInterval);
+    return () => { clearTimeout(editL1TimerRef.current); clearTimeout(editL2TimerRef.current); };
+  }, [editContent, editMode, editLsKey, token, sessionId, filePath, latency, onContentSaved]);
+
+  // Reset edit mode when file changes
+  useEffect(() => { setEditMode(false); }, [filePath]);
+
+  // Focus textarea when entering edit mode
+  useEffect(() => {
+    if (editMode) requestAnimationFrame(() => editTextareaRef.current?.focus());
+  }, [editMode]);
+
+  const handleEnterEditMode = useCallback(() => {
+    if (readOnly || editMode) return;
+    // Restore from localStorage draft if available, otherwise use current markdown
+    const saved = localStorage.getItem(`plan-edit:${sessionId}:${filePath}`);
+    setEditContent(saved != null ? saved : markdown);
+    setEditMode(true);
+  }, [readOnly, editMode, markdown, sessionId, filePath]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditMode(false);
+    setEditContent('');
+    localStorage.removeItem(`plan-edit:${sessionId}:${filePath}`);
+  }, [sessionId, filePath]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (editSaving) return;
+    setEditSaving(true);
+    try {
+      const result = await saveFileContent(token, sessionId, filePath, editContent);
+      onContentSaved?.(editContent, result.mtime);
+      setEditMode(false);
+      setEditContent('');
+      localStorage.removeItem(`plan-edit:${sessionId}:${filePath}`);
+      flashStatus('ok', 'Saved');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save';
+      flashStatus('err', msg);
+      console.error('[PlanAnnotationRenderer] Failed to save file:', err);
+    } finally {
+      setEditSaving(false);
+    }
+  }, [editSaving, token, sessionId, filePath, editContent, onContentSaved, flashStatus]);
 
   // Parse markdown into tokens
   const tokens = useMemo(() => {
@@ -315,6 +402,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   const theme = useStore((s) => s.theme);
   useMermaidRender(containerRef, tokens, theme);
 
+
   // ── Execute / Send ──
   const getNewAnnotations = useCallback((): PlanAnnotations => {
     const bl = baselineIdsRef.current;
@@ -337,10 +425,14 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       onExecute(cmd);
       baselineIdsRef.current = collectIds(annotations);
       setBaselineVer(v => v + 1);
+      const count = newAnns.additions.length + newAnns.deletions.length + newAnns.replacements.length + newAnns.comments.length;
+      flashStatus('ok', `Sent ${count} annotation(s)`);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to send';
+      flashStatus('err', msg);
       console.error('[PlanAnnotationRenderer] Failed to write annotations:', err);
     }
-  }, [getNewAnnotations, annotations, sourceLines, onExecute, filePath, token, sessionId]);
+  }, [getNewAnnotations, annotations, sourceLines, onExecute, filePath, token, sessionId, flashStatus]);
 
   const handleSendSingle = useCallback(async (annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
     if (!onSend) return;
@@ -356,10 +448,13 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       onSend(generatePlanCommand(filePath, annFilePath));
       baselineIdsRef.current.add(annId);
       setBaselineVer(v => v + 1);
+      flashStatus('ok', 'Sent 1 annotation');
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to send';
+      flashStatus('err', msg);
       console.error('[PlanAnnotationRenderer] Failed to write single annotation:', err);
     }
-  }, [onSend, filePath, annotations, sourceLines, token, sessionId]);
+  }, [onSend, filePath, annotations, sourceLines, token, sessionId, flashStatus]);
 
   const handleDropdownDelete = useCallback((annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
     if (type === 'add') handleRemoveAddition(annId);
@@ -372,13 +467,14 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
   useImperativeHandle(ref, () => ({
     getSummary: () => { const newAnns = getNewAnnotations(); return hasAnnotations(newAnns) ? '[pending annotations]' : ''; },
     handleEscape: () => {
+      if (editMode) { handleCancelEdit(); return true; }
       if (pendingAction) { handleSubmitPendingAction(); return true; }
       if (activeInsert != null) { handleAddAnnotation(activeInsert); return true; }
       return false;
     },
     getScrollTop: () => containerRef.current?.scrollTop ?? 0,
     setScrollTop: (top: number) => { requestAnimationFrame(() => { if (containerRef.current) containerRef.current.scrollTop = top; }); },
-  }), [getNewAnnotations, activeInsert, handleAddAnnotation, pendingAction, handleSubmitPendingAction]);
+  }), [getNewAnnotations, editMode, handleCancelEdit, activeInsert, handleAddAnnotation, pendingAction, handleSubmitPendingAction]);
 
   // ── Computed sets ──
   const deletedIndices = useMemo(() => { const set = new Set<number>(); annotations.deletions.forEach((d) => d.tokenIndices.forEach((i) => set.add(i))); return set; }, [annotations.deletions]);
@@ -396,28 +492,68 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
         <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }} title={filePath}>
           {filePath.split('/').pop() || filePath}
         </span>
-        {onRefresh && <button className="pane-btn" onClick={onRefresh} title="Refresh current file">&#x21BB;</button>}
-        <button className="pane-btn" onClick={handleExecute} disabled={!hasUnsent} title="Send all annotations" style={hasUnsent ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}>Send</button>
-        <AnnotationDropdown
-          annotations={annotations}
-          annCounts={annCounts}
-          isSent={isSentCheck}
-          onSendAll={handleExecute}
-          onSendSingle={handleSendSingle}
-          onDelete={handleDropdownDelete}
-        />
-        {onClose && (
-          <button className="pane-btn pane-btn--danger" onClick={async () => { await handleExecute(); onClose(); }} title="Send annotations &amp; close file">&times;</button>
+        {sendStatus && (
+          <span
+            style={{ fontSize: '10px', color: sendStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160, cursor: sendStatus.type === 'err' ? 'pointer' : undefined }}
+            title={sendStatus.type === 'err' ? 'Click to copy' : sendStatus.msg}
+            onClick={sendStatus.type === 'err' ? () => { navigator.clipboard.writeText(sendStatus.msg).catch(() => {}); flashStatus('ok', 'Copied'); } : undefined}
+          >
+            {sendStatus.msg}
+          </span>
+        )}
+        {editMode ? (
+          <>
+            <button className="pane-btn" onClick={handleSaveEdit} disabled={editSaving} style={{ color: 'var(--accent-green)' }} title="Save (Ctrl+S)">{editSaving ? 'Saving...' : 'Save'}</button>
+            <button className="pane-btn" onClick={handleCancelEdit} disabled={editSaving} title="Cancel (Esc)">Cancel</button>
+          </>
+        ) : (
+          <>
+            {onRefresh && <button className="pane-btn" onClick={onRefresh} title="Refresh current file">&#x21BB;</button>}
+            {!readOnly && <button className="pane-btn" onClick={handleEnterEditMode} title="Edit file (double-click content)">Edit</button>}
+            <button className="pane-btn" onClick={handleExecute} disabled={!hasUnsent} title="Send all annotations" style={hasUnsent ? { color: 'var(--accent-green)' } : { opacity: 0.4 }}>Send</button>
+            <AnnotationDropdown
+              annotations={annotations}
+              annCounts={annCounts}
+              isSent={isSentCheck}
+              onSendAll={handleExecute}
+              onSendSingle={handleSendSingle}
+              onDelete={handleDropdownDelete}
+            />
+            {onClose && (
+              <button className="pane-btn pane-btn--danger" onClick={async () => { await handleExecute(); onClose(); }} title="Send annotations &amp; close file">&times;</button>
+            )}
+          </>
         )}
       </div>
 
       {/* Content + TOC */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {editMode ? (
+          <textarea
+            ref={editTextareaRef}
+            className="plan-edit-textarea"
+            style={{ fontSize: `${fontSize}px` }}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSaveEdit(); return; }
+              if (e.key === 'Escape') { e.preventDefault(); handleCancelEdit(); return; }
+            }}
+            spellCheck={false}
+          />
+        ) : (
         <div
           ref={containerRef}
           className={`plan-anno-content md-preview${activeInsert != null ? ' plan-anno-content--editing' : ''}`}
           style={{ flex: 1, overflow: 'auto', padding: '8px 12px', position: 'relative', fontSize: `${fontSize}px`, minWidth: 0 }}
           onMouseUp={(e: React.MouseEvent) => { lastMouseUpPosRef.current = { x: e.clientX, y: e.clientY, time: Date.now() }; handleSelectionCheck(); }}
+          onDoubleClick={(e) => {
+            // Only enter edit mode on double-click if not clicking on interactive elements
+            if (readOnly) return;
+            const target = e.target as HTMLElement;
+            if (target.closest('textarea, button, .plan-annotation-card, .plan-insert-btn, .plan-selection-float')) return;
+            handleEnterEditMode();
+          }}
         >
           {/* Insert zone before first block */}
           {!readOnly && (
@@ -510,7 +646,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
             />
           )}
         </div>
-        <MarkdownToc headings={headings} scrollRef={containerRef} />
+        )}
+        {!editMode && <MarkdownToc headings={headings} scrollRef={containerRef} />}
       </div>
     </div>
   );

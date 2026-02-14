@@ -52,7 +52,7 @@ Evaluates whether the implementation plan is ready for execution.
 
 Evaluates progress during execution when issues are encountered.
 
-**Reads:** `.target.md` + plan files + `.summary.md` (if exists) + `.test/` (latest criteria + results) + `.analysis/` (latest file only) + current code changes (via git diff)
+**Reads:** `.target.md` + `.plan.md` + `.summary.md` (if exists) + `.test/` (latest criteria + results) + `.analysis/` (latest file only) + current code changes (via git diff)
 
 **Evaluation Criteria:**
 
@@ -76,7 +76,7 @@ Evaluates progress during execution when issues are encountered.
 
 Evaluates whether execution results meet the task requirements.
 
-**Reads:** `.target.md` + plan files + `.summary.md` (if exists) + `.test/` (all criteria + latest results) + `.analysis/` (latest file only) + code changes + test results
+**Reads:** `.target.md` + `.plan.md` + `.summary.md` (if exists) + `.test/` (all criteria + latest results) + `.analysis/` (latest file only) + code changes + test results
 
 **Evaluation Criteria:**
 

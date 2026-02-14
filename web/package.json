@@ -1,6 +1,6 @@
 {
   "name": "ai-cli-online-web",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "CLI-Online Web Frontend",
   "type": "module",
   "scripts": {

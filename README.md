@@ -86,7 +86,7 @@ AiTasks/
     ├── .bugfix/                 # Issue history
     ├── .notes/                  # Research findings
     ├── .report.md               # Completion report
-    └── plan.md                  # Implementation plan
+    └── .plan.md                 # Implementation plan
 ```
 
 ### Type-Aware Execution

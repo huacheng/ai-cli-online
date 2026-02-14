@@ -138,9 +138,9 @@ export function shellQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
-/** Generate /ai-cli-task plan command for a single file */
+/** Generate /ai-cli-task:ai-cli-task plan command for a single file */
 export function generatePlanCommand(filePath: string, annFilePath: string): string {
-  return `/ai-cli-task plan ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
+  return `/ai-cli-task:ai-cli-task plan ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
 }
 
 /** Derive module path: AiTasks/<module>/ from a full file path */

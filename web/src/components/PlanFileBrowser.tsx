@@ -20,7 +20,26 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
   const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // Current browsing directory (can navigate into subdirectories)
-  const [currentDir, setCurrentDir] = useState(planDir);
+  // Derive initial value from selectedFile so the first render is already correct
+  const [currentDir, setCurrentDir] = useState(() => {
+    if (selectedFile && selectedFile.startsWith(planDir + '/')) {
+      const parentDir = selectedFile.substring(0, selectedFile.lastIndexOf('/'));
+      if (parentDir.startsWith(planDir)) return parentDir;
+    }
+    return planDir;
+  });
+
+  // Sync currentDir when planDir or selectedFile changes after mount
+  useEffect(() => {
+    if (selectedFile && selectedFile.startsWith(planDir + '/')) {
+      const parentDir = selectedFile.substring(0, selectedFile.lastIndexOf('/'));
+      if (parentDir.startsWith(planDir)) {
+        setCurrentDir(parentDir);
+        return;
+      }
+    }
+    setCurrentDir(planDir);
+  }, [selectedFile, planDir]);
 
   const loadFiles = useCallback(async () => {
     if (!token || !currentDir) return;

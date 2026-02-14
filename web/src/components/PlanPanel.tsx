@@ -63,8 +63,8 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   const [showInitGuide, setShowInitGuide] = useState(false);
   const planAnnotationRef = useRef<PlanAnnotationRendererHandle>(null);
 
-  // Persist selected file to localStorage (50ms debounce)
-  const planFileKey = `plan-selected-file-${sessionId}`;
+  // Persist selected file to localStorage (global key — sessionId omitted so it persists across terminals)
+  const planFileKey = 'plan-selected-file';
   const planFileSaveRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (!planSelectedFile) return;
@@ -73,7 +73,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       try { localStorage.setItem(planFileKey, planSelectedFile); } catch { /* full */ }
     }, 50);
     return () => clearTimeout(planFileSaveRef.current);
-  }, [planSelectedFile, planFileKey]);
+  }, [planSelectedFile]);
 
   // Auto-detect AiTasks/ directory on mount
   const planStreamedRef = useRef<string | null>(null);
@@ -128,6 +128,27 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, token]);
+
+  // Auto-detect AiTasks/ creation when init guide is shown (poll every 3s)
+  useEffect(() => {
+    if (!showInitGuide || !connected) return;
+    const iv = setInterval(async () => {
+      try {
+        const res = await fetchFiles(token, sessionId);
+        const aiTasksEntry = res.files.find((f: FileEntry) => f.name === 'AiTasks' && f.type === 'directory');
+        if (aiTasksEntry) {
+          const dirPath = res.cwd + '/AiTasks';
+          setPlanDir(dirPath);
+          setShowInitGuide(false);
+          const savedFile = localStorage.getItem(planFileKey);
+          if (savedFile && savedFile.startsWith(dirPath + '/')) {
+            setPlanSelectedFile(savedFile);
+          }
+        }
+      } catch { /* ignore */ }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [showInitGuide, connected, token, sessionId, planFileKey]);
 
   // Register file stream event bus handler
   useEffect(() => {
@@ -224,6 +245,12 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   const handlePlanSave = useCallback((summary: string) => {
     if (summary) onSendToTerminal?.(summary);
   }, [onSendToTerminal]);
+
+  // Handle content saved from edit mode — update markdown + mtime
+  const handleContentSaved = useCallback((newContent: string, mtime: number) => {
+    setPlanMarkdown(newContent);
+    planMtimeRef.current = mtime;
+  }, []);
 
   // Handle close file — deselect current file (does NOT close the Plan panel)
   const handleCloseFile = useCallback(() => {
@@ -356,7 +383,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: '0 20px' }}>
               <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>AiTasks/ directory not found</span>
               <span style={{ color: 'var(--text-secondary)', fontSize: 12, textAlign: 'center' }}>
-                Run <code style={{ color: 'var(--accent-blue)', backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 3 }}>/ai-cli-task init &lt;name&gt;</code> in the terminal to create a task
+                Run <code style={{ color: 'var(--accent-blue)', backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 3 }}>/ai-cli-task:ai-cli-task init &lt;name&gt;</code> in the terminal to create a task
               </span>
             </div>
           ) : planSelectedFile && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
@@ -372,6 +399,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
               onSend={onSendToTerminal}
               onRefresh={handlePlanRefresh}
               onClose={handleCloseFile}
+              onContentSaved={handleContentSaved}
               readOnly={planSelectedFile.endsWith('/.index.md')}
             />
           ) : (

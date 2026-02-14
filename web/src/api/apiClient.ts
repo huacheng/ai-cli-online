@@ -69,6 +69,15 @@ export const sessionApi = {
     }
   },
 
+  async putJson<T>(token: string, sessionId: string, path: string, body: unknown): Promise<T> {
+    const res = await fetch(sessionUrl(sessionId, path), {
+      method: 'PUT',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return parseResponse<T>(res);
+  },
+
   async del(token: string, sessionId: string, path: string, body?: unknown): Promise<void> {
     const res = await fetch(sessionUrl(sessionId, path), {
       method: 'DELETE',

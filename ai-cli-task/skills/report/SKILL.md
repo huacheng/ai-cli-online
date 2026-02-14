@@ -25,7 +25,7 @@ Generate a structured completion report for a task module, documenting what was 
 
 - Task module should have status `complete` (post-exec assessment passed)
 - Can also be run on `blocked` or `cancelled` tasks for documentation purposes
-- **Minimum content**: If status is `draft` and no plan files exist, report outputs a brief notice ("No meaningful content to report — task is still in draft with no plan") instead of generating an empty report structure
+- **Minimum content**: If status is `draft` and `.plan.md` does not exist, report outputs a brief notice ("No meaningful content to report — task is still in draft with no plan") instead of generating an empty report structure
 
 ## Report Structure
 
@@ -44,7 +44,7 @@ Generate a structured completion report for a task module, documenting what was 
 <!-- From .target.md -->
 
 ## Plan
-<!-- Summary of implementation approach from plan files -->
+<!-- Summary of implementation approach from .plan.md -->
 
 ## Changes Made
 <!-- List of files modified/created/deleted with brief descriptions -->
@@ -74,7 +74,7 @@ The report is written to `AiTasks/<module_name>/.report.md` and also printed to 
 
 1. **Read** `.index.md` for task metadata (including `completed_steps`)
 2. **Read** `.target.md` for objectives
-3. **Read** all plan files for implementation approach
+3. **Read** `.plan.md` for implementation approach
 4. **Read** `.summary.md` if exists (condensed context overview)
 5. **Read** `.test/` for verification criteria and test results (all files, sorted by name, if exists)
 6. **Read** `.analysis/` for evaluation history (all files, sorted by name, if exists)

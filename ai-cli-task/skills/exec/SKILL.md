@@ -31,14 +31,14 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 ### Step Discovery
 
-1. **Read** all plan files in the task module (non-dot-prefixed `.md` files)
+1. **Read** the plan file `.plan.md` in the task module
 2. **Read** `.target.md` for requirements context
 3. **Read** `.summary.md` if exists (condensed context from prior plan/check/exec runs — primary context source)
 4. **Read** `.test/` latest criteria file for per-step verification criteria and acceptance standards
 5. **Read** `.analysis/` latest file only for evaluation notes and approved approach
 6. **Read** `.bugfix/` latest file only if exists for most recent issue and fix guidance
 7. **Read** `.notes/` latest file only if exists for most recent research findings
-8. **Extract** implementation steps from plan files (ordered by file, then by heading structure)
+8. **Extract** implementation steps from `.plan.md` (ordered by heading structure)
 9. **Build** execution order respecting any noted dependencies
 
 **Context management**: When `.summary.md` exists, read it as the primary context source instead of reading all files from `.analysis/`, `.bugfix/`, `.notes/`. Only read the latest (last by filename sort) file from each directory for detailed info on the most recent assessment/issue/note.
@@ -70,7 +70,7 @@ For each implementation step:
 1. **Read** `.index.md` — validate status is `review` or `executing`
 2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
 3. **Update** `.index.md` status to `executing`, update timestamp
-4. **Discover** all implementation steps from plan files
+4. **Discover** all implementation steps from `.plan.md`
 5. **Detect completed steps**: read `completed_steps` field from `.index.md` frontmatter to determine progress; skip steps ≤ `completed_steps`
 6. **If NEEDS_FIX resumption**: determine fix source by reading **both** `.bugfix/` and `.analysis/` latest files, using the most recent file (by filename date) as the primary fix guidance. `.bugfix/` entries indicate mid-exec issues; `.analysis/` entries indicate post-exec issues. Address fix items before continuing remaining steps
 7. **If** `--step N` specified, execute only that step; otherwise execute remaining incomplete steps in order

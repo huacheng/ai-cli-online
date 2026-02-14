@@ -42,9 +42,9 @@ When called without annotation_file or with `--generate`:
 8. Read project codebase for context (relevant files, CLAUDE.md conventions)
 9. Read `.notes/` latest file only if exists (prior research findings and experience)
 10. **Research domain best practices**: Based on the determined task type, use shell commands (curl, web search, npm info, etc.) to find established methodologies, tools, and patterns for that domain. Do not rely solely on internal knowledge
-11. **If re-planning** (status is `re-planning` or `review`/`executing` transitioning to re-plan): archive existing user plan files — rename each non-dot `.md` file in the module to dot-prefixed (e.g., `plan.md` → `.plan-superseded.md`). This prevents `exec` from reading outdated steps alongside the new plan
+11. **If re-planning** (status is `re-planning` or `review`/`executing` transitioning to re-plan): archive existing `.plan.md` — rename to `.plan-superseded.md` (append numeric suffix if already exists, e.g., `.plan-superseded-2.md`). This prevents `exec` from reading outdated steps alongside the new plan
 12. Generate implementation plan using **domain-appropriate methodology** (incorporating check feedback, bugfix history, prior notes, cross-task experience, and researched best practices)
-13. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
+13. Write plan to `.plan.md` in the task module
 14. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with **domain-appropriate** verification criteria: acceptance criteria from `.target.md` + per-step test cases using methods standard in the task domain. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
 15. **Update** `.test/summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
 16. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
@@ -68,7 +68,7 @@ Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types
 1. **Read** the task file at the given absolute path
 2. **Read** `.index.md` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
 3. **Read** the annotation file (`.tmp-annotations.json`)
-4. **Read** `.target.md` + sibling plan files + `.test/` (latest criteria) for full context
+4. **Read** `.target.md` + `.plan.md` + `.test/` (latest criteria) for full context
 5. **Parse** all annotation arrays
 6. **Triage** each annotation by type and condition
 7. **Assess** cross-impacts and conflicts against ALL files in the module
@@ -120,7 +120,7 @@ Plan methodology MUST adapt to the task domain. Different domains require differ
 ## Notes
 
 - The `.tmp-annotations.json` is ephemeral — created by frontend, consumed and deleted by this skill
-- All plan research should consider the full context of the task module (read `.target.md` and sibling plan files)
+- All plan research should consider the full context of the task module (read `.target.md` and `.plan.md`)
 - When researching implementation plans, use the project codebase as context (read relevant project files)
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
