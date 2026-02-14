@@ -3,9 +3,9 @@ import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { PlanPanel } from './PlanPanel';
 import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
-import { uploadFiles, fetchCwd, downloadCwd, fetchFiles, downloadFile } from '../api/files';
-import type { FileEntry } from '../api/files';
-import { formatSize, fileIcon } from '../utils';
+import { DownloadPopup } from './DownloadPopup';
+import { uploadFiles, fetchCwd } from '../api/files';
+import { usePanelResize } from '../hooks/usePanelResize';
 
 import type { TerminalInstance } from '../types';
 import type { TerminalViewHandle } from './TerminalView';
@@ -17,7 +17,6 @@ interface TerminalPaneProps {
 
 const NARROW_THRESHOLD = 600;
 
-/** Shared matchMedia hook — single listener, only fires when crossing the threshold */
 const narrowQuery = typeof window !== 'undefined'
   ? window.matchMedia(`(max-width: ${NARROW_THRESHOLD - 1}px)`)
   : null;
@@ -40,6 +39,23 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const toggleChat = useStore((s) => s.toggleChat);
   const togglePlan = useStore((s) => s.togglePlan);
   const { chatOpen, planOpen } = terminal.panels;
+
+  const outerRef = useRef<HTMLDivElement>(null);
+  const topRowRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const terminalViewRef = useRef<TerminalViewHandle>(null);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
+
+  // Panel resize hooks
+  const [planWidthPercent, handlePlanDividerMouseDown] = usePanelResize(
+    `plan-width-${terminal.id}`, 50,
+    { containerRef: topRowRef, axis: 'x', min: 20, max: 80, bodyClass: 'resizing-panes' },
+  );
+
+  const [chatHeightPercent, handleChatDividerMouseDown] = usePanelResize(
+    `doc-height-${terminal.id}`, 35,
+    { containerRef: outerRef, axis: 'y', offset: 24, min: 15, max: 60, invert: true, bodyClass: 'resizing-panes-v' },
+  );
 
   // Poll CWD for display in title bar
   const [cwd, setCwd] = useState('');
@@ -65,57 +81,13 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     splitTerminal(terminal.id, direction, cwd);
   }, [token, terminal.id, splitTerminal]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const terminalViewRef = useRef<TerminalViewHandle>(null);
-  const editorRef = useRef<MarkdownEditorHandle>(null);
+  // Upload state
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [downloading, setDownloading] = useState(false);
   const [editorHasContent, setEditorHasContent] = useState(false);
 
-  // Download popup state
+  // Download popup
   const [showDownloadPopup, setShowDownloadPopup] = useState(false);
-  const [downloadFiles, setDownloadFiles] = useState<FileEntry[]>([]);
-  const [downloadDir, setDownloadDir] = useState('');
-  const [downloadDirStack, setDownloadDirStack] = useState<string[]>([]);
-  const [downloadLoading, setDownloadLoading] = useState(false);
-  const downloadPopupRef = useRef<HTMLDivElement>(null);
-  const outerRef = useRef<HTMLDivElement>(null);
-  const topRowRef = useRef<HTMLDivElement>(null);
-
-  // Plan width percent (horizontal resize)
-  const [planWidthPercent, setPlanWidthPercent] = useState(() => {
-    const saved = localStorage.getItem(`plan-width-${terminal.id}`);
-    if (saved) {
-      const n = Number(saved);
-      if (Number.isFinite(n) && n >= 20 && n <= 80) return n;
-    }
-    return 50;
-  });
-
-  // Persist plan width
-  const prevPlanWidthRef = useRef(planWidthPercent);
-  if (planWidthPercent !== prevPlanWidthRef.current) {
-    prevPlanWidthRef.current = planWidthPercent;
-    try { localStorage.setItem(`plan-width-${terminal.id}`, String(Math.round(planWidthPercent))); } catch { /* full */ }
-  }
-
-  // Chat height percent (vertical resize)
-  const [chatHeightPercent, setChatHeightPercent] = useState(() => {
-    const saved = localStorage.getItem(`doc-height-${terminal.id}`);
-    if (saved) {
-      const n = Number(saved);
-      if (Number.isFinite(n) && n >= 15 && n <= 60) return n;
-    }
-    return 35;
-  });
-
-  // Persist chat height
-  const prevChatHeightRef = useRef(chatHeightPercent);
-  if (chatHeightPercent !== prevChatHeightRef.current) {
-    prevChatHeightRef.current = chatHeightPercent;
-    try { localStorage.setItem(`doc-height-${terminal.id}`, String(Math.round(chatHeightPercent))); } catch { /* full */ }
-  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -146,93 +118,9 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     }
   }, []);
 
-  // Clean up editor send timer on unmount
   useEffect(() => {
     return () => { if (sendTimerRef.current) clearTimeout(sendTimerRef.current); };
   }, []);
-
-  // Open download popup — fetch CWD file list
-  const handleOpenDownloadPopup = useCallback(async () => {
-    if (!token) return;
-    setDownloadLoading(true);
-    setShowDownloadPopup(true);
-    try {
-      const res = await fetchFiles(token, terminal.id);
-      setDownloadDir(res.cwd);
-      setDownloadFiles(res.files);
-      setDownloadDirStack([]);
-    } catch (err) {
-      console.error('[download-popup] Failed to list files:', err);
-      setShowDownloadPopup(false);
-    } finally {
-      setDownloadLoading(false);
-    }
-  }, [token, terminal.id]);
-
-  // Navigate into a subdirectory in download popup
-  const handleDownloadNavigate = useCallback(async (dirPath: string) => {
-    if (!token) return;
-    setDownloadLoading(true);
-    try {
-      const res = await fetchFiles(token, terminal.id, dirPath);
-      setDownloadDirStack((prev) => [...prev, downloadDir]);
-      setDownloadDir(dirPath);
-      setDownloadFiles(res.files);
-    } catch (err) {
-      console.error('[download-popup] Failed to navigate:', err);
-    } finally {
-      setDownloadLoading(false);
-    }
-  }, [token, terminal.id, downloadDir]);
-
-  // Go back to parent directory in download popup
-  const handleDownloadBack = useCallback(async () => {
-    if (!token || downloadDirStack.length === 0) return;
-    const parentDir = downloadDirStack[downloadDirStack.length - 1];
-    setDownloadLoading(true);
-    try {
-      const res = await fetchFiles(token, terminal.id, parentDir);
-      setDownloadDirStack((prev) => prev.slice(0, -1));
-      setDownloadDir(parentDir);
-      setDownloadFiles(res.files);
-    } catch (err) {
-      console.error('[download-popup] Failed to go back:', err);
-    } finally {
-      setDownloadLoading(false);
-    }
-  }, [token, terminal.id, downloadDirStack]);
-
-  // Download a single file from popup
-  const handleDownloadSingleFile = useCallback(async (filePath: string) => {
-    if (!token) return;
-    try {
-      await downloadFile(token, terminal.id, filePath);
-    } catch (err) {
-      console.error('[download-file] Failed:', err);
-      alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-  }, [token, terminal.id]);
-
-  // Close download popup on ESC or click outside
-  useEffect(() => {
-    if (!showDownloadPopup) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowDownloadPopup(false);
-    };
-    const handleClick = (e: MouseEvent) => {
-      if (downloadPopupRef.current && !downloadPopupRef.current.contains(e.target as Node)) {
-        setShowDownloadPopup(false);
-      }
-    };
-    document.addEventListener('keydown', handleKey);
-    // Delay click listener to avoid immediate close from the button click
-    const timer = setTimeout(() => document.addEventListener('mousedown', handleClick), 50);
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      document.removeEventListener('mousedown', handleClick);
-      clearTimeout(timer);
-    };
-  }, [showDownloadPopup]);
 
   // Plan Send -> send annotations directly to terminal PTY
   const handlePlanSendToTerminal = useCallback((text: string) => {
@@ -243,59 +131,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
     }
   }, []);
 
-  // Chat vertical divider drag
-  const handleChatDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const container = outerRef.current;
-    if (!container) return;
-    // Measure from after the title bar (24px)
-    const rect = container.getBoundingClientRect();
-    const containerHeight = rect.height - 24; // subtract title bar
-
-    document.body.classList.add('resizing-panes-v');
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const localY = ev.clientY - rect.top - 24;
-      const terminalPct = (localY / containerHeight) * 100;
-      const clamped = Math.min(85, Math.max(40, terminalPct));
-      setChatHeightPercent(100 - clamped);
-    };
-
-    const onMouseUp = () => {
-      document.body.classList.remove('resizing-panes-v');
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, []);
-
-  // Plan horizontal divider drag
-  const handlePlanDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const container = topRowRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const containerWidth = rect.width;
-
-    document.body.classList.add('resizing-panes');
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const planPct = ((ev.clientX - rect.left) / containerWidth) * 100;
-      const clamped = Math.min(80, Math.max(20, planPct));
-      setPlanWidthPercent(clamped);
-    };
-
-    const onMouseUp = () => {
-      document.body.classList.remove('resizing-panes');
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, []);
+  const handleCloseDownload = useCallback(() => setShowDownloadPopup(false), []);
 
   return (
     <div ref={outerRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, minHeight: 0 }}>
@@ -344,7 +180,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {/* Hidden file input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -352,7 +187,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             style={{ display: 'none' }}
             onChange={handleUpload}
           />
-          {/* Upload button */}
           <button
             className="pane-btn"
             onClick={() => fileInputRef.current?.click()}
@@ -363,168 +197,23 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             {uploading ? `${uploadProgress}%` : '\u2191'}
           </button>
-          {/* Download button + popup */}
           <div style={{ position: 'relative' }}>
             <button
               className="pane-btn"
-              onClick={handleOpenDownloadPopup}
-              disabled={downloading}
-              style={downloading ? { color: 'var(--accent-yellow)' } : undefined}
-              title={downloading ? 'Downloading...' : 'Download files'}
+              onClick={() => setShowDownloadPopup(true)}
+              title="Download files"
               aria-label="Download files"
             >
-              {downloading ? '...' : '\u2193'}
+              {'\u2193'}
             </button>
-            {showDownloadPopup && (
-              <div
-                ref={downloadPopupRef}
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  width: 300,
-                  maxHeight: 360,
-                  backgroundColor: 'var(--bg-primary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                  zIndex: 100,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Header: current path + back button */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '6px 8px',
-                  borderBottom: '1px solid var(--border)',
-                  backgroundColor: 'var(--bg-secondary)',
-                  flexShrink: 0,
-                }}>
-                  {downloadDirStack.length > 0 && (
-                    <button
-                      className="pane-btn"
-                      onClick={handleDownloadBack}
-                      disabled={downloadLoading}
-                      style={{ fontSize: 11, flexShrink: 0 }}
-                      title="Go back"
-                    >
-                      ..
-                    </button>
-                  )}
-                  <span style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    direction: 'rtl',
-                    textAlign: 'left',
-                    flex: 1,
-                  }}>
-                    {downloadDir.split('/').slice(-2).join('/') || downloadDir}
-                  </span>
-                  <button
-                    className="pane-btn"
-                    onClick={() => setShowDownloadPopup(false)}
-                    style={{ fontSize: 11, flexShrink: 0 }}
-                    title="Close"
-                  >
-                    &times;
-                  </button>
-                </div>
-
-                {/* File list */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
-                  {downloadLoading ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
-                      Loading...
-                    </div>
-                  ) : downloadFiles.length === 0 ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, fontStyle: 'italic' }}>
-                      Empty directory
-                    </div>
-                  ) : (
-                    downloadFiles.map((f) => (
-                      <div
-                        key={f.name}
-                        onClick={() => {
-                          const fullPath = downloadDir + '/' + f.name;
-                          if (f.type === 'directory') {
-                            handleDownloadNavigate(fullPath);
-                          } else {
-                            handleDownloadSingleFile(fullPath);
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '4px 10px',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          color: 'var(--text-primary)',
-                          transition: 'background-color 0.1s',
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--bg-secondary)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'; }}
-                      >
-                        <span style={{ flexShrink: 0, fontSize: 13 }}>
-                          {f.type === 'directory' ? '\u{1F4C1}' : fileIcon(f.name, f.type)}
-                        </span>
-                        <span style={{
-                          flex: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {f.name}
-                        </span>
-                        {f.type === 'directory' ? (
-                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>&rsaquo;</span>
-                        ) : f.size != null ? (
-                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>{formatSize(f.size)}</span>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Footer: download all */}
-                <div style={{
-                  borderTop: '1px solid var(--border)',
-                  padding: '6px 8px',
-                  flexShrink: 0,
-                  backgroundColor: 'var(--bg-secondary)',
-                }}>
-                  <button
-                    className="pane-btn"
-                    onClick={async () => {
-                      setDownloading(true);
-                      setShowDownloadPopup(false);
-                      try {
-                        await downloadCwd(token || '', terminal.id);
-                      } catch (err) {
-                        console.error('[download-cwd] Failed:', err);
-                        alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-                      } finally {
-                        setDownloading(false);
-                      }
-                    }}
-                    style={{ fontSize: 11, color: 'var(--accent-blue)', width: '100%', textAlign: 'center' }}
-                    title="Download entire CWD as tar.gz"
-                  >
-                    Download All (tar.gz)
-                  </button>
-                </div>
-              </div>
+            {showDownloadPopup && token && (
+              <DownloadPopup
+                token={token}
+                sessionId={terminal.id}
+                onClose={handleCloseDownload}
+              />
             )}
           </div>
-          {/* Chat panel toggle */}
           <button
             className={`pane-btn${chatOpen ? ' pane-btn--active' : ''}`}
             onClick={() => toggleChat(terminal.id)}
@@ -533,7 +222,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           >
             Chat
           </button>
-          {/* Task panel toggle */}
           <button
             className={`pane-btn${planOpen ? ' pane-btn--active' : ''}`}
             onClick={() => togglePlan(terminal.id)}
@@ -563,7 +251,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
 
       {/* Main area: Plan (left) | Right column (Terminal + Chat) */}
       <div ref={topRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-        {/* Plan panel (left side) + Horizontal divider */}
         {planOpen && (
           <>
             <div style={{ width: `${planWidthPercent}%`, minWidth: 200, flexShrink: 0, overflow: 'hidden' }}>
@@ -591,9 +278,7 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
           </>
         )}
 
-        {/* Right column: Terminal + Chat */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-          {/* Terminal */}
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minWidth: 80 }}>
             <TerminalView ref={terminalViewRef} sessionId={terminal.id} />
             {!terminal.connected && (
@@ -615,7 +300,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             )}
           </div>
 
-          {/* Vertical divider + Chat panel (bottom) */}
           {chatOpen && (
             <>
               <div
@@ -623,7 +307,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                 onMouseDown={handleChatDividerMouseDown}
               />
               <div style={{ height: `${chatHeightPercent}%`, minHeight: 80, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
-                {/* Chat toolbar */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -648,7 +331,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
                     <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Ctrl+Enter</span>
                   </div>
                 </div>
-                {/* Editor */}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   <MarkdownEditor
                     ref={editorRef}
@@ -664,7 +346,6 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         </div>
       </div>
 
-      {/* Error bar */}
       {terminal.error && (
         <div style={{
           padding: '2px 8px',
