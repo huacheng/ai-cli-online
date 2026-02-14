@@ -73,12 +73,15 @@ One command triggers the entire lifecycle. A single Claude session runs plan →
 
 ```
 AiTasks/
-├── .index.md                    # Module listing
-├── .experience/                 # Cross-task knowledge base (by domain type)
-│   ├── software.md
+├── .index.json                  # Module listing
+├── .experiences/                # Cross-task knowledge base (by domain type)
+│   ├── .summary.md              # Experience file index
 │   └── <type>.md
+├── .references/                 # External reference materials (collected during plan/exec)
+│   ├── .summary.md              # Reference file index
+│   └── <topic>.md
 └── my-feature/
-    ├── .index.md                # Status, phase, timestamps, dependencies (YAML)
+    ├── .index.json              # Status, phase, timestamps, dependencies (JSON)
     ├── .target.md               # Requirements (human-authored)
     ├── .summary.md              # Condensed context (prevents context overflow)
     ├── .analysis/               # Evaluation history
@@ -91,7 +94,7 @@ AiTasks/
 
 ### Type-Aware Execution
 
-Tasks are classified by domain type (`software`, `dsp`, `ml`, `literary`, `science:physics`, etc.). Each type adapts planning methodology, execution tools, and verification criteria. Completed task lessons are stored in `.experience/<type>.md` and referenced by future tasks of the same type.
+Tasks are classified by domain type (`software`, `dsp`, `ml`, `literary`, `science:physics`, etc.). Each type adapts planning methodology, execution tools, and verification criteria. Completed task lessons are stored in `.experiences/<type>.md` and referenced by future tasks of the same type.
 
 ## Terminal Features
 

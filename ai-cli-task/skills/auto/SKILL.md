@@ -174,7 +174,7 @@ Terminal: merge conflict → (stop, status stays executing — retryable)
 The auto skill runs this loop within a single Claude session:
 
 ```
-1. Read .index.md → determine entry point (status-based routing)
+1. Read .index.json → determine entry point (status-based routing)
 2. LOOP:
    a. Check for .auto-stop file → if exists, break loop
    b. Context check: if context window usage ≥ 70%, run /compact to compress context
@@ -222,6 +222,7 @@ After each step, Claude evaluates the result and determines the next step intern
 | plan | (any) | check | post-plan | Plan ready, assess it |
 | exec | (done) | check | post-exec | All steps completed, verify results |
 | exec | (mid-exec) | check | mid-exec | Significant issue encountered, checkpoint |
+| exec | (step-N) | check | mid-exec | Single step completed (manual `--step N` only) |
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
@@ -239,7 +240,7 @@ The `.summary.md` file is still written by each sub-command as a **compaction sa
 
 **Compaction recovery**: If context compaction occurs mid-loop, Claude loses the iteration counter and current step position. To recover:
 1. Read `.auto-signal` — the `iteration` field gives the last completed iteration count; `step` and `next` give the position in the loop
-2. Read `.index.md` — status confirms the current lifecycle phase
+2. Read `.index.json` — status confirms the current lifecycle phase
 3. Read `.summary.md` — condensed task context from the last sub-command
 4. Resume the loop from `next` step at `iteration + 1`
 
@@ -360,13 +361,13 @@ On backend server restart, auto state is recovered from SQLite:
    a. **Delete stale `.auto-stop`** if exists in `task_dir` (prevents restarted Claude from immediately exiting due to leftover stop file from pre-crash state)
    b. Check terminal state via `tmux capture-pane`:
       - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
-      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task auto <task_dir>"` to PTY (Claude's internal loop reads `.index.md` to determine resume point)
+      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
    c. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
    d. Start heartbeat polling timer
    e. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
 3. **Resume** normal daemon operation (signal watching + heartbeat polling)
 
-On restart, Claude's auto loop re-reads `.index.md` and `.summary.md` to reconstruct context. The conversation context from the previous session is lost, but `.summary.md` provides the condensed recovery information.
+On restart, Claude's auto loop re-reads `.index.json` and `.summary.md` to reconstruct context. The conversation context from the previous session is lost, but `.summary.md` provides the condensed recovery information.
 
 ## Notes
 

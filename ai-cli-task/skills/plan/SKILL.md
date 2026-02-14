@@ -33,27 +33,29 @@ Two modes: generate an implementation plan from `.target.md`, or process annotat
 When called without annotation_file or with `--generate`:
 
 1. Read `.target.md` for requirements
-2. **Determine task type**: Analyze `.target.md` content to identify the task domain (see Task-Type-Aware Planning below). Validate type value matches `[a-zA-Z0-9_:-]+`. Set `type` field in `.index.md`
+2. **Determine task type**: Analyze `.target.md` content to identify the task domain (see Task-Type-Aware Planning below). Validate type value matches `[a-zA-Z0-9_:-]+`. Set `type` field in `.index.json`
 3. Read `.summary.md` if exists (condensed context from prior runs — primary context source)
 4. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
 5. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
 6. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
-7. Read `AiTasks/.experience/<type>.md` if exists — cross-task experience from completed tasks of the same domain type (lessons learned, patterns, tool choices)
-8. Read project codebase for context (relevant files, CLAUDE.md conventions)
-9. Read `.notes/` latest file only if exists (prior research findings and experience)
-10. **Research domain best practices**: Based on the determined task type, use shell commands (curl, web search, npm info, etc.) to find established methodologies, tools, and patterns for that domain. Do not rely solely on internal knowledge
-11. **If re-planning** (status is `re-planning` or `review`/`executing` transitioning to re-plan): archive existing `.plan.md` — rename to `.plan-superseded.md` (append numeric suffix if already exists, e.g., `.plan-superseded-2.md`). This prevents `exec` from reading outdated steps alongside the new plan
-12. Generate implementation plan using **domain-appropriate methodology** (incorporating check feedback, bugfix history, prior notes, cross-task experience, and researched best practices)
-13. Write plan to `.plan.md` in the task module
-14. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with **domain-appropriate** verification criteria: acceptance criteria from `.target.md` + per-step test cases using methods standard in the task domain. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
-15. **Update** `.test/summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
-16. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
-17. **Update** `.notes/summary.md` — overwrite with condensed summary of ALL notes files in `.notes/`
-18. Write task-level `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints (integrate from directory summaries)
-19. Update `.index.md`: set `type` field (if not already set or if task nature changed), status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
-20. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
-21. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "check", checkpoint: "post-plan" }`
-22. Report plan summary to user
+7. Read `AiTasks/.experiences/<type>.md` if exists — cross-task experience from completed tasks of the same domain type (lessons learned, patterns, tool choices)
+8. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files by keyword matching against task requirements. Read matched `.references/<topic>.md` files for domain knowledge
+9. Read project codebase for context (relevant files, CLAUDE.md conventions)
+10. Read `.notes/` latest file only if exists (prior research findings and experience)
+11. **Research domain best practices**: Based on the determined task type, use shell commands (curl, web search, npm info, etc.) to find established methodologies, tools, and patterns for that domain. Do not rely solely on internal knowledge
+    - When web search yields valuable results, save research findings to `AiTasks/.references/<topic>.md` and update `AiTasks/.references/.summary.md`
+12. **If re-planning** (status is `re-planning` or `review`/`executing` transitioning to re-plan): archive existing `.plan.md` — rename to `.plan-superseded.md` (append numeric suffix if already exists, e.g., `.plan-superseded-2.md`). This prevents `exec` from reading outdated steps alongside the new plan
+13. Generate implementation plan using **domain-appropriate methodology** (incorporating check feedback, bugfix history, prior notes, cross-task experience, and researched best practices)
+14. Write plan to `.plan.md` in the task module
+15. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with **domain-appropriate** verification criteria: acceptance criteria from `.target.md` + per-step test cases using methods standard in the task domain. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
+16. **Update** `.test/.summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
+17. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
+18. **Update** `.notes/.summary.md` — overwrite with condensed summary of ALL notes files in `.notes/`
+19. Write task-level `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints (integrate from directory summaries)
+20. Update `.index.json`: set `type` field (if not already set or if task nature changed), status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
+21. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
+22. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "check", checkpoint: "post-plan" }`
+23. Report plan summary to user
 
 **Context management**: When `.summary.md` exists, read it as the primary context source instead of reading all files from `.analysis/`, `.bugfix/`, `.notes/`. Only read the latest (last by filename sort) file from each directory for detailed info on the most recent assessment/issue/note.
 
@@ -66,7 +68,7 @@ Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types
 ## Annotation Execution Steps
 
 1. **Read** the task file at the given absolute path
-2. **Read** `.index.md` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
+2. **Read** `.index.json` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
 3. **Read** the annotation file (`.tmp-annotations.json`)
 4. **Read** `.target.md` + `.plan.md` + `.test/` (latest criteria) for full context
 5. **Parse** all annotation arrays
@@ -74,7 +76,7 @@ Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types
 7. **Assess** cross-impacts and conflicts against ALL files in the module
 8. **Execute** changes per severity level
 9. **Update** the task file with resolved changes and inline markers for pending items
-10. **Update** `.index.md` in the task module:
+10. **Update** `.index.json` in the task module:
     - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
     - If status transitions to `re-planning`, set `phase: needs-check`
     - Update `updated` timestamp
@@ -125,5 +127,5 @@ Plan methodology MUST adapt to the task domain. Different domains require differ
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: Actively use shell commands to fetch external information (curl docs/APIs, npm info, package changelogs, GitHub issues, etc.) to support planning decisions with evidence rather than relying solely on internal knowledge
-- **Concurrency**: Plan acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
+- **Concurrency**: Plan acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`). When writing to `.references/`, also acquire `AiTasks/.references/.lock` (see `.references/ Write Protection` in `commands/ai-cli-task.md`)
 - **Task-type-aware test design**: `.test/` criteria must use domain-appropriate verification methods (e.g., unit tests for code, SSIM/PSNR for image processing, SNR for audio/DSP, schema validation for data pipelines). Research established best practices for the task domain before writing test criteria. See `check/SKILL.md` Task-Type-Aware Verification section for the full domain reference table

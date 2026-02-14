@@ -4,7 +4,7 @@ Test and verification plans MUST be designed based on the task's domain type, co
 
 ## Determination
 
-Read the `type` field from `.index.md` (set by `plan` during generation). If `type` is empty (legacy or pre-plan task), analyze `.target.md` content to identify the domain and flag NEEDS_REVISION requesting that `plan` set the type. Common categories (non-exhaustive):
+Read the `type` field from `.index.json` (set by `plan` during generation). If `type` is empty (legacy or pre-plan task), analyze `.target.md` content to identify the domain and flag NEEDS_REVISION requesting that `plan` set the type. Common categories (non-exhaustive):
 
 | Task Domain | Example Indicators | Verification Approach |
 |-------------|-------------------|----------------------|

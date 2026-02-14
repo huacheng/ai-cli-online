@@ -5,8 +5,8 @@
 The auto loop runs in a single long-lived Claude session. As the conversation accumulates, context window usage grows. Proactive compaction prevents context overflow:
 
 1. **Threshold**: Before each iteration (loop step 2b), Claude checks context window usage. At **>= 70%** usage, proactively run `/compact` to compress context
-2. **Safety net**: Each sub-command writes `.summary.md` and directory-level `summary.md` files, providing condensed recovery context after compaction
-3. **Post-compaction recovery**: After compaction, Claude re-reads `.auto-signal` (iteration + step position), `.index.md` (status), and `.summary.md` (task context) to resume the loop. See "Compaction recovery" in Context Advantage section of main SKILL.md
+2. **Safety net**: Each sub-command writes `.summary.md` and directory-level `.summary.md` files, providing condensed recovery context after compaction
+3. **Post-compaction recovery**: After compaction, Claude re-reads `.auto-signal` (iteration + step position), `.index.json` (status), and `.summary.md` (task context) to resume the loop. See "Compaction recovery" in Context Advantage section of main SKILL.md
 
 ## Quota Exhaustion Handling
 

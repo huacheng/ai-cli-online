@@ -4,7 +4,7 @@ Execution strategy MUST adapt to the task domain. Different domains use fundamen
 
 ## Determination
 
-Read the `type` field from `.index.md` (set by `plan` during generation). Apply domain-appropriate implementation and verification methods for each step.
+Read the `type` field from `.index.json` (set by `plan` during generation). Apply domain-appropriate implementation and verification methods for each step.
 
 ## Domain-Specific Implementation Methods
 

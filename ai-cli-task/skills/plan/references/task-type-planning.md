@@ -4,7 +4,7 @@ Plan generation MUST adapt its methodology to the task domain. Different domains
 
 ## Type Determination
 
-Analyze `.target.md` to classify the task domain. Write the determined type to `.index.md` `type` field. See `commands/ai-cli-task.md` Type Field section for canonical type values.
+Analyze `.target.md` to classify the task domain. Write the determined type to `.index.json` `type` field. See `commands/ai-cli-task.md` Type Field section for canonical type values.
 
 ## Domain-Specific Planning Guidelines
 

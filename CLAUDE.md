@@ -175,11 +175,15 @@ init → plan → check → exec → check → merge → report
 
 ```
 AiTasks/
-├── .index.md                    # 模块索引
-├── .experience/                 # 跨任务知识库（按领域类型分类）
+├── .index.json                  # 模块索引 (JSON)
+├── .experiences/                # 跨任务知识库（按领域类型分类）
+│   ├── .summary.md              # 经验文件索引
 │   └── <type>.md
+├── .references/                 # 外部参考资料（按主题分类，执行中收集）
+│   ├── .summary.md              # 参考文件索引
+│   └── <topic>.md
 └── <module>/
-    ├── .index.md                # 状态、阶段、时间戳、依赖 (YAML frontmatter)
+    ├── .index.json              # 状态、阶段、时间戳、依赖 (JSON)
     ├── .target.md               # 需求描述（人工编写）
     ├── .summary.md              # 浓缩上下文（防止上下文溢出）
     ├── .report.md               # 完成报告

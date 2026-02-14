@@ -54,7 +54,7 @@ If merge conflict detected:
 
 On successful merge:
 
-1. **Update** `.index.md` status → `complete`, update timestamp
+1. **Update** `.index.json` status → `complete`, update timestamp
 2. **Write** `.summary.md` with final task summary: completion status, plan overview, key changes, verification outcome, lessons learned (integrate from directory summaries)
 3. **If worktree exists**: `git worktree remove .worktrees/task-<module>`
 4. **Delete** merged branch: `git branch -d task/<module>`
@@ -62,8 +62,8 @@ On successful merge:
 
 ## Execution Steps
 
-1. **Read** `.index.md` — validate status is `executing`
-2. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
+1. **Read** `.index.json` — validate status is `executing`
+2. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
 3. **Verify** ACCEPT verdict: check latest `.analysis/` file for `post-exec-accept`
 4. **Read** `.summary.md` for task context (plan overview, completed steps, key decisions)
 5. **Phase 1**: Task-level refactoring on task branch
@@ -106,7 +106,7 @@ On successful merge:
 - The 3-attempt limit prevents infinite resolution loops
 - Each resolution attempt includes full verification (build + test) to ensure resolved code is correct
 - On merge failure, status stays `executing` (not `blocked`) so merge can be retried. The user should manually resolve conflicts and then run `/ai-cli-task merge` again
-- After manual resolution, if the user has already merged manually, they can update `.index.md` status to `complete` directly
+- After manual resolution, if the user has already merged manually, they can update `.index.json` status to `complete` directly
 - Pre-merge refactoring is optional — if no cleanup needed, skip directly to merge
 - **Worktree signal race prevention**: In worktree mode, `.auto-signal` is written to the main worktree's `AiTasks/<module>/` path (not the task worktree), ensuring the daemon can read it after worktree removal. The daemon MUST watch the main worktree path for all signal files
 - **Concurrency**: Merge acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

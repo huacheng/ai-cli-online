@@ -27,7 +27,7 @@ Check the implementation plan at three lifecycle checkpoints. Acts as the decisi
 
 Evaluates whether the implementation plan is ready for execution.
 
-**Reads:** `.target.md` + all user-created plan `.md` files in the module + `.summary.md` (if exists) + `.test/` (latest criteria file) + `.bugfix/` (latest file if exists, to verify revised plan addresses execution issues)
+**Reads:** `.target.md` + `.plan.md` + `.summary.md` (if exists) + `.test/` (latest criteria file) + `.bugfix/` (latest file if exists, to verify revised plan addresses execution issues)
 
 **Evaluation Criteria:**
 
@@ -58,7 +58,7 @@ Evaluates progress during execution when issues are encountered.
 
 | Criterion | Weight | Description |
 |-----------|--------|-------------|
-| **Progress** | High | How much of the plan has been completed? (read `completed_steps` from `.index.md`) |
+| **Progress** | High | How much of the plan has been completed? (read `completed_steps` from `.index.json`) |
 | **Deviation** | High | Has execution deviated from the plan? |
 | **Issues** | High | Are encountered issues resolvable? |
 | **Continue vs Replan** | Critical | Should execution continue or revert to planning? |
@@ -103,24 +103,25 @@ Evaluates whether execution results meet the task requirements.
 | `.bugfix/<date>-<summary>.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach. One file per issue |
 | `.test/<date>-<checkpoint>-results.md` | mid-exec, post-exec | Test outcomes for criteria verification. One file per checkpoint evaluation |
 
-When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also overwrite that directory's `summary.md` with a condensed summary of all entries in the directory.
+When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also overwrite that directory's `.summary.md` with a condensed summary of all entries in the directory.
 
 ## Execution Steps
 
-1. **Read** `.index.md` to get current task status
+1. **Read** `.index.json` to get current task status
 2. **Validate** checkpoint is appropriate for current status:
    - `post-plan`: requires status `planning` or `re-planning`
    - `mid-exec`: requires status `executing`
    - `post-exec`: requires status `executing`
-3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
+3. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
 4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
-5. **Evaluate** against criteria
-6. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
-7. **Update** each written directory's `summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/summary.md`, `.bugfix/summary.md`, `.test/summary.md` as applicable per checkpoint)
-8. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
-9. **Update** `.index.md` status and timestamp per outcome
-10. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
-11. **Report** evaluation result with detailed reasoning
+5. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files to inform evaluation criteria and domain best practices
+6. **Evaluate** against criteria
+7. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
+8. **Update** each written directory's `.summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/.summary.md`, `.bugfix/.summary.md`, `.test/.summary.md` as applicable per checkpoint)
+9. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
+10. **Update** `.index.json` status and timestamp per outcome
+11. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
+12. **Report** evaluation result with detailed reasoning
 
 ## State Transitions
 
@@ -176,7 +177,7 @@ When ACCEPT, the `merge` sub-command handles refactoring, merge, conflict resolu
 
 ## Task-Type-Aware Verification
 
-Verification methods MUST match the task domain. Read `type` from `.index.md` and apply domain-appropriate verification. If test methods are mismatched for the task type → verdict is NEEDS_REVISION.
+Verification methods MUST match the task domain. Read `type` from `.index.json` and apply domain-appropriate verification. If test methods are mismatched for the task type → verdict is NEEDS_REVISION.
 
 > **See `references/task-type-verification.md`** for the full domain reference table, determination rules, and requirements.
 
@@ -188,7 +189,7 @@ Verification methods MUST match the task domain. Read `type` from `.index.md` an
 - Each mid-exec issue creates a new file in `.bugfix/` (one issue per file, filename includes date + summary)
 - For `post-exec`, if tests exist (`.test/` criteria files), they MUST be run and pass for ACCEPT
 - Check writes test results to `.test/<date>-<checkpoint>-results.md` (e.g., `2024-01-15-post-exec-results.md`) documenting test outcomes
-- `depends_on` in `.index.md` MUST be validated: if any dependency is not met (simple string → `complete`, extended object → at-or-past `min_status`), verdict is BLOCKED (not just flagged as risk)
+- `depends_on` in `.index.json` MUST be validated: if any dependency is not met (simple string → `complete`, extended object → at-or-past `min_status`), verdict is BLOCKED (not just flagged as risk)
 - **Concurrency**: Check acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **No mental math**: When evaluation involves numerical reasoning (performance estimates, size calculations, threshold comparisons, timing analysis), write a script and run it in shell instead of computing mentally. Scripts produce verifiable, reproducible results
 - **Five-perspective audit**: For thorough plan evaluation, apply security / performance / extensibility / consistency / correctness checks systematically. See `references/five-perspective-audit.md` for the full checklist

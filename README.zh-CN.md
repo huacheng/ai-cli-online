@@ -73,12 +73,15 @@ init → plan → check → exec → check → merge → report
 
 ```
 AiTasks/
-├── .index.md                    # 模块索引
-├── .experience/                 # 跨任务知识库（按领域类型分类）
-│   ├── software.md
+├── .index.json                  # 模块索引
+├── .experiences/                # 跨任务知识库（按领域类型分类）
+│   ├── .summary.md              # 经验文件索引
 │   └── <type>.md
+├── .references/                 # 外部参考资料（执行中收集）
+│   ├── .summary.md              # 参考文件索引
+│   └── <topic>.md
 └── my-feature/
-    ├── .index.md                # 状态、阶段、时间戳、依赖 (YAML)
+    ├── .index.json              # 状态、阶段、时间戳、依赖 (JSON)
     ├── .target.md               # 需求描述（人工编写）
     ├── .summary.md              # 浓缩上下文（防止上下文溢出）
     ├── .analysis/               # 评估历史
@@ -91,7 +94,7 @@ AiTasks/
 
 ### 类型感知执行
 
-任务按领域类型分类（`software`、`dsp`、`ml`、`literary`、`science:physics` 等）。每种类型会调整规划方法、执行工具和验证标准。已完成任务的经验存储在 `.experience/<type>.md` 中，供同类型的后续任务参考。
+任务按领域类型分类（`software`、`dsp`、`ml`、`literary`、`science:physics` 等）。每种类型会调整规划方法、执行工具和验证标准。已完成任务的经验存储在 `.experiences/<type>.md` 中，供同类型的后续任务参考。
 
 ## 终端特性
 

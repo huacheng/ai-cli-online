@@ -72,7 +72,7 @@ The report is written to `AiTasks/<module_name>/.report.md` and also printed to 
 
 ## Execution Steps
 
-1. **Read** `.index.md` for task metadata (including `completed_steps`)
+1. **Read** `.index.json` for task metadata (including `completed_steps`)
 2. **Read** `.target.md` for objectives
 3. **Read** `.plan.md` for implementation approach
 4. **Read** `.summary.md` if exists (condensed context overview)
@@ -83,7 +83,7 @@ The report is written to `AiTasks/<module_name>/.report.md` and also printed to 
 9. **Collect** git changes related to the task (if identifiable)
 10. **Compose** report in requested format
 11. **Write** to `.report.md`
-12. **Distill experience**: If task status is `complete` and `type` is non-empty, validate `type` matches `[a-zA-Z0-9_:-]+` then extract key learnings and append to `AiTasks/.experience/<type>.md` (create file if not exists). Acquire `AiTasks/.experience/.lock` before writing (see Concurrency Protection in `commands/ai-cli-task.md`). Each entry is a section headed `### <module> (<date>)` containing: what worked, what didn't, key decisions, tools/patterns discovered. If `.experience/<type>.md` exceeds 500 lines, compact it by summarizing older entries. Release lock after write
+12. **Distill experience**: If task status is `complete` and `type` is non-empty, validate `type` matches `[a-zA-Z0-9_:-]+` then extract key learnings and append to `AiTasks/.experiences/<type>.md` (create file if not exists). Acquire `AiTasks/.experiences/.lock` before writing (see Concurrency Protection in `commands/ai-cli-task.md`). Each entry is a section headed `### <module> (<date>)` containing: what worked, what didn't, key decisions, tools/patterns discovered. If `.experiences/<type>.md` exceeds 500 lines, compact it by summarizing older entries. Update `AiTasks/.experiences/.summary.md` — overwrite with condensed index of all experience files (filename, type/domain, key learnings summary, date range). Release lock after write
 13. **Git commit**: `-- ai-cli-task(<module>):report generate completion report`
 14. **Write** `.auto-signal`: `{ step: "report", result: "(generated)", next: "(stop)", checkpoint: "" }`
 15. **Print** report to screen
