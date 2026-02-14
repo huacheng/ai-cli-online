@@ -444,8 +444,9 @@ async function main() {
       const home = process.env.HOME || '/root';
       const pluginFile = join(home, '.claude/plugins/installed_plugins.json');
       const data = await readFile(pluginFile, 'utf-8');
-      const plugins = JSON.parse(data);
-      const installed = name in plugins;
+      const parsed = JSON.parse(data);
+      const pluginMap = parsed.plugins || parsed;
+      const installed = name in pluginMap;
       res.json({ installed, name });
     } catch {
       // File doesn't exist or parse error — plugin not installed
