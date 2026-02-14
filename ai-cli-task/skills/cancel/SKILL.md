@@ -50,11 +50,11 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
 
 ## State Transitions
 
-Any non-cancelled status → `cancelled`. Already `cancelled` → no-op.
+Any non-terminal status → `cancelled`. Terminal statuses (`complete`, `cancelled`) → REJECT.
 
 ## Notes
 
-- Cancel is always allowed regardless of current status
+- Cancel is rejected on terminal statuses: `complete` (use a separate workflow to reopen) and `cancelled` (no-op)
 - If the task has uncommitted code changes in a worktree, `--cleanup` will warn before deleting
 - Without `--cleanup`, the branch and worktree are preserved for reference
 - A cancelled task can be referenced by `report` for documentation purposes

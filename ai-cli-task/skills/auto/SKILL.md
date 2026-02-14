@@ -263,7 +263,7 @@ Request body for POST:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `taskDir` | string | (required) | Absolute path to task module |
+| `taskDir` | string | (required) | Absolute path to task module in **main worktree** (e.g., `/project/TASK/auth-refactor`). In worktree mode, this is still the main worktree path — NOT the task worktree path. Daemon's `fs.watch` monitors this path for `.auto-signal` |
 | `maxIterations` | number | 20 | Max plan/check/exec cycles before forced stop |
 | `timeoutMinutes` | number | 30 | Total execution time limit (minutes). User sets based on task difficulty |
 

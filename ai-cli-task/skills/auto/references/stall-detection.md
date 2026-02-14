@@ -21,7 +21,9 @@ A stall is only suspected after **3 consecutive unchanged captures** (>= 3 minut
 
 ## Pattern Matching Recovery
 
-When stall is suspected, scan the captured pane output for known stall patterns:
+When stall is suspected, first verify the **foreground process** is Claude itself — run `tmux display-message -t '=${name}:' -p '#{pane_current_command}'` and confirm the result is `claude` (or `node` for Claude Code). If the foreground process is a child process (e.g., `python`, `npm`, `gcc`), do NOT apply pattern matching recovery — the output belongs to a subprocess, not a stall. Only proceed with pattern matching when Claude is the foreground process.
+
+Scan the captured pane output for known stall patterns:
 
 | Pattern | Detection | Recovery Action |
 |---------|-----------|-----------------|

@@ -24,6 +24,9 @@ Single entry point for task lifecycle management in the `TASK/` directory.
 ```
 TASK/
 ├── .index.md                  # Root index (task module listing)
+├── .experience/               # Cross-task knowledge base (by type, distilled from completed tasks)
+│   ├── software.md            # Lessons from completed software tasks
+│   └── <type>.md              # One file per task type (append-only, compacted at 500 lines)
 └── <module-name>/             # One directory per task module
     ├── .index.md              # Task metadata (YAML frontmatter)
     ├── .target.md             # Requirements / objectives (human-authored)
@@ -125,6 +128,8 @@ Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_tax
 
 Type is determined once during planning and persists throughout the task lifecycle. If a re-plan changes the task's nature, `plan` may update the type.
 
+**Unknown type fallback**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec): `"Unknown type '<value>', falling back to software methodology"`. This ensures the pipeline never blocks on an unrecognized type.
+
 #### Phase Field
 
 The `phase` field disambiguates sub-states within a status, primarily for `re-planning` auto recovery:
@@ -141,14 +146,14 @@ Writers: `check` sets `phase: needs-plan` on REPLAN. `plan` sets `phase: needs-c
 
 | Status | Description | Transitions To |
 |--------|-------------|----------------|
-| `draft` | Task target being defined | `planning` |
-| `planning` | Plan being researched | `review`, `blocked` |
-| `review` | Plan passed assessment | `executing`, `re-planning` |
-| `executing` | Implementation in progress | `complete`, `re-planning`, `blocked` |
-| `re-planning` | Plan being revised | `review`, `blocked` |
-| `complete` | Finished and verified | — |
-| `blocked` | Blocked by dependency/issue | `planning` |
-| `cancelled` | Abandoned (via `cancel`) | — |
+| `draft` | Task target being defined | `planning`, `cancelled` |
+| `planning` | Plan being researched | `review`, `blocked`, `cancelled` |
+| `review` | Plan passed assessment | `executing`, `re-planning`, `cancelled` |
+| `executing` | Implementation in progress | `complete`, `re-planning`, `blocked`, `cancelled` |
+| `re-planning` | Plan being revised | `review`, `blocked`, `cancelled` |
+| `complete` | Finished and verified | — (terminal) |
+| `blocked` | Blocked by dependency/issue | `planning`, `cancelled` |
+| `cancelled` | Abandoned (via `cancel`) | — (terminal) |
 
 ### Complete State × Command Matrix
 
@@ -161,7 +166,7 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 | `review` | →`re-planning` | ⊘ | ⊘ | ⊘ | →`executing` | ⊘ | — | →`cancelled` |
 | `executing` | →`re-planning` | ⊘ | CONT=`executing` / NEEDS_FIX=`executing` / REPLAN→`re-planning` / BLOCKED→`blocked` | ACCEPT=`executing` (signal→merge) / NEEDS_FIX=`executing` / REPLAN→`re-planning` | =`executing` (NEEDS_FIX fix) / →`blocked` (dependency) | →`complete` / =`executing` (conflict) | — | →`cancelled` |
 | `re-planning` | =`re-planning` | PASS→`review` / NEEDS_REV=`re-planning` / BLOCKED→`blocked` | ⊘ | ⊘ | ⊘ | ⊘ | — | →`cancelled` |
-| `complete` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
+| `complete` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | ⊘ |
 | `blocked` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
 | `cancelled` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | — (no-op) |
 
@@ -170,7 +175,7 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 **Verification properties:**
 - Every non-terminal state has ≥1 exit path (no deadlock)
 - Terminal states: only `complete` and `cancelled`
-- `cancel` is always available (no-op on already `cancelled`)
+- `cancel` is available on all non-terminal states (rejected on `complete` and `cancelled`)
 - `exec` requires `review` gate (cannot skip `check`)
 - `merge` requires ACCEPT verdict gate (cannot skip `check post-exec`)
 - `re-planning` must pass through `check` to reach `review`
@@ -200,9 +205,19 @@ Context: `context_before` = `"Line{N}:...{≤20 chars}"`, newlines as `↵`. `co
 
 ### depends_on Format
 
-TASK-root-relative paths: `"auth-refactor"` → `TASK/auth-refactor`
+Supports two formats — simple string (legacy, `complete` required) and object (extended, custom minimum status):
 
-**Dependency enforcement**: `exec` and `merge` MUST validate that all `depends_on` modules have status `complete` before proceeding. If any dependency is not `complete`, the sub-command rejects with a clear error listing the blocking dependencies and their current statuses. `check` also flags incomplete dependencies as a blocking issue.
+```yaml
+depends_on:
+  - "auth-refactor"                           # simple: requires complete
+  - { module: "api-design", min_status: "review" }  # extended: requires at least review
+```
+
+Simple string `"auth-refactor"` → `TASK/auth-refactor`, requires status `complete`.
+
+Extended object `{ module, min_status }` → requires the dependency to be at **or past** `min_status` in the state machine progression: `draft` < `planning` < `review` < `executing` < `complete`. Status `blocked`, `re-planning`, `cancelled` do not satisfy any `min_status`.
+
+**Dependency enforcement**: `exec` and `merge` MUST validate that all `depends_on` modules meet their required status before proceeding. If any dependency is not met, the sub-command rejects with a clear error listing the blocking dependencies and their current statuses. `check` also flags unmet dependencies as a blocking issue.
 
 ### Git Integration
 
@@ -290,6 +305,8 @@ git log --oneline task/<module>    # find checkpoint commit
 git reset --hard <commit>          # in the task's worktree
 ```
 
+**Warning**: `git reset --hard` is irreversible — all uncommitted changes are lost. Only use in the task's dedicated worktree, never in the main worktree (which may contain other work). Consider `git stash` first if unsure.
+
 #### .auto-signal Convention
 
 Every sub-command (plan, check, exec, merge, report) MUST write `.auto-signal` on completion, regardless of whether auto mode is active:
@@ -306,6 +323,7 @@ Every sub-command (plan, check, exec, merge, report) MUST write `.auto-signal` o
 
 - The `next` field follows the signal routing table documented in the `auto` sub-command.
 - The `checkpoint` field provides context for the next command (e.g., `"post-plan"`, `"mid-exec"`, `"post-exec"`) when the `next` command needs it. Optional — omit when not applicable. If auto mode is not active, the file is harmless (gitignored, ephemeral). This fire-and-forget pattern avoids each skill needing to detect auto mode.
+- **Atomic write**: `.auto-signal` MUST be written atomically — write to `.auto-signal.tmp` first, then `rename` to `.auto-signal`. POSIX `rename` is atomic, preventing the daemon from reading partially written JSON.
 
 **Worktree note**: In worktree mode, `.auto-signal` MUST be written to the **main worktree's** `TASK/<module>/` directory (not the task worktree copy) to survive worktree removal during merge cleanup.
 
@@ -316,7 +334,9 @@ Add to project `.gitignore`:
 .worktrees/
 TASK/**/.tmp-annotations.json
 TASK/**/.auto-signal
+TASK/**/.auto-signal.tmp
 TASK/**/.auto-stop
+TASK/**/.lock
 ```
 
 ---
@@ -328,11 +348,52 @@ All sub-commands that accept `<task_module>` MUST validate the path before proce
 | Check | Rule | Example |
 |-------|------|---------|
 | **Path containment** | Resolved path must be under `TASK/` directory (no `..` traversal) | `TASK/../etc/passwd` → REJECT |
-| **Module name** | Must match `[\p{L}\p{N}_-]+` (Unicode letters/digits/hyphens/underscores) | `auth-refactor` ✓, `../../foo` ✗ |
+| **Module name** | Must match `[a-zA-Z0-9_-]+` (ASCII letters/digits/hyphens/underscores only) | `auth-refactor` ✓, `../../foo` ✗ |
 | **No symlinks** | Task module directory must not be a symlink (prevent symlink-based escape) | REJECT if `lstat` ≠ `stat` |
 | **Existence** | Directory must exist (except for `init` which creates it) | REJECT if missing |
 
 Validation is performed by resolving the absolute path and confirming it starts with the project's `TASK/` prefix. This prevents path traversal attacks where a crafted module name could read/write files outside the task directory.
+
+### Concurrency Protection
+
+Without worktree mode, only one task should be actively operated at a time. Sub-commands that modify state (`plan`, `exec`, `check`, `merge`) MUST check for an active lockfile (`TASK/<module>/.lock`) before proceeding:
+
+1. **Acquire**: Attempt to create `TASK/<module>/.lock` with `O_CREAT | O_EXCL` (atomic create-if-not-exists). Write `{ session, pid, timestamp }` to identify the holder
+2. **If lock exists**: Read lock content, check if holding process is still alive (kill -0). If dead → remove stale lock and retry. If alive → REJECT with error identifying the holding session
+3. **Release**: Delete `.lock` on sub-command completion (including error paths)
+4. **Worktree mode**: Lock not required — each worktree has its own copy of TASK/ files
+5. **Stale lock recovery**: Use rename-based recovery instead of delete+create. When detecting a stale lock (holder dead): `rename` the stale `.lock` to `.lock.stale.<pid>`, then acquire normally with `O_CREAT | O_EXCL`. If the rename fails (another process already recovered), retry from step 1. Clean up `.lock.stale.*` files after successful acquisition
+
+### .experience/ Write Protection
+
+`TASK/.experience/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `TASK/.experience/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file.
+
+### .index.md Corruption Recovery
+
+If `.index.md` YAML frontmatter fails to parse (malformed YAML), sub-commands MUST attempt recovery before failing:
+
+1. **Git recovery**: `git show HEAD:TASK/<module>/.index.md` — restore from latest committed version
+2. **If git recovery fails**: Reconstruct minimal `.index.md` with `status: draft`, `phase: ""`, preserve only what's parseable
+3. **Log**: Record corruption event and recovery action in `.analysis/<date>-index-recovery.md`
+
+### Lifecycle Hooks (Extension Point)
+
+Status transitions can optionally trigger external notifications. If `TASK/.hooks.md` exists, sub-commands read it for hook configuration:
+
+```markdown
+# Lifecycle Hooks
+
+## on_complete
+<!-- Shell command or URL to call when any task reaches `complete` -->
+<!-- e.g., curl -X POST https://slack.webhook/... -d '{"text":"Task ${MODULE} completed"}' -->
+
+## on_blocked
+<!-- Notification when a task becomes blocked -->
+```
+
+Hooks are **best-effort** — failures are logged but do not block the status transition. This is an optional extension; the system works without `TASK/.hooks.md`.
+
+---
 
 ## Sub-commands
 
@@ -357,7 +418,7 @@ skills/<name>/
 
 `/ai-cli-task init <module_name> [--title "..."] [--tags t1,t2] [--worktree]`
 
-Create task module directory + `.index.md` (status `draft`) + `.target.md` template. Create git branch `task/<module_name>`, checkout to it (or create worktree with `--worktree`). Module name: UTF-8 letters/digits/hyphens/underscores (`[\p{L}\p{N}_-]+`).
+Create task module directory + `.index.md` (status `draft`) + `.target.md` template (domain-specific if `--type` given). Create git branch `task/<module_name>`, checkout to it (or create worktree with `--worktree`). Module name: ASCII letters/digits/hyphens/underscores (`[a-zA-Z0-9_-]+`).
 
 ### plan
 
@@ -413,7 +474,8 @@ Single-session autonomous loop: plan → check → exec → check, with self-cor
 | Status | First Action |
 |--------|-------------|
 | `draft` | Validate `.target.md` has content → plan --generate (stop if empty) |
-| `planning` / `re-planning` | check --checkpoint post-plan |
+| `planning` | check --checkpoint post-plan |
+| `re-planning` | Read `phase`: `needs-plan` → plan --generate; `needs-check` → check --checkpoint post-plan; empty → plan --generate (safe default) |
 | `review` | exec |
 | `executing` | check --checkpoint post-exec |
 | `complete` | report → stop |
@@ -444,4 +506,4 @@ Single-session autonomous loop: plan → check → exec → check, with self-cor
 
 `/ai-cli-task cancel <task_module> [--reason "..."] [--cleanup]`
 
-Cancel any task regardless of status → `cancelled`. Stops auto if running. Snapshots uncommitted changes before cancelling. With `--cleanup`, removes worktree + deletes branch. Without `--cleanup`, branch preserved for reference.
+Cancel any non-terminal task → `cancelled`. Rejected on `complete`/`cancelled`. Stops auto if running. Snapshots uncommitted changes before cancelling. With `--cleanup`, removes worktree + deletes branch. Without `--cleanup`, branch preserved for reference.

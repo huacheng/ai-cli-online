@@ -11,6 +11,9 @@ arguments:
   - name: tags
     description: "Comma-separated tags (e.g., feature,backend,urgent)"
     required: false
+  - name: type
+    description: "Task type for domain-specific .target.md template (e.g., software, dsp, literary)"
+    required: false
   - name: worktree
     description: "Create isolated git worktree for parallel execution (flag, no value)"
     required: false
@@ -23,7 +26,7 @@ Create a new task module under the project's `TASK/` directory with the standard
 ## Usage
 
 ```
-/ai-cli-task init <module_name> [--title "Task Title"] [--tags feature,backend] [--worktree]
+/ai-cli-task init <module_name> [--title "Task Title"] [--tags feature,backend] [--type software] [--worktree]
 ```
 
 ## Directory Structure Created
@@ -102,16 +105,18 @@ The root `TASK/.index.md` is a module listing auto-managed by `init`:
 # TASK
 
 - [auth-refactor](./auth-refactor/.index.md) — User auth refactoring
-- [用户认证重构](./用户认证重构/.index.md) — 重构用户认证系统
+- [add-search-v2](./add-search-v2/.index.md) — Add search functionality v2
 ```
 
 Each line: `- [<module_name>](./<module_name>/.index.md) — <title>`
 
 Created automatically by `init` if `TASK/` directory does not exist. `init` appends one line per new module. No other sub-command modifies this file.
 
+When the root index grows large (50+ entries), consider manually reorganizing into sections (`## Active`, `## Completed`, `## Archived`) for readability. This is a manual maintenance activity.
+
 ## Execution Steps
 
-1. **Validate** module_name: Unicode letters, digits, hyphens, underscores (`[\p{L}\p{N}_-]+`), no whitespace, no leading dot, no path separators
+1. **Validate** module_name: ASCII letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`), no whitespace, no leading dot, no path separators
 2. **Check** `TASK/` directory exists; create with root `.index.md` if missing
 3. **Check** `TASK/<module_name>/` does not already exist; abort with error if it does
 4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
@@ -131,7 +136,10 @@ Created automatically by `init` if `TASK/` directory does not exist. `init` appe
    - `tags`: parsed from `--tags` argument or `[]`
    - `branch`: `task/<module_name>`
    - `worktree`: `.worktrees/task-<module_name>` (or empty if no worktree)
-11. **Create** `TASK/<module_name>/.target.md` with a template header:
+11. **Create** `TASK/<module_name>/.target.md` using domain-specific template:
+    - If `--type` is specified and a matching template exists in `references/target-templates/<type>.md`, copy it (replacing `<title>` placeholder)
+    - If `--type` is specified, also set `.index.md` `type` field to the given value
+    - Otherwise, use the default template:
     ```markdown
     # Task Target: <title>
 
@@ -160,7 +168,7 @@ Created automatically by `init` if `TASK/` directory does not exist. `init` appe
 
 ## Notes
 
-- Module names support UTF-8: Unicode letters, digits, hyphens, underscores (`[\p{L}\p{N}_-]+`). No whitespace, no leading dot, no path separators. Examples: `auth-refactor`, `用户认证重构`, `add-search-v2`
+- Module names are ASCII only: letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`). No whitespace, no leading dot, no path separators. Examples: `auth-refactor`, `add-search-v2`
 - The `.target.md` is for human authoring — users fill in requirements via the Plan annotation panel
 - System files (dot-prefixed) should not be manually edited except `.target.md`
 - After init, the typical workflow is: edit `.target.md` → `/ai-cli-task plan` → `/ai-cli-task check` → `/ai-cli-task exec`
