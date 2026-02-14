@@ -6,7 +6,7 @@ import { formatSize } from '../utils';
 interface PlanFileBrowserProps {
   sessionId: string;
   token: string;
-  planDir: string;           // absolute path, e.g. "/home/user/project/TASK"
+  planDir: string;           // absolute path, e.g. "/home/user/project/AiTasks"
   selectedFile: string | null;
   onSelectFile: (fullPath: string) => void;
   onCreateFile: (fullPath: string) => void;
@@ -120,7 +120,7 @@ export function PlanFileBrowser({ sessionId, token, planDir, selectedFile, onSel
   }, [currentDir, planDir]);
 
   // Display label: parent dir + relative path from root
-  const dirBaseName = planDir.split('/').pop() || 'TASK';
+  const dirBaseName = planDir.split('/').pop() || 'AiTasks';
   const parentName = (() => {
     const parts = planDir.split('/');
     return parts.length >= 2 ? parts[parts.length - 2] + '/' : '';

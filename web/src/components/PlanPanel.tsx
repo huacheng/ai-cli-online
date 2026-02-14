@@ -4,9 +4,10 @@ import type { PlanAnnotationRendererHandle } from './PlanAnnotationRenderer';
 import { PlanFileBrowser } from './PlanFileBrowser';
 import { useFileStream } from '../hooks/useFileStream';
 import { registerFileStreamHandler, unregisterFileStreamHandler } from '../fileStreamBus';
-import { fetchFiles, touchFile, mkdirPath } from '../api/files';
+import { fetchFiles } from '../api/files';
 import type { FileEntry } from '../api/files';
 import { fetchFileContent } from '../api/docs';
+import { fetchPluginStatus } from '../api/annotations';
 
 interface PlanPanelProps {
   sessionId: string;
@@ -53,15 +54,16 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
   // File stream hook
   const fileStream = useFileStream();
 
-  // /aicli-task-review command install prompt
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const projectCwdRef = useRef('');
+  // Plugin install prompt
+  const [showPluginPrompt, setShowPluginPrompt] = useState(false);
 
-  // Plan mode state — directory-based (TASK/ directory with multiple .md files)
+  // Plan mode state — directory-based (AiTasks/ directory with multiple .md files)
   const [planDir, setPlanDir] = useState<string | null>(null);
   const [planSelectedFile, setPlanSelectedFile] = useState<string | null>(null);
   const [planMarkdown, setPlanMarkdown] = useState('');
   const [planLoading, setPlanLoading] = useState(false);
+  // When AiTasks/ directory is not found, show init guidance
+  const [showInitGuide, setShowInitGuide] = useState(false);
   // Cache file content for multi-file annotation aggregation on close
   const planContentCacheRef = useRef(new Map<string, string>());
 
@@ -79,55 +81,31 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     return () => clearTimeout(planFileSaveRef.current);
   }, [planSelectedFile, planFileKey]);
 
-  // Auto-detect PLAN/ directory on mount
+  // Auto-detect AiTasks/ directory on mount
   const planStreamedRef = useRef<string | null>(null);
   useEffect(() => {
     planStreamedRef.current = null;
     let cancelled = false;
     setPlanLoading(true);
+    setShowInitGuide(false);
     (async () => {
       try {
         const res = await fetchFiles(token, sessionId);
         if (cancelled) return;
-        const planDirEntry = res.files.find((f: FileEntry) => f.name === 'TASK' && f.type === 'directory');
-        if (planDirEntry) {
-          const dirPath = res.cwd + '/TASK';
-          const innerRes = await fetchFiles(token, sessionId, dirPath);
-          if (cancelled) return;
-          const indexFile = innerRes.files.find((f: FileEntry) => f.name === '.index.md');
-          if (indexFile) {
-            setPlanDir(dirPath);
-            // Restore previously selected file if path is under TASK/
-            const savedFile = localStorage.getItem(planFileKey);
-            if (savedFile && savedFile.startsWith(dirPath + '/')) {
-              setPlanSelectedFile(savedFile);
-            } else {
-              setPlanSelectedFile(dirPath + '/' + indexFile.name);
-            }
-          } else {
-            try {
-              const result = await touchFile(token, sessionId, 'TASK/.index.md');
-              if (cancelled) return;
-              setPlanDir(dirPath);
-              if (result.ok) setPlanSelectedFile(result.path);
-            } catch {
-              setPlanDir(dirPath);
-            }
+        const aiTasksEntry = res.files.find((f: FileEntry) => f.name === 'AiTasks' && f.type === 'directory');
+        if (aiTasksEntry) {
+          const dirPath = res.cwd + '/AiTasks';
+          setPlanDir(dirPath);
+          // Restore previously selected file if path is under AiTasks/
+          const savedFile = localStorage.getItem(planFileKey);
+          if (savedFile && savedFile.startsWith(dirPath + '/')) {
+            setPlanSelectedFile(savedFile);
           }
         } else {
-          try {
-            const mkResult = await mkdirPath(token, sessionId, 'TASK');
-            if (cancelled) return;
-            setPlanDir(mkResult.path);
-            const touchResult = await touchFile(token, sessionId, 'TASK/.index.md');
-            if (cancelled) return;
-            if (touchResult.ok) {
-              setPlanSelectedFile(touchResult.path);
-            }
-          } catch {
-            setPlanDir(null);
-            setPlanSelectedFile(null);
-          }
+          // AiTasks/ not found — show init guidance
+          setPlanDir(null);
+          setPlanSelectedFile(null);
+          setShowInitGuide(true);
         }
       } catch {
         setPlanDir(null);
@@ -135,24 +113,11 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
         if (!cancelled) setPlanLoading(false);
       }
 
-      // Check if /aicli-task-review command is installed
+      // Check if ai-cli-task plugin is installed
       try {
-        const res = await fetchFiles(token, sessionId);
         if (cancelled) return;
-        const home = res.home || '';
-        projectCwdRef.current = res.cwd;
-        if (home) {
-          const cmdDir = `${home}/.claude/commands`;
-          try {
-            const cmdFiles = await fetchFiles(token, sessionId, cmdDir);
-            if (cancelled) return;
-            const hasTaskReview = cmdFiles.files.some((f: FileEntry) => f.name === 'aicli-task-review.md');
-            if (!hasTaskReview) setShowInstallPrompt(true);
-          } catch {
-            // directory doesn't exist — needs install
-            if (!cancelled) setShowInstallPrompt(true);
-          }
-        }
+        const installed = await fetchPluginStatus(token, 'ai-cli-task@moonview');
+        if (!cancelled && !installed) setShowPluginPrompt(true);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -226,7 +191,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     }
   }, [planSelectedFile, planMarkdown]);
 
-  // Switch file within PLAN/ directory
+  // Switch file within AiTasks/ directory
   const handlePlanFileSelect = useCallback((fullPath: string) => {
     if (fullPath === planSelectedFile) return;
     savePlanScrollPosition();
@@ -320,8 +285,8 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
       backgroundColor: 'var(--bg-primary)',
       overflow: 'hidden',
     }}>
-      {/* Install prompt for /aicli-task-review command */}
-      {showInstallPrompt && (
+      {/* Plugin install prompt */}
+      {showPluginPrompt && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -332,16 +297,15 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
           fontSize: 12,
           flexShrink: 0,
         }}>
-          <span style={{ color: 'var(--accent-yellow)', flex: 1 }}>/aicli-task-review command not installed</span>
+          <span style={{ color: 'var(--accent-yellow)', flex: 1 }}>ai-cli-task plugin not installed</span>
           <button
             className="pane-btn"
             style={{ color: 'var(--accent-green)', fontSize: 11 }}
             onClick={() => {
-              const cwd = projectCwdRef.current;
-              if (cwd && onSendToTerminal) {
-                onSendToTerminal(`mkdir -p ~/.claude/commands && cp ${cwd}/.commands/*.md ~/.claude/commands/`);
+              if (onSendToTerminal) {
+                onSendToTerminal('/plugin marketplace add huacheng/moonview && /plugin install ai-cli-task@moonview');
               }
-              setShowInstallPrompt(false);
+              setShowPluginPrompt(false);
             }}
           >
             Install
@@ -349,7 +313,7 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
           <button
             className="pane-btn"
             style={{ fontSize: 11 }}
-            onClick={() => setShowInstallPrompt(false)}
+            onClick={() => setShowPluginPrompt(false)}
           >
             &times;
           </button>
@@ -390,7 +354,14 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
         {/* Center: Annotation editor */}
         <div className="plan-overlay-center">
           {planLoading ? (
-            <CenteredLoading label="Loading TASK/..." />
+            <CenteredLoading label="Loading AiTasks/..." />
+          ) : showInitGuide ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: '0 20px' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>AiTasks/ directory not found</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12, textAlign: 'center' }}>
+                Run <code style={{ color: 'var(--accent-blue)', backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 3 }}>/ai-cli-task init &lt;name&gt;</code> in the terminal to create a task
+              </span>
+            </div>
           ) : planSelectedFile && (!planMarkdown && (fileStream.state.status === 'streaming' || fileStream.state.status === 'idle')) ? (
             <CenteredLoading label={`Loading ${planSelectedFile.split('/').pop()}...`} percent={fileStream.state.totalSize > 0 ? Math.round((fileStream.state.receivedBytes / fileStream.state.totalSize) * 100) : undefined} />
           ) : planSelectedFile ? (

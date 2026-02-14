@@ -31,3 +31,34 @@ export async function saveAnnotationRemote(
   );
   if (!res.ok) throw new Error('Failed to save annotation');
 }
+
+export async function writeTaskAnnotations(
+  token: string,
+  sessionId: string,
+  modulePath: string,
+  content: object,
+): Promise<{ path: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/task-annotations`,
+    {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modulePath, content }),
+    },
+  );
+  if (!res.ok) throw new Error('Failed to write task annotations');
+  return res.json();
+}
+
+export async function fetchPluginStatus(
+  token: string,
+  name: string,
+): Promise<boolean> {
+  const res = await fetch(
+    `${API_BASE}/api/plugin-status?name=${encodeURIComponent(name)}`,
+    { headers: authHeaders(token) },
+  );
+  if (!res.ok) return false;
+  const data = await res.json();
+  return !!data.installed;
+}

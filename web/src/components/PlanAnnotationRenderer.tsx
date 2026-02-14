@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { useStore } from '../store';
 import { useTextareaUndo, handleTabKey, autoRows } from '../hooks/useTextareaKit';
 import { useMermaidRender } from '../hooks/useMermaidRender';
-import { fetchAnnotation, saveAnnotationRemote } from '../api/annotations';
+import { fetchAnnotation, saveAnnotationRemote, writeTaskAnnotations } from '../api/annotations';
 import { MarkdownToc, extractHeadings, toSlug, stripInlineMarkdown } from './MarkdownToc';
 
 /* ── Data Types ── */
@@ -177,27 +177,26 @@ function buildAnnotationJson(
   };
 }
 
-/** Generate /aicli-task-review command for a single file */
-export function generateTaskReview(
-  filePath: string,
-  annotations: PlanAnnotations,
-  sourceLines: string[],
-): string {
-  if (annotations.additions.length === 0 && annotations.deletions.length === 0 && annotations.replacements.length === 0 && annotations.comments.length === 0) return '';
-  const json = JSON.stringify(buildAnnotationJson(annotations, sourceLines));
-  return `/aicli-task-review ${filePath} ${json}`;
+/** Check if annotations are empty */
+function hasAnnotations(annotations: PlanAnnotations): boolean {
+  return annotations.additions.length > 0 || annotations.deletions.length > 0 || annotations.replacements.length > 0 || annotations.comments.length > 0;
 }
 
-/** Generate aggregated /aicli-task-review commands across multiple PLAN/ files */
-export function generateMultiFileSummary(
-  fileAnnotations: Array<{ filePath: string; annotations: PlanAnnotations; sourceLines: string[] }>
+/** Generate /ai-cli-task plan command for a single file */
+export function generatePlanCommand(
+  filePath: string,
+  annFilePath: string,
 ): string {
-  const commands: string[] = [];
-  for (const { filePath, annotations, sourceLines } of fileAnnotations) {
-    const cmd = generateTaskReview(filePath, annotations, sourceLines);
-    if (cmd) commands.push(cmd);
-  }
-  return commands.join('\n');
+  return `/ai-cli-task plan ${filePath} ${annFilePath} --silent`;
+}
+
+/** Generate aggregated /ai-cli-task plan commands across multiple files */
+export function generateMultiFileSummary(
+  fileCommands: Array<{ filePath: string; annFilePath: string }>
+): string {
+  return fileCommands
+    .map(({ filePath, annFilePath }) => generatePlanCommand(filePath, annFilePath))
+    .join('\n');
 }
 
 /* ── Component ── */
@@ -824,10 +823,20 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     };
   }, [annotations]);
 
-  // Execute: generate /aicli-task-review command from new/modified annotations (Save to chat)
-  const handleExecute = useCallback(() => {
-    const cmd = generateTaskReview(filePath, getNewAnnotations(), sourceLines);
-    if (cmd) {
+  // Execute: write .tmp-annotations.json then send /ai-cli-task plan command
+  const handleExecute = useCallback(async () => {
+    const newAnns = getNewAnnotations();
+    if (!hasAnnotations(newAnns)) return;
+    const annJson = buildAnnotationJson(newAnns, sourceLines);
+    // Derive module path: AiTasks/<module>/ from filePath
+    const parts = filePath.split('/');
+    const aiTasksIdx = parts.indexOf('AiTasks');
+    const modulePath = aiTasksIdx >= 0 && aiTasksIdx + 1 < parts.length
+      ? parts.slice(0, aiTasksIdx + 2).join('/')
+      : filePath.substring(0, filePath.lastIndexOf('/'));
+    try {
+      const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
+      const cmd = generatePlanCommand(filePath, annFilePath);
       onExecute(cmd);
       const ids = new Set<string>();
       annotations.additions.forEach((a) => ids.add(a.id));
@@ -836,13 +845,18 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       annotations.comments.forEach((c) => ids.add(c.id));
       baselineIdsRef.current = ids;
       setBaselineVer(v => v + 1);
+    } catch (err) {
+      console.error('[PlanAnnotationRenderer] Failed to write annotations:', err);
     }
-  }, [getNewAnnotations, annotations, sourceLines, onExecute, filePath]);
+  }, [getNewAnnotations, annotations, sourceLines, onExecute, filePath, token, sessionId]);
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     getSummary: () => {
-      return generateTaskReview(filePath, getNewAnnotations(), sourceLines);
+      const newAnns = getNewAnnotations();
+      if (!hasAnnotations(newAnns)) return '';
+      // Return a placeholder — actual file write happens during execute
+      return '[pending annotations]';
     },
     handleEscape: () => {
       if (pendingAction) {
@@ -879,8 +893,8 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     return () => document.removeEventListener('mousedown', handler);
   }, [dropdownOpen]);
 
-  // Send a single annotation to terminal as /aicli-task-review command
-  const handleSendSingle = useCallback((annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
+  // Send a single annotation to terminal via /ai-cli-task plan command
+  const handleSendSingle = useCallback(async (annId: string, type: 'add' | 'del' | 'rep' | 'com') => {
     if (!onSend) return;
     const singleAnns: PlanAnnotations = { additions: [], deletions: [], replacements: [], comments: [] };
     if (type === 'add') {
@@ -900,11 +914,22 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
       if (!c) return;
       singleAnns.comments.push(c);
     }
-    const cmd = generateTaskReview(filePath, singleAnns, sourceLines);
-    if (cmd) onSend(cmd);
-    baselineIdsRef.current.add(annId);
-    setBaselineVer(v => v + 1);
-  }, [onSend, filePath, annotations, sourceLines]);
+    const annJson = buildAnnotationJson(singleAnns, sourceLines);
+    const parts = filePath.split('/');
+    const aiTasksIdx = parts.indexOf('AiTasks');
+    const modulePath = aiTasksIdx >= 0 && aiTasksIdx + 1 < parts.length
+      ? parts.slice(0, aiTasksIdx + 2).join('/')
+      : filePath.substring(0, filePath.lastIndexOf('/'));
+    try {
+      const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
+      const cmd = generatePlanCommand(filePath, annFilePath);
+      onSend(cmd);
+      baselineIdsRef.current.add(annId);
+      setBaselineVer(v => v + 1);
+    } catch (err) {
+      console.error('[PlanAnnotationRenderer] Failed to write single annotation:', err);
+    }
+  }, [onSend, filePath, annotations, sourceLines, token, sessionId]);
 
   // Delete annotation from dropdown
   const handleDropdownDelete = useCallback((annId: string, type: 'add' | 'del' | 'rep' | 'com') => {

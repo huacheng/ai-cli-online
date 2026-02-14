@@ -396,6 +396,63 @@ async function main() {
     res.json({ ok: true });
   });
 
+  // --- Task annotations API (write .tmp-annotations.json for ai-cli-task plan) ---
+
+  app.post('/api/sessions/:sessionId/task-annotations', async (req, res) => {
+    const sessionName = resolveSession(req, res);
+    if (!sessionName) return;
+    try {
+      const { modulePath, content } = req.body as { modulePath?: string; content?: unknown };
+      if (!modulePath || typeof modulePath !== 'string') {
+        res.status(400).json({ error: 'modulePath must be a string' });
+        return;
+      }
+      if (!content || typeof content !== 'object') {
+        res.status(400).json({ error: 'content must be an object' });
+        return;
+      }
+      const cwd = await getCwd(sessionName);
+      const targetFile = join(modulePath, '.tmp-annotations.json');
+      const resolved = await validateNewPath(targetFile, cwd);
+      if (!resolved) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+      // Only allow writing .tmp-annotations.json filename
+      if (basename(resolved) !== '.tmp-annotations.json') {
+        res.status(400).json({ error: 'Only .tmp-annotations.json is allowed' });
+        return;
+      }
+      await writeFile(resolved, JSON.stringify(content, null, 2), 'utf-8');
+      res.json({ ok: true, path: resolved });
+    } catch (err) {
+      console.error(`[api:task-annotations] ${sessionName}:`, err);
+      res.status(500).json({ error: 'Failed to write annotation file' });
+    }
+  });
+
+  // --- Plugin status API ---
+
+  app.get('/api/plugin-status', async (req, res) => {
+    if (!checkAuth(req, res)) return;
+    const name = req.query.name as string;
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'name query parameter required' });
+      return;
+    }
+    try {
+      const home = process.env.HOME || '/root';
+      const pluginFile = join(home, '.claude/plugins/installed_plugins.json');
+      const data = await readFile(pluginFile, 'utf-8');
+      const plugins = JSON.parse(data);
+      const installed = name in plugins;
+      res.json({ installed, name });
+    } catch {
+      // File doesn't exist or parse error — plugin not installed
+      res.json({ installed: false, name });
+    }
+  });
+
   // --- Pane command API ---
 
   // Get current pane command (to detect if claude is running)
