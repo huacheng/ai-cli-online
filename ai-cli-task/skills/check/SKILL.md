@@ -35,7 +35,7 @@ Evaluates whether the implementation plan is ready for execution.
 |-----------|--------|-------------|
 | **Completeness** | High | Does the plan cover all requirements in `.target.md`? |
 | **Feasibility** | High | Can the plan be implemented with current codebase/tools? |
-| **Verifiability** | High | Does `.test/` contain criteria files with testable acceptance criteria and per-step verification? |
+| **Verifiability** | High | Does `.test/` contain criteria files with testable acceptance criteria and per-step verification? Are test/verification methods appropriate for the task type (see Task-Type-Aware Verification below)? |
 | **Clarity** | Medium | Are implementation steps clear and unambiguous? |
 | **Risk** | Medium | Are risks identified and mitigated? |
 | **Dependencies** | High | Are all `depends_on` modules `complete`? If not → BLOCKED |
@@ -103,6 +103,8 @@ Evaluates whether execution results meet the task requirements.
 | `.bugfix/<date>-<summary>.md` | mid-exec (NEEDS_FIX, REPLAN) | Issue analysis, root cause, fix approach. One file per issue |
 | `.test/<date>-<checkpoint>-results.md` | mid-exec, post-exec | Test outcomes for criteria verification. One file per checkpoint evaluation |
 
+When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also overwrite that directory's `summary.md` with a condensed summary of all entries in the directory.
+
 ## Execution Steps
 
 1. **Read** `.index.md` to get current task status
@@ -113,11 +115,12 @@ Evaluates whether execution results meet the task requirements.
 3. **Validate dependencies**: read `depends_on` from `.index.md`, check each dependency module's `.index.md` status. If any is not `complete`, verdict is BLOCKED with dependency details
 4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
 5. **Evaluate** against criteria
-6. **Write** analysis to appropriate system file
-7. **Write** `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions
-8. **Update** `.index.md` status and timestamp per outcome
-9. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
-10. **Report** evaluation result with detailed reasoning
+6. **Write** analysis to appropriate system file (`.analysis/` or `.bugfix/`)
+7. **Update** the target directory's `summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/summary.md` or `.bugfix/summary.md`)
+8. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
+9. **Update** `.index.md` status and timestamp per outcome
+10. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
+11. **Report** evaluation result with detailed reasoning
 
 ## State Transitions
 
@@ -170,6 +173,12 @@ Every check outcome writes `.auto-signal` on completion:
 | post-exec | REPLAN | `{ "step": "check", "result": "REPLAN", "next": "plan", "checkpoint": "", "timestamp": "..." }` |
 
 When ACCEPT, the `merge` sub-command handles refactoring, merge, conflict resolution, and cleanup. See `skills/merge/SKILL.md`.
+
+## Task-Type-Aware Verification
+
+Verification methods MUST match the task domain. Read `type` from `.index.md` and apply domain-appropriate verification. If test methods are mismatched for the task type → verdict is NEEDS_REVISION.
+
+> **See `references/task-type-verification.md`** for the full domain reference table (12 task domains), determination rules, and requirements.
 
 ## Notes
 

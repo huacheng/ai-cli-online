@@ -28,9 +28,13 @@ TASK/
     ├── .index.md              # Task metadata (YAML frontmatter)
     ├── .target.md             # Requirements / objectives (human-authored)
     ├── .analysis/             # Evaluation history (one file per assessment by check)
+    │   └── summary.md         # Condensed summary of all evaluations (overwritten on each new entry)
     ├── .test/                 # Test criteria & results (one file per phase, by plan/exec/check)
+    │   └── summary.md         # Condensed summary of all criteria & results (overwritten on each new entry)
     ├── .bugfix/               # Issue history (one file per mid-exec issue by check)
+    │   └── summary.md         # Condensed summary of all issues & fixes (overwritten on each new entry)
     ├── .notes/                # Research notes & experience log (*-plan/*-exec suffix per origin)
+    │   └── summary.md         # Condensed summary of all research & decisions (overwritten on each new entry)
     ├── .summary.md            # Condensed context summary (written by plan/check/exec, read by all)
     ├── .report.md             # Completion report (written by report)
     ├── .tmp-annotations.json  # Transient annotation transport (frontend → plan)
@@ -45,6 +49,7 @@ TASK/
 - `.notes/` files use origin suffix: `<YYYY-MM-DD>-<summary>-plan.md` or `<YYYY-MM-DD>-<summary>-exec.md`
 - `.test/` files use phase prefix: `<YYYY-MM-DD>-<phase>-criteria.md` (test plan) or `<YYYY-MM-DD>-<phase>-results.md` (test outcomes)
 - `.summary.md` is a condensed context file — written by `plan`/`check`/`exec` after each run, read by subsequent steps instead of all history files. Prevents context window overflow as task accumulates history
+- Each history directory (`.analysis/`, `.test/`, `.bugfix/`, `.notes/`) contains a `summary.md` that condenses all entries in that directory. **Overwritten** (not appended) each time a new entry is added to the directory. The task-level `.summary.md` integrates from these directory summaries rather than reading every individual file
 
 ### .summary.md Format
 
@@ -78,6 +83,7 @@ Writers should keep `.summary.md` under ~200 lines. It is a context window optim
 ```yaml
 ---
 title: "Human-readable task title"
+type: ""
 status: draft
 phase: ""
 completed_steps: 0
@@ -89,6 +95,35 @@ branch: "task/module-name"
 worktree: ".worktrees/task-module-name"   # empty if not using worktree
 ---
 ```
+
+#### Type Field
+
+The `type` field identifies the task's domain, set by `plan` (generate mode) after analyzing `.target.md`. All subsequent sub-commands (`check`, `exec`) read this field to adapt their behavior.
+
+| Type | Description | Examples |
+|------|-------------|---------|
+| `software` | Programming, API, database, UI development | Web app, CLI tool, library |
+| `image-processing` | Image/video manipulation, rendering, visual | Filters, thumbnails, format conversion |
+| `video-production` | Video editing, compositing, VFX, motion graphics | Non-linear editing, color grading, visual effects, titling |
+| `dsp` | Digital signal processing, audio, frequency analysis | FFT, audio filters, spectrum analysis |
+| `data-pipeline` | Data transformation, ETL, migration | CSV processing, DB migration, data cleaning |
+| `infrastructure` | DevOps, deployment, CI/CD, containers | Docker setup, deploy scripts, monitoring |
+| `documentation` | Docs, README, translation, content | API docs, user guides, i18n |
+| `ml` | Machine learning, model training, datasets | Model fine-tuning, data labeling, evaluation |
+| `literary` | Fiction, poetry, creative writing, essays | Novel chapters, poetry collections, literary criticism |
+| `screenwriting` | Film/TV scripts, storyboards, dialogue | Feature scripts, episode scripts, scene breakdowns |
+| `science:physics` | Physics research and simulation | Mechanics, optics, quantum, astrophysics, condensed matter |
+| `science:chemistry` | Chemical research, molecular modeling | Synthesis routes, reaction kinetics, molecular dynamics |
+| `science:biology` | Biological research, bioinformatics | Genomics, proteomics, phylogenetics, systems biology |
+| `science:medicine` | Medical/pharmaceutical research | Drug discovery, clinical data analysis, pharmacokinetics |
+| `science:math` | Mathematics, statistics, formal proofs | Theorem proving, numerical analysis, statistical modeling |
+| `science:econ` | Economics, quantitative finance | Econometrics, market modeling, risk analysis |
+| `mechatronics` | Embedded systems, robotics, PLC, control systems | Motor control, PID tuning, sensor integration, SCADA |
+| (custom) | Any domain not listed above | Free-form string describing the domain |
+
+Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_taxonomy) — use `science:<domain>` for unlisted fields (e.g., `science:astro`, `science:neuro`, `science:materials`).
+
+Type is determined once during planning and persists throughout the task lifecycle. If a re-plan changes the task's nature, `plan` may update the type.
 
 #### Phase Field
 
@@ -301,7 +336,22 @@ Validation is performed by resolving the absolute path and confirming it starts 
 
 ## Sub-commands
 
-> Detailed steps, processing logic, and notes for each sub-command are in `skills/<name>/SKILL.md`.
+> Each sub-command's core logic is in `skills/<name>/SKILL.md`. Reference material is in `skills/<name>/references/` and loaded on demand.
+
+### Skill File Structure
+
+```
+skills/<name>/
+├── SKILL.md                # Core logic: steps, state transitions, signals, git
+└── references/             # On-demand reference material (loaded when needed)
+    ├── task-type-*.md      # Domain-specific guidelines (plan/check/exec)
+    ├── annotation-*.md     # Annotation processing details (plan)
+    └── *.md                # Other reference docs
+```
+
+**Main SKILL.md** contains the workflow: prerequisites, execution steps, state transitions, git conventions, `.auto-signal` definitions, and notes. It should be self-sufficient for understanding the sub-command's behavior.
+
+**references/** contains large reference tables and domain-specific details that are only needed in specific situations. The main SKILL.md references these files with `See references/<file>.md` directives — Claude reads them on demand when the context requires it.
 
 ### init
 

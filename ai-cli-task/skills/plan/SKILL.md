@@ -33,135 +33,33 @@ Two modes: generate an implementation plan from `.target.md`, or process annotat
 When called without annotation_file or with `--generate`:
 
 1. Read `.target.md` for requirements
-2. Read `.summary.md` if exists (condensed context from prior runs — primary context source)
-3. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
-4. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
-5. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
-6. Read project codebase for context (relevant files, CLAUDE.md conventions)
-7. Read `.notes/` latest file only if exists (prior research findings and experience)
-8. Research and generate implementation plan (incorporating check feedback, bugfix history, and prior notes if any)
-9. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
-10. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with verification criteria: acceptance criteria from `.target.md` + per-step test cases / expected outcomes. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
-11. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
-12. Write `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints
-13. Update `.index.md`: status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
-14. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
-15. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "check", checkpoint: "post-plan" }`
-16. Report plan summary to user
+2. **Determine task type**: Analyze `.target.md` content to identify the task domain (see Task-Type-Aware Planning below). Set `type` field in `.index.md`
+3. Read `.summary.md` if exists (condensed context from prior runs — primary context source)
+4. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
+5. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
+6. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
+7. Read project codebase for context (relevant files, CLAUDE.md conventions)
+8. Read `.notes/` latest file only if exists (prior research findings and experience)
+9. **Research domain best practices**: Based on the determined task type, use shell commands (curl, web search, npm info, etc.) to find established methodologies, tools, and patterns for that domain. Do not rely solely on internal knowledge
+10. Generate implementation plan using **domain-appropriate methodology** (incorporating check feedback, bugfix history, prior notes, and researched best practices)
+11. Write plan to a new `.md` file in the task module (e.g., `plan.md`)
+12. Write `.test/<YYYY-MM-DD>-plan-criteria.md` with **domain-appropriate** verification criteria: acceptance criteria from `.target.md` + per-step test cases using methods standard in the task domain. On re-plan, write `.test/<YYYY-MM-DD>-replan-criteria.md` incorporating lessons from previous `.test/` results files
+13. **Update** `.test/summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
+14. Create `.notes/<YYYY-MM-DD>-<summary>-plan.md` with research findings and key decisions
+15. **Update** `.notes/summary.md` — overwrite with condensed summary of ALL notes files in `.notes/`
+16. Write task-level `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints (integrate from directory summaries)
+17. Update `.index.md`: set `type` field (if not already set or if task nature changed), status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
+18. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
+19. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "check", checkpoint: "post-plan" }`
+20. Report plan summary to user
 
 **Context management**: When `.summary.md` exists, read it as the primary context source instead of reading all files from `.analysis/`, `.bugfix/`, `.notes/`. Only read the latest (last by filename sort) file from each directory for detailed info on the most recent assessment/issue/note.
 
 ## Mode B: Annotation (with annotation_file)
 
-## Annotation File Format
+Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types: Insert, Delete, Replace, Comment. Each is triaged for cross-impact and conflict before execution.
 
-The annotation file (`.tmp-annotations.json`) is written by the frontend and contains:
-
-```json
-{
-  "Insert Annotations": [
-    ["Line{N}:...{before 20 chars}", "insertion content", "{after 20 chars}..."]
-  ],
-  "Delete Annotations": [
-    ["Line{N}:...{before 20 chars}", "selected text", "{after 20 chars}..."]
-  ],
-  "Replace Annotations": [
-    ["Line{N}:...{before 20 chars}", "selected text", "replacement content", "{after 20 chars}..."]
-  ],
-  "Comment Annotations": [
-    ["Line{N}:...{before 20 chars}", "selected text", "comment content", "{after 20 chars}..."]
-  ]
-}
-```
-
-Each annotation type is a `string[][]` array:
-
-| Type | Elements | Structure |
-|------|----------|-----------|
-| **Insert** | 3 | [context_before, insertion_content, context_after] |
-| **Delete** | 3 | [context_before, selected_text, context_after] |
-| **Replace** | 4 | [context_before, selected_text, replacement_content, context_after] |
-| **Comment** | 4 | [context_before, selected_text, comment_content, context_after] |
-
-Context rules:
-- `context_before`: `"Line{N}:...{up to 20 chars}"` — line number prefix + surrounding text. Newlines shown as `↵`
-- `context_after`: `"{up to 20 chars}..."` — trailing context. Newlines shown as `↵`
-
-## Processing Logic
-
-### A. Delete Annotations
-
-Triage each delete annotation:
-
-| Type | Condition | Action |
-|------|-----------|--------|
-| **Deferred confirmation** | Previously unresolved item confirmed by this edit | Resume research on incomplete plan |
-| **Plan content deletion** | Removes part of existing plan | Delete + check cross-impact |
-| **Pure content removal** | No plan impact | Delete directly |
-
-#### Cross-Impact Assessment
-
-| Level | Action |
-|-------|--------|
-| **None** | Execute directly |
-| **Low** | Adjust affected plans inline |
-| **Medium** | Research approach → execute → document resolution |
-| **High — Interactive** | Explain + draft solution → print to screen → 10 min timeout → fall back to Silent |
-| **High — Silent** | Write explanation + draft into task file → await next annotation |
-
-### B. Insert Annotations
-
-Triage each insert annotation:
-
-| Type | Condition | Action |
-|------|-----------|--------|
-| **Deferred confirmation** | Previously unresolved item confirmed | Resume research |
-| **New task content** | New requirement | Research implementation plan in full context |
-| **Info supplement** | Simple addition | Write to task file, no research needed |
-
-#### Conflict Detection
-
-| Level | Action |
-|-------|--------|
-| **None** | Execute directly |
-| **Low** | Resolve with minor adjustments |
-| **Medium** | Research resolution → execute → document |
-| **High — Interactive** | Explain conflict → print → timeout → Silent fallback |
-| **High — Silent** | Write to task file → await next annotation |
-
-### C. Replace Annotations
-
-Triage each replace annotation:
-
-| Type | Condition | Action |
-|------|-----------|--------|
-| **Deferred confirmation** | Previously unresolved, now confirmed | Resume research |
-| **Plan content replacement** | Replaces existing plan | Delete original + insert replacement + cross-impact |
-| **Simple text replacement** | No plan impact | Replace directly |
-
-Cross-Impact Assessment: same rules as Delete (Section A).
-
-### D. Comment Annotations
-
-Classify by intent:
-
-| Type | Detection | Action |
-|------|-----------|--------|
-| **Question** | Contains `?`, interrogative words | Research selected content → write explanation below using `> 💬 ...` blockquote |
-| **Note** | Declarative sentence | Insert as `> 📝 ...` blockquote below selected content |
-
-Comments NEVER delete or modify existing content — they only ADD information.
-
-### E. Execution Report
-
-| Section | Content |
-|---------|---------|
-| **Actions summary** | All changes made |
-| **Cross-impact resolutions** | Low/Medium impacts resolved |
-| **Conflict resolutions** | Low/Medium conflicts resolved |
-| **Explanations provided** | Questions answered |
-| **Notes recorded** | Memos inserted |
-| **Pending confirmations** | High-level items awaiting review |
+> **See `references/annotation-processing.md`** for the full annotation file format, processing logic (triage rules, cross-impact assessment, conflict detection), and execution report format.
 
 ## Annotation Execution Steps
 
@@ -211,6 +109,12 @@ Both modes write `.auto-signal` on completion:
 | Generate | `{ "step": "plan", "result": "(generated)", "next": "check", "checkpoint": "post-plan", "timestamp": "..." }` |
 | Annotation | `{ "step": "plan", "result": "(annotations)", "next": "check", "checkpoint": "post-plan", "timestamp": "..." }` |
 
+## Task-Type-Aware Planning
+
+Plan methodology MUST adapt to the task domain. Different domains require different design approaches, tool choices, and milestones.
+
+> **See `references/task-type-planning.md`** for the full domain planning table (12 task types), type determination rules, and requirements.
+
 ## Notes
 
 - The `.tmp-annotations.json` is ephemeral — created by frontend, consumed and deleted by this skill
@@ -219,3 +123,4 @@ Both modes write `.auto-signal` on completion:
 - Cross-impact assessment should check ALL files in the task module, not just the current file
 - **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: Actively use shell commands to fetch external information (curl docs/APIs, npm info, package changelogs, GitHub issues, etc.) to support planning decisions with evidence rather than relying solely on internal knowledge
+- **Task-type-aware test design**: `.test/` criteria must use domain-appropriate verification methods (e.g., unit tests for code, SSIM/PSNR for image processing, SNR for audio/DSP, schema validation for data pipelines). Research established best practices for the task domain before writing test criteria. See `check/SKILL.md` Task-Type-Aware Verification section for the full domain reference table

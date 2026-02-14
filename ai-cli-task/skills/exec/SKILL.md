@@ -45,20 +45,16 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 ### Per-Step Execution
 
+Read the `type` field from `.index.md` to determine the task domain. Execution strategy MUST adapt to the task type — different domains use fundamentally different tools, verification methods, and workflows.
+
 For each implementation step:
 
 1. **Read** relevant files (source code, configs, scripts, documentation)
-2. **Implement** the change as described in the plan — this may include:
-   - Editing source code (any language: C, Python, TypeScript, shell, etc.)
-   - Running shell commands or scripts that invoke external tools (game engines, build systems, media processors, etc.)
-   - Configuring or orchestrating professional tools via CLI
-3. **Verify** the step succeeded against `.test/` criteria:
-   - Code changes: use `lsp_diagnostics` where available, check build/syntax
-   - Tool invocations: check exit code, validate output
-   - Script execution: verify expected artifacts were produced
-   - Test cases: run per-step tests defined in `.test/` criteria if applicable
+2. **Implement** the change using **domain-appropriate methods** as described in the plan (see `references/task-type-execution.md` for the full domain implementation table)
+3. **Verify** the step succeeded against `.test/` criteria using **domain-appropriate verification** (see `references/task-type-execution.md` for the full domain verification table)
 4. **Record** what was done (files changed, commands run, tools invoked, approach taken)
 5. **Create** `.notes/<YYYY-MM-DD>-<summary>-exec.md` for notable discoveries, workarounds, or decisions
+   6. **Update** `.notes/summary.md` — overwrite with condensed summary of ALL notes files in `.notes/`
 
 ### Issue Handling
 
@@ -86,7 +82,7 @@ For each implementation step:
    e. Update `.index.md` `completed_steps` to current step number
 9. **After all steps** (or on failure):
    - Update `.index.md` timestamp
-   - Write `.summary.md` with condensed context: current progress, steps completed, key decisions, issues encountered, remaining work
+   - Write task-level `.summary.md` with condensed context: current progress, steps completed, key decisions, issues encountered, remaining work (integrate from directory summaries)
    - If all steps complete: signal `{ step: "exec", result: "(done)", next: "check", checkpoint: "post-exec" }`
    - If significant issue: signal `{ step: "exec", result: "(mid-exec)", next: "check", checkpoint: "mid-exec" }`
    - If `--step N` single step complete: signal `{ step: "exec", result: "(step-N)", next: "check", checkpoint: "mid-exec" }`

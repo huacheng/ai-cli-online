@@ -124,45 +124,15 @@ Invalid signals are logged but do not affect Claude's internal loop (daemon is o
 
 ### Stall Detection & Recovery
 
-Claude Code may stall mid-execution (e.g., context window overflow prompt, waiting for user input, or internal hang). The daemon MUST actively detect and recover from stalls.
+Claude Code may stall mid-execution. The daemon detects stalls via heartbeat polling (60s interval, 3 consecutive unchanged captures = suspected stall) and recovers via pattern matching (continuation prompts, y/n prompts, shell prompt restart). Recovery limits: 3 per iteration, 10 total.
 
-#### Heartbeat Polling
+> **See `references/stall-detection.md`** for the full heartbeat polling logic, stall determination rules, pattern matching recovery table, and recovery limits.
 
-The daemon runs a periodic heartbeat (every 60 seconds) while an auto loop is active:
+### Context Window Management & Quota Handling
 
-1. `tmux capture-pane -t '=${name}:' -p` — capture current terminal output
-2. Compare with previous capture (store last capture hash)
-3. Track consecutive unchanged captures as `stall_count`
+Proactive `/compact` at >= 70% context usage prevents overflow. `.summary.md` files provide compaction recovery context. Quota exhaustion is NOT a stall — daemon enters quota-wait mode with timeout clock paused.
 
-#### Stall Determination
-
-| `stall_count` | Terminal Output Status | Verdict |
-|---------------|----------------------|---------|
-| < 3 | — | Normal (Claude may be thinking/working) |
-| ≥ 3 | Output unchanged for ≥ 3 polls | Stall suspected → run pattern match |
-
-A stall is only suspected after **3 consecutive unchanged captures** (≥ 3 minutes at 60s interval). This avoids false positives from long-running steps.
-
-#### Pattern Matching Recovery
-
-When stall is suspected, scan the captured pane output for known stall patterns:
-
-| Pattern | Detection | Recovery Action |
-|---------|-----------|-----------------|
-| Continuation prompt | `continue`, `Continue?`, `press enter` (case-insensitive) | Send `continue\n` to PTY |
-| Yes/No prompt | `(y/n)`, `(Y/N)`, `[y/N]`, `[Y/n]` | Send `y\n` to PTY |
-| Proceed prompt | `Do you want to proceed`, `Shall I continue` | Send `yes\n` to PTY |
-| Shell prompt visible | `$`, `❯`, `%` at end of output (no active command) | Claude session ended unexpectedly → restart auto session (see Server Recovery) |
-| No recognizable pattern | — | Log warning, increment `stall_count`, continue polling |
-
-#### Recovery Limits
-
-| Limit | Value | Action on Exceed |
-|-------|-------|-----------------|
-| Max recoveries per iteration | 3 | Write `.auto-stop` with reason `"stall_limit"` |
-| Max total recoveries | 10 | Write `.auto-stop` with reason `"stall_limit"` |
-
-Recovery counts are tracked in SQLite and reset on each new `.auto-signal` receipt.
+> **See `references/context-quota.md`** for the full context management strategy, quota exhaustion handling (daemon + Claude behavior), and SQLite `quota_wait_since` extension.
 
 ## State Machine
 
@@ -207,13 +177,14 @@ The auto skill runs this loop within a single Claude session:
 1. Read .index.md → determine entry point (status-based routing)
 2. LOOP:
    a. Check for .auto-stop file → if exists, break loop
-   b. Execute current step (plan/check/exec/merge/report logic per SKILL.md)
+   b. Context check: if context window usage ≥ 70%, run /compact to compress context
+   c. Execute current step (plan/check/exec/merge/report logic per SKILL.md)
       — SKIP the sub-command's own .auto-signal write step (auto loop handles it below)
-   c. Evaluate result → determine next step (result-based routing)
-   d. Write .auto-signal (progress report for daemon, WITH iteration field)
-   e. Increment iteration counter
-   f. If next == "(stop)" → break loop
-   g. Set current step = next step → continue loop
+   d. Evaluate result → determine next step (result-based routing)
+   e. Write .auto-signal (progress report for daemon, WITH iteration field)
+   f. Increment iteration counter
+   g. If next == "(stop)" → break loop
+   h. Set current step = next step → continue loop
 3. Cleanup: delete .auto-signal, report final status
 ```
 
@@ -324,6 +295,7 @@ CREATE TABLE task_auto (
   recovery_count_total INTEGER DEFAULT 0,
   last_capture_hash TEXT DEFAULT '',
   stall_count INTEGER DEFAULT 0,
+  quota_wait_since TEXT DEFAULT '',
   started_at TEXT,
   last_signal_at TEXT
 );
@@ -338,6 +310,8 @@ CREATE TABLE task_auto (
 - **Max iterations**: user-configurable (default 20), daemon writes `.auto-stop` when reached
 - **Timeout**: user-configurable (default 30 min), daemon writes `.auto-stop` when elapsed
 - **Stall detection**: heartbeat polling (60s) + pattern matching recovery, with per-iteration (3) and total (10) recovery limits
+- **Context management**: proactive `/compact` at ≥ 70% context window usage, with `.summary.md` as compaction safety net
+- **Quota exhaustion**: detected and handled as wait (not stall), timeout clock paused during quota-wait
 - **Pause on blocked**: Auto stops immediately on `blocked` status (Claude's internal loop exits)
 - **Manual override**: User can `/ai-cli-task auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
 - **Graceful stop**: Claude checks for `.auto-stop` before each iteration, ensuring clean exit between steps (not mid-step)

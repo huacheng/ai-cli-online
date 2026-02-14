@@ -42,6 +42,7 @@ The `.index.md` file uses YAML frontmatter as the single source of truth for tas
 ```yaml
 ---
 title: "Human-readable task title"
+type: ""
 status: draft
 phase: ""
 completed_steps: 0
