@@ -11,14 +11,14 @@ arguments:
     default: start
 ---
 
-# /ai-cli-task auto — Autonomous Execution Loop
+# /ai-cli-task:auto — Autonomous Execution Loop
 
 Coordinate the full task lifecycle autonomously: plan → check → exec → check, with self-correction on failures. Runs as a **single Claude session** that internally dispatches sub-commands, preserving context across all steps.
 
 ## Usage
 
 ```
-/ai-cli-task auto <task_module_path> [--start|--stop|--status]
+/ai-cli-task:auto <task_module_path> [--start|--stop|--status]
 ```
 
 ## Architecture
@@ -31,7 +31,7 @@ Auto mode runs as a **single long-lived Claude session** that internally loops t
 ┌─────────────────────────────────────────────────┐
 │  Claude (single session)                         │
 │                                                  │
-│  /ai-cli-task auto <module>                      │
+│  /ai-cli-task:auto <module>                      │
 │    ├→ execute plan logic    ─┐                   │
 │    ├→ execute check logic    │  internal loop    │
 │    ├→ execute exec logic     │  (shared context) │
@@ -113,10 +113,10 @@ The daemon validates `.auto-signal` fields for monitoring integrity:
 
 | Field | Validation | Allowed Values |
 |-------|-----------|----------------|
-| `step` | Whitelist | `plan`, `check`, `exec`, `merge`, `report` |
-| `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(annotations)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `success`, `conflict` |
-| `next` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `(stop)` |
-| `checkpoint` | Whitelist | `""`, `post-plan`, `mid-exec`, `post-exec` |
+| `step` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `research`, `verify`, `annotate` |
+| `result` | Whitelist | `PASS`, `NEEDS_REVISION`, `ACCEPT`, `NEEDS_FIX`, `REPLAN`, `BLOCKED`, `CONTINUE`, `(generated)`, `(done)`, `(mid-exec)`, `(step-N)` (where N is integer), `(blocked)`, `(collected)`, `(sufficient)`, `(pass)`, `(fail)`, `(partial)`, `(processed)`, `success`, `conflict` |
+| `next` | Whitelist | `plan`, `check`, `exec`, `merge`, `report`, `research`, `verify`, `annotate`, `(stop)` |
+| `checkpoint` | Whitelist | `""`, `post-plan`, `post-research`, `mid-exec`, `post-exec`, `quick`, `full`, `step-N` |
 | `iteration` | Integer | ≥ 0 |
 | `timestamp` | Format check | ISO 8601 |
 
@@ -226,6 +226,8 @@ After each step, Claude evaluates the result and determines the next step intern
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
+| verify | (pass/fail/partial) | check | — | Verification done, check renders verdict |
+| annotate | (processed) | check | post-plan | Annotations processed, assess changes |
 | report | (any) | (stop) | — | Loop complete |
 
 ### Context Advantage
@@ -276,7 +278,7 @@ When `POST /api/sessions/:id/task-auto` is called:
 
 1. **Validate**: check no active auto loop for this session or task_dir
 2. **Insert** `task_auto` row into SQLite
-3. **Send** `claude "/ai-cli-task auto <taskDir>"` to the session's PTY
+3. **Send** `claude "/ai-cli-task:auto <taskDir>"` to the session's PTY
 4. **Start** `fs.watch` on `taskDir` for `.auto-signal` changes
 5. **Start** heartbeat polling timer (60s interval)
 
@@ -314,7 +316,7 @@ CREATE TABLE task_auto (
 - **Context management**: proactive `/compact` at ≥ 70% context window usage, with `.summary.md` as compaction safety net
 - **Quota exhaustion**: detected and handled as wait (not stall), timeout clock paused during quota-wait
 - **Pause on blocked**: Auto stops immediately on `blocked` status (Claude's internal loop exits)
-- **Manual override**: User can `/ai-cli-task auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
+- **Manual override**: User can `/ai-cli-task:auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
 - **Graceful stop**: Claude checks for `.auto-stop` before each iteration, ensuring clean exit between steps (not mid-step)
 - **Single instance per session**: Only one auto loop per session (enforced by SQLite PK). If an auto task is already running, `POST` returns 409 Conflict
 - **Single instance per task**: UNIQUE constraint on `task_dir` prevents same task from running in multiple sessions
@@ -361,7 +363,7 @@ On backend server restart, auto state is recovered from SQLite:
    a. **Delete stale `.auto-stop`** if exists in `task_dir` (prevents restarted Claude from immediately exiting due to leftover stop file from pre-crash state)
    b. Check terminal state via `tmux capture-pane`:
       - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
-      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
+      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task:auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
    c. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
    d. Start heartbeat polling timer
    e. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
@@ -371,7 +373,7 @@ On restart, Claude's auto loop re-reads `.index.json` and `.summary.md` to recon
 
 ## Notes
 
-- Auto mode starts with a single `claude "/ai-cli-task auto <module>"` CLI invocation; all subsequent steps execute within that same session
+- Auto mode starts with a single `claude "/ai-cli-task:auto <module>"` CLI invocation; all subsequent steps execute within that same session
 - The daemon's only active intervention is writing `.auto-stop`; all other daemon activity is passive monitoring
 - `.auto-signal` and `.auto-stop` are transient files — should be in `.gitignore`
 - The daemon logs all signal events and stall detections to server console for debugging

@@ -11,14 +11,14 @@ arguments:
     default: full
 ---
 
-# /ai-cli-task report — Generate Completion Report
+# /ai-cli-task:report — Generate Completion Report
 
 Generate a structured completion report for a task module, documenting what was planned, executed, and verified.
 
 ## Usage
 
 ```
-/ai-cli-task report <task_module_path> [--format full|summary]
+/ai-cli-task:report <task_module_path> [--format full|summary]
 ```
 
 ## Prerequisites

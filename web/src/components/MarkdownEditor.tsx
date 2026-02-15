@@ -53,15 +53,20 @@ const SLASH_COMMANDS = [
   { cmd: '/terminal-setup', desc: 'Configure terminal' },
   { cmd: '/vim', desc: 'Toggle vim mode' },
   // ai-cli-task — task lifecycle
-  { cmd: '/ai-cli-task:ai-cli-task', desc: 'Task lifecycle management (8 skills)' },
+  { cmd: '/ai-cli-task:ai-cli-task', desc: 'Task lifecycle management (13 skills)' },
   { cmd: '/ai-cli-task:init', desc: 'Initialize task module + branch' },
-  { cmd: '/ai-cli-task:plan', desc: 'Generate plan or process annotations' },
+  { cmd: '/ai-cli-task:plan', desc: 'Generate implementation plan' },
+  { cmd: '/ai-cli-task:research', desc: 'Collect external references' },
   { cmd: '/ai-cli-task:check', desc: 'Check feasibility (post-plan/mid/post-exec)' },
+  { cmd: '/ai-cli-task:verify', desc: 'Run domain-adapted tests' },
   { cmd: '/ai-cli-task:exec', desc: 'Execute implementation plan' },
   { cmd: '/ai-cli-task:merge', desc: 'Merge task branch to main' },
   { cmd: '/ai-cli-task:report', desc: 'Generate completion report' },
   { cmd: '/ai-cli-task:auto', desc: 'Autonomous full lifecycle loop' },
   { cmd: '/ai-cli-task:cancel', desc: 'Cancel task + optional cleanup' },
+  { cmd: '/ai-cli-task:list', desc: 'Query task status (read-only)' },
+  { cmd: '/ai-cli-task:annotate', desc: 'Process Plan panel annotations' },
+  { cmd: '/ai-cli-task:summarize', desc: 'Regenerate context summary' },
 ];
 
 export interface MarkdownEditorHandle {

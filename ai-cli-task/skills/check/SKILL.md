@@ -11,14 +11,14 @@ arguments:
     default: post-plan
 ---
 
-# /ai-cli-task check — Plan Feasibility Check
+# /ai-cli-task:check — Plan Feasibility Check
 
 Check the implementation plan at three lifecycle checkpoints. Acts as the decision maker in the task state machine.
 
 ## Usage
 
 ```
-/ai-cli-task check <task_module_path> [--checkpoint post-plan|mid-exec|post-exec]
+/ai-cli-task:check <task_module_path> [--checkpoint post-plan|mid-exec|post-exec]
 ```
 
 ## Checkpoints
@@ -115,13 +115,14 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
 3. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
 4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
 5. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files to inform evaluation criteria and domain best practices
-6. **Evaluate** against criteria
-7. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
-8. **Update** each written directory's `.summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/.summary.md`, `.bugfix/.summary.md`, `.test/.summary.md` as applicable per checkpoint)
-9. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
-10. **Update** `.index.json` status and timestamp per outcome
-11. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
-12. **Report** evaluation result with detailed reasoning
+6. **Incorporate verify results**: If fresh verification results exist in `.test/` (from a prior `verify` run, same day and matching checkpoint), read and incorporate them. Otherwise, run verification procedures inline as part of evaluation
+7. **Evaluate** against criteria
+8. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
+9. **Update** each written directory's `.summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/.summary.md`, `.bugfix/.summary.md`, `.test/.summary.md` as applicable per checkpoint)
+10. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
+11. **Update** `.index.json` status and timestamp per outcome
+12. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
+13. **Report** evaluation result with detailed reasoning
 
 ## State Transitions
 
@@ -193,3 +194,4 @@ Verification methods MUST match the task domain. Read `type` from `.index.json` 
 - **Concurrency**: Check acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **No mental math**: When evaluation involves numerical reasoning (performance estimates, size calculations, threshold comparisons, timing analysis), write a script and run it in shell instead of computing mentally. Scripts produce verifiable, reproducible results
 - **Five-perspective audit**: For thorough plan evaluation, apply security / performance / extensibility / consistency / correctness checks systematically. See `references/five-perspective-audit.md` for the full checklist
+- **verify integration**: The `verify` sub-command can pre-run tests independently. When recent `verify` results exist (same day, matching checkpoint), check incorporates them instead of re-running. This is optional — check works standalone

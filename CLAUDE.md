@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-CLI-Online 是在浏览器中运行的 AI 开发环境，专为运行 Claude Code、Codex CLI、Gemini CLI 或任意 AI CLI 而构建。通过 xterm.js + tmux 提供持久化终端会话，配合 Plan 批注面板和 Chat 编辑器，形成终端 + 规划 + 执行的一体化工作区。支持 ai-cli-task 插件的 8-skill 任务生命周期（init/plan/check/exec/merge/report/auto/cancel），实现结构化 AI 任务的自主执行。
+AI-CLI-Online 是在浏览器中运行的 AI 开发环境，专为运行 Claude Code、Codex CLI、Gemini CLI 或任意 AI CLI 而构建。通过 xterm.js + tmux 提供持久化终端会话，配合 Plan 批注面板和 Chat 编辑器，形成终端 + 规划 + 执行的一体化工作区。支持 ai-cli-task 插件的 13-skill 任务生命周期（init/plan/research/check/verify/exec/merge/report/auto/cancel/list/annotate/summarize），实现结构化 AI 任务的自主执行。
 
 核心能力：Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Plan | Xterm] + [Chat]，三区域可同时显示）、Plan 批注系统（AiTasks/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色）。
 
@@ -26,7 +26,7 @@ Express 服务 (Node.js)
         ↕ PTY / tmux sockets
         │
 tmux sessions → shell → Claude Code / AI agents
-  └── AiTasks/ 生命周期 (init/plan/check/exec/merge/report/auto)
+  └── AiTasks/ 生命周期 (init/plan/research/check/verify/exec/merge/report/auto/cancel/list/annotate/summarize)
 ```
 
 - **前端**: React + Zustand + xterm.js (WebGL 渲染)
@@ -35,7 +35,7 @@ tmux sessions → shell → Claude Code / AI agents
 - **布局系统**: Tab 标签页 + 递归树形结构 (LeafNode / SplitNode)
 - **传输协议**: 二进制帧 (热路径) + JSON (控制消息)
 - **数据持久化**: SQLite (编辑器草稿 + 批注 + 用户设置)
-- **任务系统**: ai-cli-task 8-skill 插件，状态机 + 依赖门控 + 经验知识库
+- **任务系统**: ai-cli-task 13-skill 插件，状态机 + 依赖门控 + 经验知识库
 - **字体**: JetBrains Mono (本地 woff2, Latin) + LXGW WenKai Mono (CDN unicode-range 按需加载, CJK)
 
 ## 目录结构
@@ -152,7 +152,7 @@ bash start.sh
 
 ## AI 任务生命周期
 
-ai-cli-task 插件提供 8 个 skill 的结构化任务执行生命周期：
+ai-cli-task 插件提供 13 个 skill 的结构化任务执行生命周期：
 
 ```
 init → plan → check → exec → check → merge → report
@@ -163,13 +163,18 @@ init → plan → check → exec → check → merge → report
 | Skill | 功能 |
 |-------|------|
 | **init** | 创建任务模块 (`AiTasks/<name>/`)，git 分支，可选 worktree |
-| **plan** | 生成实施计划或处理人工批注 |
+| **plan** | 生成实施计划 |
+| **research** | 收集外部领域知识到 `.references/` |
 | **check** | 在 3 个检查点评估可行性 (post-plan / mid-exec / post-exec) |
+| **verify** | 运行领域适配的测试/验证，产出结果文件（不渲染裁决） |
 | **exec** | 逐步执行计划，每步验证 |
 | **merge** | 合并任务分支到主干，冲突解决（最多 3 次重试） |
 | **report** | 生成完成报告，提炼经验到知识库 |
 | **auto** | 在单个 Claude 会话中自主运行完整生命周期 |
 | **cancel** | 停止执行，设为已取消，可选清理 |
+| **list** | 只读查询任务状态与依赖关系 |
+| **annotate** | 处理 Plan 面板批注（从 plan 分离） |
+| **summarize** | 重建 `.summary.md` 上下文摘要 |
 
 ### 任务目录结构
 
@@ -201,7 +206,7 @@ AiTasks/
 Plan 面板发送批注到 AI 的两步流程：
 
 1. **写入临时文件**: `POST /api/sessions/:sessionId/task-annotations` → 写 `.tmp-annotations.json` 到任务模块目录
-2. **发送命令到终端**: `/ai-cli-task:plan <filePath> <annFilePath> --silent` → plan skill 读取并处理批注 → 删除临时文件
+2. **发送命令到终端**: `/ai-cli-task:annotate <filePath> <annFilePath> --silent` → annotate skill 读取并处理批注 → 删除临时文件
 
 ## 布局系统
 

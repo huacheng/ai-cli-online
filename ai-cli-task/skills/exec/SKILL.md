@@ -10,14 +10,14 @@ arguments:
     required: false
 ---
 
-# /ai-cli-task exec — Execute Implementation Plan
+# /ai-cli-task:exec — Execute Implementation Plan
 
 Execute the implementation plan for a task module that has passed evaluation.
 
 ## Usage
 
 ```
-/ai-cli-task exec <task_module_path> [--step N]
+/ai-cli-task:exec <task_module_path> [--step N]
 ```
 
 ## Prerequisites
@@ -78,7 +78,7 @@ For each implementation step:
 8. **For each step:**
    a. Read required files
    b. Implement the change
-   c. Verify against `.test/` criteria (diagnostics / build check)
+   c. Verify against `.test/` criteria (diagnostics / build check). For domain-specific testing, can optionally invoke `verify --checkpoint step-N`
    d. Record result
    e. Update `.index.json` `completed_steps` to current step number
 9. **After all steps** (or on failure):
@@ -133,9 +133,10 @@ For long-running executions, intermediate progress can be observed by:
 - The executor should follow project coding conventions (check CLAUDE.md if present)
 - When status is `executing` (NEEDS_FIX), exec reads both `.bugfix/` and `.analysis/` latest files, using the most recent by filename date as fix guidance (`.bugfix/` = mid-exec source, `.analysis/` = post-exec source)
 - When `--step N` is used, the executor verifies prerequisites for that step are met, then signals `(step-N)` on completion for mid-exec checkpoint
-- After successful execution of all steps, the user should run `/ai-cli-task check --checkpoint post-exec`
+- After successful execution of all steps, the user should run `/ai-cli-task:check --checkpoint post-exec`
 - Per-step verification against `.test/` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`
 - **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: When uncertain about APIs, library usage, or compatibility, use shell commands to verify (curl official docs, check installed versions, read node_modules source, etc.) before implementing
 - **Concurrency**: Exec acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
-- **Reference collection**: When exec performs web searches for implementation details, save valuable findings to `AiTasks/.references/<topic>.md` and update `AiTasks/.references/.summary.md`. Acquire `AiTasks/.references/.lock` before writing (see `.references/ Write Protection` in `commands/ai-cli-task.md`)
+- **Reference collection**: Primary reference collection is handled by the `research` sub-command before planning. During execution, if you discover valuable implementation details via web searches, you may still save findings to `AiTasks/.references/<topic>.md` and update `.summary.md` — acquire `AiTasks/.references/.lock` before writing (see `.references/ Write Protection` in `commands/ai-cli-task.md`)
+- **verify integration**: Per-step verification can optionally invoke `verify --checkpoint step-N` for domain-specific testing. For lightweight checks (build + lint), inline verification is sufficient

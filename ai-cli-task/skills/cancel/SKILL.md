@@ -13,14 +13,14 @@ arguments:
     required: false
 ---
 
-# /ai-cli-task cancel — Cancel Task Module
+# /ai-cli-task:cancel — Cancel Task Module
 
 Cancel a task module, stopping any active auto loop and optionally cleaning up the git worktree.
 
 ## Usage
 
 ```
-/ai-cli-task cancel <task_module_path> [--reason "..."] [--cleanup]
+/ai-cli-task:cancel <task_module_path> [--reason "..."] [--cleanup]
 ```
 
 ## Arguments
