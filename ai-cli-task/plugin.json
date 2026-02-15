@@ -1,6 +1,6 @@
 {
   "name": "ai-cli-task",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Task lifecycle management — plan, check, execute, and track tasks through structured AiTasks/ directory workflow",
   "author": {
     "name": "huacheng"
