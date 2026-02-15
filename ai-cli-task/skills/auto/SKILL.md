@@ -13,7 +13,7 @@ arguments:
 
 # /ai-cli-task:auto — Autonomous Execution Loop
 
-Coordinate the full task lifecycle autonomously: plan → check → exec → check, with self-correction on failures. Runs as a **single Claude session** that internally dispatches sub-commands, preserving context across all steps.
+Coordinate the full task lifecycle autonomously: plan → verify → check → exec → verify → check(mid) → exec → verify → check(post) → merge → report, with self-correction on failures. Runs as a **single Claude session** that internally dispatches sub-commands, preserving context across all steps.
 
 ## Usage
 
@@ -140,25 +140,25 @@ Proactive `/compact` at >= 70% context usage prevents overflow. `.summary.md` fi
 AUTO LOOP (4 phases — all within single Claude session)
 
 Phase 1: Planning
-  plan ──→ check(post-plan) ─── PASS ──────────→ [Phase 2]
-                │
-                NEEDS_REVISION ──→ plan (retry)
+  plan ──→ verify ──→ check(post-plan) ─── PASS ──────────→ [Phase 2]
+                            │
+                            NEEDS_REVISION ──→ plan (retry)
 
 Phase 2: Execution
-  exec ─┬─ (mid-exec) ──→ check(mid-exec) ─── CONTINUE ──→ exec (resume)
-        │                         │
-        │                    NEEDS_FIX ──→ exec (fix then resume)
-        │                         │
-        │                    REPLAN ──→ [Phase 1]
+  exec ─┬─ (mid-exec) ──→ verify ──→ check(mid-exec) ─── CONTINUE ──→ exec (resume)
+        │                                    │
+        │                               NEEDS_FIX ──→ exec (fix then resume)
+        │                                    │
+        │                               REPLAN ──→ [Phase 1]
         │
         └─ (done) ──→ [Phase 3]
 
-Phase 3: Verification
-  check(post-exec) ─── ACCEPT ──→ [Phase 4]
-          │                │
-       NEEDS_FIX        REPLAN ──→ [Phase 1]
-          │
-          └──→ exec (re-exec) → [Phase 3]
+Phase 3: Post-Exec Verification
+  verify ──→ check(post-exec) ─── ACCEPT ──→ [Phase 4]
+                    │                │
+                 NEEDS_FIX        REPLAN ──→ [Phase 1]
+                    │
+                    └──→ exec (re-exec) → [Phase 3]
 
 Phase 4: Merge & Report
   merge ─── success ──→ report → (stop)
@@ -195,10 +195,10 @@ The auto skill runs this loop within a single Claude session:
 | Current Status | First Step |
 |----------------|-----------|
 | `draft` | Validate `.target.md` has substantive content (not just template placeholders) → if empty, stop and report "fill `.target.md` first". Otherwise execute plan (generate mode) |
-| `planning` | Execute check (post-plan) |
+| `planning` | Execute verify → check (post-plan) |
 | `review` | Execute exec |
-| `executing` | Execute check (post-exec) |
-| `re-planning` | Read `phase` field: if `needs-plan` → execute plan (generate); if `needs-check` → execute check (post-plan); if empty → default to plan (generate, safe fallback) |
+| `executing` | Execute verify → check (post-exec) |
+| `re-planning` | Read `phase` field: if `needs-plan` → execute plan (generate); if `needs-check` → execute verify → check (post-plan); if empty → default to plan (generate, safe fallback) |
 | `complete` | Execute report, then stop |
 | `blocked` | Stop loop, report blocking reason |
 | `cancelled` | Stop loop |
@@ -219,16 +219,16 @@ After each step, Claude evaluates the result and determines the next step intern
 | check (mid-exec) | NEEDS_FIX | exec | mid-exec | Fixable issues, exec addresses then continues |
 | check (mid-exec) | REPLAN | plan | — | Fundamental issues, revise plan |
 | check (mid-exec) | BLOCKED | (stop) | — | Cannot continue |
-| plan | (any) | check | post-plan | Plan ready, assess it |
-| exec | (done) | check | post-exec | All steps completed, verify results |
-| exec | (mid-exec) | check | mid-exec | Significant issue encountered, checkpoint |
-| exec | (step-N) | check | mid-exec | Single step completed (manual `--step N` only) |
+| plan | (any) | verify | post-plan | Plan ready, run verification before assessment |
+| exec | (done) | verify | post-exec | All steps completed, run verification before assessment |
+| exec | (mid-exec) | verify | mid-exec | Significant issue encountered, run verification before checkpoint |
+| exec | (step-N) | verify | mid-exec | Single step completed (manual `--step N` only) |
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
-| research | (collected)/(sufficient) | plan | post-research | References collected, resume planning |
+| research | (collected)/(sufficient) | `<caller>` (plan/verify/check/exec) | post-research | References collected, resume calling phase |
 | verify | (pass/fail/partial) | check | — | Verification done, check renders verdict |
-| annotate | (processed) | check | post-plan | Annotations processed, assess changes |
+| annotate | (processed) | verify | post-plan | Annotations processed, verify then assess |
 | report | (any) | (stop) | — | Loop complete |
 
 ### Context Advantage

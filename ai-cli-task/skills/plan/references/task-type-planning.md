@@ -23,6 +23,7 @@ Analyze `.target.md` to classify the task domain. Write the determined type to `
 | `science:*` | Literature review → hypothesis → methodology → experiment/simulation → analysis → conclusions | Reproducibility, statistical rigor, peer methodology alignment, citation of prior art, numerical validation |
 | `mechatronics` | System architecture → hardware/software partitioning → control design → integration → testing | Timing constraints, safety margins, control stability (Bode/Nyquist), sensor calibration, fail-safe design |
 | `ai-skill` | Skill specification → prompt/agent design → tool integration → invocation testing → documentation | Prompt quality, progressive disclosure, frontmatter schema, trigger conditions, skill-creator guidelines compliance |
+| `chip-design` | Spec/architecture → RTL design → functional simulation → synthesis → timing closure → physical design → sign-off | HDL coding style (Verilog/SystemVerilog/VHDL), clock domain crossing, reset strategy, lint rules (Spyglass/Ascent), coverage targets (line/toggle/FSM), PPA trade-offs (power/performance/area) |
 
 ## Requirements
 

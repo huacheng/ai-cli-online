@@ -23,6 +23,7 @@ Read the `type` field from `.index.json` (set by `plan` during generation). Appl
 | `science:*` | Run experiments/simulations, collect data, perform statistical analysis, write up findings |
 | `mechatronics` | Write firmware/control code, run simulations (Simulink, LTspice, etc.), verify timing and stability |
 | `ai-skill` | Write SKILL.md/frontmatter, design prompts/agents, configure hooks/MCP servers, test invocations |
+| `chip-design` | Write RTL (Verilog/SystemVerilog/VHDL), build testbenches, run simulation (iverilog/VCS/Xcelium/Verilator), synthesize (Yosys/DC), run STA, generate netlists/bitstreams |
 
 ## Domain-Specific Verification Methods
 
@@ -41,6 +42,7 @@ Read the `type` field from `.index.json` (set by `plan` during generation). Appl
 | `science:*` | Reproducibility verification, statistical significance, numerical cross-check against literature |
 | `mechatronics` | Control stability analysis (Bode/Nyquist), timing constraint verification, safety margin checks |
 | `ai-skill` | Skill invocation test, prompt output review, frontmatter schema validation, trigger condition testing |
+| `chip-design` | RTL lint pass, functional simulation pass (all testcases), code coverage targets met, synthesis timing closure (no violations), formal property proofs, CDC clean |
 
 ## Requirements
 

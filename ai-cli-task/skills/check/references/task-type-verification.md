@@ -21,6 +21,7 @@ Read the `type` field from `.index.json` (set by `plan` during generation). If `
 | **Science (physics/chemistry/biology/medicine/math/econ)** | Research, experiment, simulation, paper | Reproducibility verification, statistical significance, peer methodology comparison, citation validity, numerical result cross-check |
 | **Mechatronics / Control** | Embedded, PLC, robotics, motor, PID | Control stability analysis, hardware-in-loop simulation, timing constraints, safety margin verification |
 | **AI Skill / Plugin** | Skill, plugin, agent, prompt, MCP | Skill invocation testing, prompt quality review, frontmatter validation, trigger accuracy, progressive disclosure compliance |
+| **Chip Design / IC** | RTL, FPGA, ASIC, Verilog, VHDL, synthesis | RTL lint (Spyglass/Ascent), functional simulation (iverilog/VCS/Xcelium), code coverage (line/toggle/FSM/branch), formal verification (JasperGold/VC Formal), synthesis (Yosys/DC), STA (PrimeTime/OpenSTA), CDC analysis, DRC/LVS sign-off |
 
 ## Requirements
 

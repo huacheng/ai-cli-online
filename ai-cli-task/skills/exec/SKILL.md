@@ -33,14 +33,16 @@ Execute the implementation plan for a task module that has passed evaluation.
 
 1. **Read** the plan file `.plan.md` in the task module
 2. **Read** `.target.md` for requirements context
-3. **Read** `.summary.md` if exists (condensed context from prior plan/check/exec runs — primary context source)
-4. **Read** `.test/` latest criteria file for per-step verification criteria and acceptance standards
-5. **Read** `.analysis/` latest file only for evaluation notes and approved approach
-6. **Read** `.bugfix/` latest file only if exists for most recent issue and fix guidance
-7. **Read** `.notes/` latest file only if exists for most recent research findings
-8. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files by keyword matching. Read matched `.references/<topic>.md` files for domain-specific implementation guidance
-9. **Extract** implementation steps from `.plan.md` (ordered by heading structure)
-10. **Build** execution order respecting any noted dependencies
+3. **Read** `.type-profile.md` if exists — "Implementation Patterns" and "Key tools" sections are the **primary** source for tool selection and implementation approach. If execution reveals the profile's patterns are inaccurate, update the relevant sections with findings
+4. **Read** `.summary.md` if exists (condensed context from prior plan/check/exec runs — primary context source)
+5. **Read** `.test/` latest criteria file for per-step verification criteria and acceptance standards
+6. **Read** `.analysis/` latest file only for evaluation notes and approved approach
+7. **Read** `.bugfix/` latest file only if exists for most recent issue and fix guidance
+8. **Read** `.notes/` latest file only if exists for most recent research findings
+9. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files by keyword matching. Read matched `.references/<topic>.md` files for domain-specific implementation guidance
+10. **Gap check**: if `.type-profile.md` lacks implementation guidance OR `.references/` lacks knowledge for the current step's technologies/APIs, trigger `research --scope gap --caller exec` to collect missing references before proceeding
+11. **Extract** implementation steps from `.plan.md` (ordered by heading structure)
+12. **Build** execution order respecting any noted dependencies
 
 **Context management**: When `.summary.md` exists, read it as the primary context source instead of reading all files from `.analysis/`, `.bugfix/`, `.notes/`. Only read the latest (last by filename sort) file from each directory for detailed info on the most recent assessment/issue/note.
 
@@ -84,9 +86,9 @@ For each implementation step:
 9. **After all steps** (or on failure):
    - Update `.index.json` timestamp
    - Write task-level `.summary.md` with condensed context: current progress, steps completed, key decisions, issues encountered, remaining work (integrate from directory summaries)
-   - If all steps complete: signal `{ step: "exec", result: "(done)", next: "check", checkpoint: "post-exec" }`
-   - If significant issue: signal `{ step: "exec", result: "(mid-exec)", next: "check", checkpoint: "mid-exec" }`
-   - If `--step N` single step complete: signal `{ step: "exec", result: "(step-N)", next: "check", checkpoint: "mid-exec" }`
+   - If all steps complete: signal `{ step: "exec", result: "(done)", next: "verify", checkpoint: "post-exec" }`
+   - If significant issue: signal `{ step: "exec", result: "(mid-exec)", next: "verify", checkpoint: "mid-exec" }`
+   - If `--step N` single step complete: signal `{ step: "exec", result: "(step-N)", next: "verify", checkpoint: "mid-exec" }`
    - If blocking dependency: signal `{ step: "exec", result: "(blocked)", next: "(stop)" }`
 10. **Report** execution summary with per-step results
 
@@ -122,9 +124,9 @@ For long-running executions, intermediate progress can be observed by:
 
 | Result | Signal |
 |--------|--------|
-| All steps done | `{ "step": "exec", "result": "(done)", "next": "check", "checkpoint": "post-exec", "timestamp": "..." }` |
-| Significant issue | `{ "step": "exec", "result": "(mid-exec)", "next": "check", "checkpoint": "mid-exec", "timestamp": "..." }` |
-| Single step (--step N) | `{ "step": "exec", "result": "(step-N)", "next": "check", "checkpoint": "mid-exec", "timestamp": "..." }` |
+| All steps done | `{ "step": "exec", "result": "(done)", "next": "verify", "checkpoint": "post-exec", "timestamp": "..." }` |
+| Significant issue | `{ "step": "exec", "result": "(mid-exec)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }` |
+| Single step (--step N) | `{ "step": "exec", "result": "(step-N)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }` |
 | Blocking dependency | `{ "step": "exec", "result": "(blocked)", "next": "(stop)", "checkpoint": "", "timestamp": "..." }` |
 
 ## Notes

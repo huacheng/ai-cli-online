@@ -8,8 +8,8 @@
   "plugins": [
     {
       "name": "ai-cli-task",
-      "description": "Structured task lifecycle management with 8 skills: init, plan, check, exec, merge, report, auto, cancel. Git-integrated workflow with branch-per-task, worktree support, and annotation-driven planning.",
-      "version": "0.2.2",
+      "description": "Structured task lifecycle management with 13 skills: init, plan, research, check, verify, exec, merge, report, auto, cancel, list, annotate, summarize. Git-integrated workflow with branch-per-task, worktree support, and annotation-driven planning.",
+      "version": "0.2.6",
       "author": {
         "name": "huacheng"
       },

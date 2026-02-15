@@ -113,16 +113,18 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
    - `mid-exec`: requires status `executing`
    - `post-exec`: requires status `executing`
 3. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
-4. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
-5. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files to inform evaluation criteria and domain best practices
-6. **Incorporate verify results**: If fresh verification results exist in `.test/` (from a prior `verify` run, same day and matching checkpoint), read and incorporate them. Otherwise, run verification procedures inline as part of evaluation
-7. **Evaluate** against criteria
-8. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
-9. **Update** each written directory's `.summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/.summary.md`, `.bugfix/.summary.md`, `.test/.summary.md` as applicable per checkpoint)
-10. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
-11. **Update** `.index.json` status and timestamp per outcome
-12. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
-13. **Report** evaluation result with detailed reasoning
+4. **Read** `.type-profile.md` if exists — "Verification Standards" and "Quality metrics" sections are the **primary** source for evaluation criteria. If check reveals the profile's standards are inadequate for this domain, update the relevant sections with findings
+5. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
+6. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files to inform evaluation criteria and domain best practices
+7. **Gap check**: if `.type-profile.md` lacks evaluation criteria OR `.references/` lacks domain evaluation standards/benchmarks for the task `type`, trigger `research --scope gap --caller check` to collect missing references before proceeding
+8. **Incorporate verify results**: If fresh verification results exist in `.test/` (from a prior `verify` run, same day and matching checkpoint), read and incorporate them. Otherwise, run verification procedures inline as part of evaluation
+9. **Evaluate** against criteria
+10. **Write** output files per outcome: evaluation to `.analysis/` or `.bugfix/` (per Outcomes tables above), and test results to `.test/<date>-<checkpoint>-results.md` when tests are evaluated (mid-exec and post-exec checkpoints)
+11. **Update** each written directory's `.summary.md` — overwrite with condensed summary of ALL entries in that directory (`.analysis/.summary.md`, `.bugfix/.summary.md`, `.test/.summary.md` as applicable per checkpoint)
+12. **Write** task-level `.summary.md` with condensed context: task state, plan summary, evaluation outcome, progress (`completed_steps`), known issues, key decisions (integrate from directory summaries)
+13. **Update** `.index.json` status and timestamp per outcome
+14. **Write** `.auto-signal` with verdict, next action, and checkpoint (see .auto-signal section below)
+15. **Report** evaluation result with detailed reasoning
 
 ## State Transitions
 

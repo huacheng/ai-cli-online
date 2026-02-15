@@ -32,20 +32,22 @@ Run domain-adapted tests and verification procedures for a task module, producin
 ## Execution Steps
 
 1. **Read** `.index.json` — get `type`, `status`. Validate status is not terminal (`complete` or `cancelled`)
-2. **Read** `.test/` latest criteria file — determine what to verify
-3. **Read** `.target.md` — extract acceptance criteria
-4. **Read** `.summary.md` if exists — condensed context for understanding verification scope
-5. **Read** `AiTasks/.references/.summary.md` if exists — keyword match against task domain → read matched `.references/<topic>.md` files for domain verification guidance
-6. **Determine** verification strategy based on task `type` (see `check/references/task-type-verification.md` for the full domain reference table)
-7. **Execute** verification procedures per checkpoint scope:
+2. **Read** `.type-profile.md` if exists — "Verification Standards" section is the **primary** source for testing approach, quality metrics, and acceptance criteria for this task
+3. **Read** `.test/` latest criteria file — determine what to verify
+4. **Read** `.target.md` — extract acceptance criteria
+5. **Read** `.summary.md` if exists — condensed context for understanding verification scope
+6. **Read** `AiTasks/.references/.summary.md` if exists — keyword match against task domain → read matched `.references/<topic>.md` files for domain verification guidance (testing frameworks, tools, best practices)
+7. **Gap check**: if `.type-profile.md` lacks verification standards OR `.references/` lacks testing/verification knowledge for the task `type`, trigger `research --scope gap --caller verify` to collect missing references before proceeding
+8. **Determine** verification strategy: use `.type-profile.md` "Verification Standards" first, supplement with `references/task-type-testing.md` static tables, combine with `.references/` domain knowledge. If verification reveals that `.type-profile.md` standards are inadequate, update its "Verification Standards" section with findings
+8. **Execute** verification procedures per checkpoint scope:
    - `quick`: build, lint, type check — fast feedback loop
    - `full`: all `.test/` criteria, acceptance tests from `.target.md`, regression tests
    - `step-N`: only criteria associated with step N from `.test/` criteria file
-8. **Write** `.test/<YYYY-MM-DD>-<checkpoint>-results.md` with structured test outcomes (pass/fail per criterion, raw output, metrics)
-9. **Update** `.test/.summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
-10. **Git commit**: `-- ai-cli-task(<module>):verify <checkpoint> verification`
-11. **Write** `.auto-signal`: `{ "step": "verify", "result": "(pass|fail|partial)", "next": "check", "checkpoint": "<checkpoint>", "timestamp": "..." }`
-12. **Report** results summary to user
+9. **Write** `.test/<YYYY-MM-DD>-<checkpoint>-results.md` with structured test outcomes (pass/fail per criterion, raw output, metrics)
+10. **Update** `.test/.summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
+11. **Git commit**: `-- ai-cli-task(<module>):verify <checkpoint> verification`
+12. **Write** `.auto-signal`: `{ "step": "verify", "result": "(pass|fail|partial)", "next": "check", "checkpoint": "<checkpoint>", "timestamp": "..." }`
+13. **Report** results summary to user
 
 ## Result Values
 
@@ -87,6 +89,6 @@ Result values: `(pass)`, `(fail)`, `(partial)` — see Result Values table above
 - **Utility, not gatekeeper**: `verify` runs tests and produces results; `check` reads those results and renders verdicts. This separation allows tests to be re-run independently without triggering state transitions
 - **check integration**: `check` can optionally invoke `verify` internally, or read pre-existing `verify` results from `.test/`. When recent `verify` results exist (same day, matching checkpoint), `check` incorporates them instead of re-running tests
 - **exec integration**: Per-step verification in `exec` can optionally invoke `verify --checkpoint step-N` for domain-specific testing. For lightweight checks (build + lint), inline verification is sufficient
-- **Domain adaptation**: Verification strategy MUST match the task `type` — use the domain reference table in `check/references/task-type-verification.md` to select appropriate tools and methods
+- **Domain adaptation**: Verification strategy MUST match the task `type` — use `references/task-type-testing.md` for domain-specific testing procedures, tools, and thresholds. Supplement with web search for current best practices
 - **No mental math**: When verification involves numerical comparisons (thresholds, metrics, performance benchmarks), write a script and run it in shell instead of computing mentally
 - **Concurrency**: Verify acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

@@ -9,11 +9,15 @@ arguments:
     description: "Research scope: full (default, comprehensive collection) or gap (incremental, fill missing topics only)"
     required: false
     default: full
+  - name: caller
+    description: "Calling phase: plan (default), verify, check, or exec — determines .auto-signal next routing"
+    required: false
+    default: plan
 ---
 
 # /ai-cli-task:research — Reference Collection & Organization
 
-Collect external domain knowledge and organize it into `AiTasks/.references/` to support planning, execution, and evaluation phases. Acts as the intelligence arm of the task lifecycle — separating research from planning for clearer logic.
+Collect external domain knowledge and organize it into `AiTasks/.references/` to support all lifecycle phases: planning (implementation strategy), verification (testing tools and criteria), evaluation (domain standards), and execution (technical details). Acts as the intelligence arm of the task lifecycle — separating research from other phases for clearer logic.
 
 ## Usage
 
@@ -28,7 +32,7 @@ Collect external domain knowledge and organize it into `AiTasks/.references/` to
 
 ## Trigger Rules
 
-Research is invoked in two ways:
+Research is invoked from multiple lifecycle phases:
 
 ### 1. From plan (automatic)
 
@@ -39,45 +43,73 @@ Research is invoked in two ways:
 
 Plan invokes research internally before generating the implementation plan. See `skills/plan/SKILL.md` for integration details.
 
-### 2. Standalone (manual)
+### 2. From verify / check / exec (automatic)
+
+| Phase | Trigger | Scope |
+|-------|---------|-------|
+| verify | Missing testing tools/frameworks knowledge for task `type` | `gap` |
+| check | Missing domain standards/benchmarks for evaluation | `gap` |
+| exec | Encountering unfamiliar technology/API during implementation | `gap` |
+
+Each phase reads `AiTasks/.references/.summary.md` at entry. If the existing references lack coverage for the current phase's needs (testing tools, evaluation criteria, implementation details), the phase triggers research with `--scope gap` and `--caller <phase>` before proceeding.
+
+### 3. Standalone (manual)
 
 ```
 /ai-cli-task:research <task_module> --scope full
 /ai-cli-task:research <task_module> --scope gap
 ```
 
-Callable independently for preparatory research before planning, or to supplement references mid-execution.
+Callable independently for preparatory research before any phase, or to supplement references mid-execution.
 
 ## Execution Steps
 
 1. **Read** `.index.json` — get task `type`, `status`, validate not `complete`/`cancelled`
 2. **Read** `.target.md` — extract requirements, key technologies, domain keywords
-3. **Read** `.plan.md` if exists — understand current approach (for re-plan context)
-4. **Read** `.bugfix/` latest file if exists — understand what went wrong (for re-plan gap targeting)
-5. **Read** `.analysis/` latest file if exists — understand evaluation feedback (for re-plan gap targeting)
-6. **Read** `AiTasks/.references/.summary.md` if exists — inventory of existing references
-7. **Gap analysis**:
-   - Extract topic keywords from steps 2-5 (technologies, libraries, APIs, patterns, methodologies, domain concepts)
-   - Compare against existing references from step 6
-   - Produce a list of **uncovered topics** that need research
-   - If `--scope gap` and no uncovered topics → log `"references sufficient, skipping collection"` → skip to step 12
-8. **Acquire** `AiTasks/.references/.lock` (see Concurrency Protection in `commands/ai-cli-task.md`)
-9. **Active research** — for each uncovered topic:
-   - Use shell commands to gather domain knowledge: `curl` official docs/APIs, `npm info` / `pip show` for package details, web search for best practices, GitHub issues for known pitfalls, `man` pages for CLI tools, read project `node_modules` or local source for API details
-   - Write findings to `AiTasks/.references/<topic>.md` (kebab-case filename, e.g., `express-middleware.md`, `ffmpeg-filters.md`)
-   - Each file should be self-contained: what it is, key APIs/patterns, usage examples, gotchas, links to official docs
-   - **Append** to existing `<topic>.md` if the file already exists (add new section with date header), do not overwrite
-10. **Update** `AiTasks/.references/.summary.md` — overwrite with index of ALL reference files:
+3. **Read** `.type-profile.md` if exists — current domain classification, methodology, confidence level
+4. **Read** `.plan.md` if exists — understand current approach (for re-plan context)
+5. **Read** `.bugfix/` latest file if exists — understand what went wrong (for re-plan gap targeting)
+6. **Read** `.analysis/` latest file if exists — understand evaluation feedback (for re-plan gap targeting)
+7. **Read** `AiTasks/.references/.summary.md` if exists — inventory of existing references
+8. **Type validation & refinement** (see `plan/references/type-profiling.md`):
+   - If `--caller plan` and `.type-profile.md` doesn't exist or confidence is `low`:
+     - Web search `.target.md` domain keywords to identify the actual field
+     - Compare against predefined types — detect single match, hybrid indicators, or custom domain
+     - If user specified `--type` at init: validate it against research findings, override if contradicted
+     - Write or update `.type-profile.md` with classification, methodology, verification standards, implementation patterns
+     - Update `type` in `.index.json` if classification changed
+   - If `--caller verify|check|exec` and `.type-profile.md` exists:
+     - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section)
+     - If inadequate or missing: web search for domain-specific methodology for this phase
+     - Update `.type-profile.md` with findings, append to refinement log
+9. **Read** `references/task-type-intelligence.md` — look up the intelligence matrix for the task `type` × calling `phase` (from `--caller`, default `plan`). This determines **what direction** to research (architecture vs testing tools vs evaluation standards vs implementation details)
+10. **Gap analysis**:
+    - Extract topic keywords from steps 2-6 (technologies, libraries, APIs, patterns, methodologies, domain concepts)
+    - Cross-reference with intelligence matrix from step 9 — ensure collection targets match the calling phase's needs
+    - For hybrid types: include keywords from **both** primary and secondary domains
+    - Compare against existing references from step 7
+    - Produce a list of **uncovered topics** that need research
+    - If `--scope gap` and no uncovered topics → log `"references sufficient, skipping collection"` → skip to step 15
+11. **Acquire** `AiTasks/.references/.lock` (see Concurrency Protection in `commands/ai-cli-task.md`)
+12. **Active research** — for each uncovered topic:
+    - Use shell commands to gather domain knowledge: `curl` official docs/APIs, `npm info` / `pip show` for package details, web search for best practices, GitHub issues for known pitfalls, `man` pages for CLI tools, read project `node_modules` or local source for API details
+    - **Phase-directed focus**: collection content must align with the calling phase's needs from step 9 (e.g., verify-phase calls should collect testing tools/frameworks/thresholds, not architecture patterns)
+    - For hybrid types: collect from **both** primary and secondary domain sources
+    - Write findings to `AiTasks/.references/<topic>.md` (kebab-case filename, e.g., `express-middleware.md`, `ffmpeg-filters.md`)
+    - Each file should be self-contained: what it is, key APIs/patterns, usage examples, gotchas, links to official docs
+    - **Append** to existing `<topic>.md` if the file already exists (add new section with date header), do not overwrite
+13. **Update** `AiTasks/.references/.summary.md` — overwrite with index of ALL reference files:
     ```markdown
     # References Index
 
-    | File | Topic | Keywords | Updated |
-    |------|-------|----------|---------|
-    | express-middleware.md | Express middleware | routing, middleware, error handling | 2024-01-15 |
+    | File | Topic | Keywords | Phase | Updated |
+    |------|-------|----------|-------|---------|
+    | express-middleware.md | Express middleware | routing, middleware, error handling | plan | 2024-01-15 |
+    | jest-testing.md | Jest testing framework | unit test, coverage, mocking | verify | 2024-01-16 |
     ```
-11. **Release** `AiTasks/.references/.lock`
-12. **Git commit**: `-- ai-cli-task(<module>):research collect references` (skip if no files written)
-13. **Write** `.auto-signal`: `{ "step": "research", "result": "(collected)" or "(sufficient)", "next": "plan", "checkpoint": "post-research" }`
+14. **Release** `AiTasks/.references/.lock`
+15. **Git commit**: `-- ai-cli-task(<module>):research collect references` (skip if no files written; include `.type-profile.md` if updated)
+16. **Write** `.auto-signal`: `{ "step": "research", "result": "(collected)" or "(sufficient)", "next": "<caller>", "checkpoint": "post-research" }` — `next` field routes back to the calling phase (default: `plan`; if `--caller verify` → `verify`; if `--caller check` → `check`; if `--caller exec` → `exec`)
 
 ## Output
 
@@ -109,8 +141,10 @@ Research does **NOT** modify any task module files (`.index.json`, `.summary.md`
 
 | Result | Signal |
 |--------|--------|
-| Collected | `{ "step": "research", "result": "(collected)", "next": "plan", "checkpoint": "post-research", "timestamp": "..." }` |
-| Sufficient | `{ "step": "research", "result": "(sufficient)", "next": "plan", "checkpoint": "post-research", "timestamp": "..." }` |
+| Collected | `{ "step": "research", "result": "(collected)", "next": "<caller>", "checkpoint": "post-research", "timestamp": "..." }` |
+| Sufficient | `{ "step": "research", "result": "(sufficient)", "next": "<caller>", "checkpoint": "post-research", "timestamp": "..." }` |
+
+`<caller>` defaults to `plan`. When invoked with `--caller verify|check|exec`, routes back to that phase instead.
 
 ## Reference File Guidelines
 

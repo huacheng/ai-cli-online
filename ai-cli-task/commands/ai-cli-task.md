@@ -34,6 +34,7 @@ AiTasks/
 └── <module-name>/             # One directory per task module
     ├── .index.json            # Task metadata (JSON) — machine-readable
     ├── .target.md             # Requirements / objectives (human-authored)
+    ├── .type-profile.md       # Domain methodology profile (research-informed, written by plan, updated by all phases)
     ├── .analysis/             # Evaluation history (one file per assessment by check)
     │   └── .summary.md        # Condensed summary of all evaluations (overwritten on each new entry)
     ├── .test/                 # Test criteria & results (one file per phase, by plan/exec/check)
@@ -149,15 +150,18 @@ The `type` field identifies the task's domain, set by `plan` (generate mode) aft
 | `science:econ` | Economics, quantitative finance | Econometrics, market modeling, risk analysis |
 | `mechatronics` | Embedded systems, robotics, PLC, control systems | Motor control, PID tuning, sensor integration, SCADA |
 | `ai-skill` | AI skill/plugin/agent/prompt development | Claude Code skills, MCP servers, prompt engineering, agent workflows |
+| `chip-design` | IC/FPGA/ASIC design, RTL development, verification | Verilog/VHDL RTL, synthesis, STA, formal verification, physical design |
 | (custom) | Any domain not listed above | Must match `[a-zA-Z0-9_:-]+` (e.g., `robotics`, `game-design`) |
 
 Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_taxonomy) — use `science:<domain>` for unlisted fields (e.g., `science:astro`, `science:neuro`, `science:materials`).
 
-Type is determined once during planning and persists throughout the task lifecycle. If a re-plan changes the task's nature, `plan` may update the type.
+**Type determination**: Type is determined during planning via a research-informed process (see `plan/references/type-profiling.md`). For clear domains, the predefined type is assigned directly. For unclear or custom domains, `plan` runs web searches to identify the field and builds a `.type-profile.md` with domain methodology, tools, verification standards, and implementation patterns. Type may be refined during re-plan if the task's nature changes.
+
+**Type profile**: Every task module gets a `.type-profile.md` during planning. This file is the **authoritative** domain methodology source for the task — all phases (verify, check, exec) read it first, before falling back to static reference tables. The profile is updated progressively as research/verify/check/exec discover new domain information.
 
 **Type field validation**: Custom type values must match `[a-zA-Z0-9_:-]+` — no spaces, path separators, or dots. `init` (from `--type` argument) and `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>.md` filename to prevent path traversal.
 
-**Unknown type fallback**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec): `"Unknown type '<value>', falling back to software methodology"`. This ensures the pipeline never blocks on an unrecognized type.
+**Unknown type handling**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it reads `.type-profile.md` for task-specific methodology. If `.type-profile.md` also doesn't exist (legacy task), it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec).
 
 #### Phase Field
 
@@ -166,7 +170,7 @@ The `phase` field disambiguates sub-states within a status, primarily for `re-pl
 | Status | Phase | Meaning | Auto Entry Action |
 |--------|-------|---------|-------------------|
 | `re-planning` | `needs-plan` | check REPLAN set status, plan hasn't run yet | `plan --generate` |
-| `re-planning` | `needs-check` | plan regenerated, ready for assessment | `check --checkpoint post-plan` |
+| `re-planning` | `needs-check` | plan regenerated, ready for assessment | `verify` → `check --checkpoint post-plan` |
 | (other) | `""` (empty) | No sub-state needed | Status-based routing |
 
 Writers: `check` sets `phase: needs-plan` on REPLAN and on NEEDS_REVISION when status is `re-planning`. `plan` sets `phase: needs-check` when completing on `re-planning` status. `annotate` sets `phase: needs-check` when the new status is `re-planning` (same rule as `plan`). All other transitions clear `phase` to `""`.
@@ -521,17 +525,17 @@ Generate `.report.md` from all task artifacts. Informational only — no status 
 
 `/ai-cli-task:auto <task_module> [--start|--stop|--status]`
 
-Single-session autonomous loop: plan → check → exec → check, with self-correction. A single Claude session internally orchestrates all steps; the backend daemon monitors progress via `fs.watch` on `.auto-signal` and enforces safety limits.
+Single-session autonomous loop: plan → verify → check → exec → verify → check(mid) → exec → verify → check(post) → merge → report, with self-correction. A single Claude session internally orchestrates all steps; the backend daemon monitors progress via `fs.watch` on `.auto-signal` and enforces safety limits.
 
 **Status-based first entry:**
 
 | Status | First Action |
 |--------|-------------|
 | `draft` | Validate `.target.md` has content → plan --generate (stop if empty) |
-| `planning` | check --checkpoint post-plan |
-| `re-planning` | Read `phase`: `needs-plan` → plan --generate; `needs-check` → check --checkpoint post-plan; empty → plan --generate (safe default) |
+| `planning` | verify → check --checkpoint post-plan |
+| `re-planning` | Read `phase`: `needs-plan` → plan --generate; `needs-check` → verify → check --checkpoint post-plan; empty → plan --generate (safe default) |
 | `review` | exec |
-| `executing` | check --checkpoint post-exec |
+| `executing` | verify → check --checkpoint post-exec |
 | `complete` | report → stop |
 | `blocked` / `cancelled` | stop |
 
@@ -545,14 +549,14 @@ Single-session autonomous loop: plan → check → exec → check, with self-cor
 | check | ACCEPT | merge | — |
 | check | NEEDS_FIX | exec | mid-exec / post-exec |
 | check | REPLAN / BLOCKED | plan / (stop) | — |
-| plan | (any) | check | post-plan |
-| exec | (done) | check | post-exec |
-| exec | (mid-exec) | check | mid-exec |
-| exec | (step-N) | check | mid-exec | ← manual `--step N` only |
+| plan | (any) | verify | post-plan |
+| exec | (done) | verify | post-exec |
+| exec | (mid-exec) | verify | mid-exec |
+| exec | (step-N) | verify | mid-exec | ← manual `--step N` only |
 | exec | (blocked) | (stop) | — |
-| research | (collected)/(sufficient) | plan | post-research |
+| research | (collected)/(sufficient) | `<caller>` (plan/verify/check/exec) | post-research |
 | verify | (pass/fail/partial) | check | — |
-| annotate | (processed) | check | post-plan |
+| annotate | (processed) | verify | post-plan |
 | merge | success | report | — |
 | merge | conflict | (stop) | — |
 | report | (any) | (stop) | — |
