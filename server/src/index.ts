@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupWebSocket, clearWsIntervals } from './websocket.js';
-import { isTmuxAvailable, cleanupStaleSessions } from './tmux.js';
+import { isTmuxAvailable, cleanupOrphanedProcesses } from './tmux.js';
 import { cleanupOldDrafts, cleanupOldAnnotations, closeDb } from './db.js';
 import { safeTokenCompare } from './auth.js';
 
@@ -32,7 +32,6 @@ const HTTPS_ENABLED = process.env.HTTPS_ENABLED !== 'false';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '';
 const TRUST_PROXY = process.env.TRUST_PROXY || '';
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || '10', 10);
-const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
 const RATE_LIMIT_READ = parseInt(process.env.RATE_LIMIT_READ || '300', 10);
 const RATE_LIMIT_WRITE = parseInt(process.env.RATE_LIMIT_WRITE || '100', 10);
 
@@ -186,23 +185,24 @@ async function main() {
     console.log('');
   });
 
-  // --- Cleanup ---
+  // --- Startup cleanup ---
+
+  try {
+    await cleanupOrphanedProcesses();
+  } catch (e) { console.error('[startup:orphans]', e); }
 
   try {
     const purged = cleanupOldDrafts(7);
     if (purged > 0) console.log(`[startup] Cleaned up ${purged} stale drafts`);
   } catch (e) { console.error('[startup:drafts]', e); }
 
-  let cleanupTimer: ReturnType<typeof setInterval> | null = null;
-  if (SESSION_TTL_HOURS > 0) {
-    const CLEANUP_INTERVAL = 60 * 60 * 1000;
-    cleanupTimer = setInterval(() => {
-      cleanupStaleSessions(SESSION_TTL_HOURS).catch((e) => console.error('[cleanup]', e));
-      try { cleanupOldDrafts(7); } catch (e) { console.error('[cleanup:drafts]', e); }
-      try { cleanupOldAnnotations(7); } catch (e) { console.error('[cleanup:annotations]', e); }
-    }, CLEANUP_INTERVAL);
-    console.log(`Session TTL: ${SESSION_TTL_HOURS}h (cleanup every hour)`);
-  }
+  const CLEANUP_INTERVAL = 60 * 60 * 1000;
+  const cleanupTimer = setInterval(async () => {
+    try { await cleanupOrphanedProcesses(); } catch (e) { console.error('[cleanup:orphans]', e); }
+    try { cleanupOldDrafts(7); } catch (e) { console.error('[cleanup:drafts]', e); }
+    try { cleanupOldAnnotations(7); } catch (e) { console.error('[cleanup:annotations]', e); }
+  }, CLEANUP_INTERVAL);
+  console.log('Sessions persist until manually closed (cleanup every hour)');
 
   // --- Graceful shutdown ---
 

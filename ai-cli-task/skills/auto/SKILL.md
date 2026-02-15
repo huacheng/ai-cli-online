@@ -226,6 +226,7 @@ After each step, Claude evaluates the result and determines the next step intern
 | exec | (blocked) | (stop) | — | Cannot continue |
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
+| research | (collected)/(sufficient) | plan | post-research | References collected, resume planning |
 | verify | (pass/fail/partial) | check | — | Verification done, check renders verdict |
 | annotate | (processed) | check | post-plan | Annotations processed, assess changes |
 | report | (any) | (stop) | — | Loop complete |

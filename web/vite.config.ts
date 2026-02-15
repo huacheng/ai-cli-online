@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || require('../package.json').version),
+    __APP_VERSION__: JSON.stringify(require('../package.json').version),
   },
   esbuild: {
     drop: process.env.NODE_ENV === 'production' ? ['console'] : [],

@@ -168,14 +168,14 @@ export async function listSessions(token: string): Promise<TmuxSessionInfo[]> {
   }
 }
 
-/** Clean up idle tmux sessions older than the given TTL (hours) */
+/** Clean up idle tmux sessions whose last activity exceeds the given TTL (hours) */
 export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
   const cutoff = Math.floor(Date.now() / 1000) - ttlHours * 3600;
   try {
     const { stdout } = await tmuxExec([
       'list-sessions',
       '-F',
-      '#{session_name}:#{session_created}:#{session_attached}',
+      '#{session_name}:#{session_activity}:#{session_attached}',
     ], { encoding: 'utf-8' });
 
     const staleNames: string[] = [];
@@ -187,12 +187,12 @@ export async function cleanupStaleSessions(ttlHours: number): Promise<void> {
       const rest = line.slice(0, lastColon);
       const secondLastColon = rest.lastIndexOf(':');
       if (secondLastColon === -1) continue;
-      const created = parseInt(rest.slice(secondLastColon + 1), 10);
+      const lastActivity = parseInt(rest.slice(secondLastColon + 1), 10);
       const name = rest.slice(0, secondLastColon);
       if (!name.startsWith('ai-cli-online-')) continue;
       if (attached > 0) continue;
-      if (created < cutoff) {
-        console.log(`[tmux] Cleaning up stale session: ${name} (created ${new Date(created * 1000).toISOString()})`);
+      if (lastActivity < cutoff) {
+        console.log(`[tmux] Cleaning up stale session: ${name} (last activity ${new Date(lastActivity * 1000).toISOString()})`);
         staleNames.push(name);
       }
     }
@@ -230,5 +230,74 @@ export function isTmuxAvailable(): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Clean up orphaned process trees from dead tmux sessions.
+ *
+ * With KillMode=process, tmux child processes (bash → claude → plugins) survive
+ * service restarts. When a tmux session is killed (by cleanup or manually), its
+ * child processes may keep running as orphans. This function identifies tmux server
+ * processes in the service cgroup whose sessions no longer exist and kills their
+ * entire process trees.
+ *
+ * Called once at startup.
+ */
+export async function cleanupOrphanedProcesses(): Promise<void> {
+  // Get live session names from the socket-based tmux server
+  const liveSessions = new Set<string>();
+  try {
+    const { stdout } = await tmuxExec([
+      'list-sessions', '-F', '#{session_name}',
+    ], { encoding: 'utf-8' });
+    for (const line of stdout.trim().split('\n')) {
+      if (line) liveSessions.add(line);
+    }
+  } catch {
+    // tmux server not running — nothing to clean
+  }
+
+  // Find tmux server processes that belong to ai-cli-online but manage dead sessions.
+  // These show up as `tmux new-session -d -s <session-name>` in /proc/*/cmdline.
+  try {
+    const { stdout } = await _execFile('ps', [
+      '-eo', 'pid,ppid,args', '--no-headers',
+    ], { encoding: 'utf-8', timeout: EXEC_TIMEOUT });
+
+    const orphanPids: number[] = [];
+    for (const line of stdout.trim().split('\n')) {
+      if (!line) continue;
+      const match = line.match(/^\s*(\d+)\s+\d+\s+tmux.*new-session\s+-d\s+-s\s+(ai-cli-online-\S+)/);
+      if (!match) continue;
+      const pid = parseInt(match[1], 10);
+      const sessionName = match[2];
+      if (!liveSessions.has(sessionName)) {
+        orphanPids.push(pid);
+        console.log(`[cleanup] Found orphaned tmux process tree: PID ${pid}, dead session: ${sessionName}`);
+      }
+    }
+
+    for (const pid of orphanPids) {
+      try {
+        // Kill the entire process group/tree rooted at this tmux server
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process group kill failed, try individual kill
+        try { process.kill(pid, 'SIGTERM'); } catch { /* already gone */ }
+      }
+    }
+
+    if (orphanPids.length > 0) {
+      // Give processes time to exit gracefully, then force-kill survivors
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      for (const pid of orphanPids) {
+        try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+        try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+      }
+      console.log(`[cleanup] Cleaned up ${orphanPids.length} orphaned tmux process tree(s)`);
+    }
+  } catch (err) {
+    console.error('[cleanup] Failed to scan for orphaned processes:', err);
   }
 }

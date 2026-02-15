@@ -48,7 +48,7 @@ Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types
 9. **Update** the task file with resolved changes and inline markers for pending items
 10. **Update** `.index.json` in the task module:
     - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
-    - If status transitions to `re-planning`, set `phase: needs-check`
+    - If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`
     - Update `updated` timestamp
 11. **Write** `.summary.md` with condensed context reflecting annotation changes
 12. **Clean up** the `.tmp-annotations.json` file (delete after processing)

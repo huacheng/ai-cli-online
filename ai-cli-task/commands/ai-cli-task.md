@@ -169,7 +169,7 @@ The `phase` field disambiguates sub-states within a status, primarily for `re-pl
 | `re-planning` | `needs-check` | plan regenerated, ready for assessment | `check --checkpoint post-plan` |
 | (other) | `""` (empty) | No sub-state needed | Status-based routing |
 
-Writers: `check` sets `phase: needs-plan` on REPLAN and on NEEDS_REVISION when status is `re-planning`. `plan` sets `phase: needs-check` when completing on `re-planning` status. All other transitions clear `phase` to `""`.
+Writers: `check` sets `phase: needs-plan` on REPLAN and on NEEDS_REVISION when status is `re-planning`. `plan` sets `phase: needs-check` when completing on `re-planning` status. `annotate` sets `phase: needs-check` when the new status is `re-planning` (same rule as `plan`). All other transitions clear `phase` to `""`.
 
 ### Status State Machine
 
@@ -550,6 +550,7 @@ Single-session autonomous loop: plan → check → exec → check, with self-cor
 | exec | (mid-exec) | check | mid-exec |
 | exec | (step-N) | check | mid-exec | ← manual `--step N` only |
 | exec | (blocked) | (stop) | — |
+| research | (collected)/(sufficient) | plan | post-research |
 | verify | (pass/fail/partial) | check | — |
 | annotate | (processed) | check | post-plan |
 | merge | success | report | — |

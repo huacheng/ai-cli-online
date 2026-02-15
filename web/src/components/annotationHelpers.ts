@@ -139,7 +139,7 @@ export function shellQuote(s: string): string {
 }
 
 /** Generate /ai-cli-task:annotate command for a single file */
-export function generatePlanCommand(filePath: string, annFilePath: string): string {
+export function generateAnnotateCommand(filePath: string, annFilePath: string): string {
   return `/ai-cli-task:annotate ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
 }
 

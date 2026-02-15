@@ -13,14 +13,14 @@ import { AnnotationCard } from './AnnotationCard';
 import { SelectionFloat } from './SelectionFloat';
 import {
   uid, storageKey, scrollKey, tokenToHtml, tokenSourceLine,
-  buildAnnotationJson, hasAnnotations, generatePlanCommand, deriveModulePath, collectIds,
+  buildAnnotationJson, hasAnnotations, generateAnnotateCommand, deriveModulePath, collectIds,
 } from './annotationHelpers';
 import type { AddAnnotation, PlanAnnotations } from '../types/annotations';
 import { EMPTY_ANNOTATIONS } from '../types/annotations';
 
 export type { AddAnnotation, PlanAnnotations };
 export type { DeleteAnnotation, ReplaceAnnotation, CommentAnnotation } from '../types/annotations';
-export { generatePlanCommand };
+export { generateAnnotateCommand };
 
 /* ── Component ── */
 
@@ -421,7 +421,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     const modulePath = deriveModulePath(filePath);
     try {
       const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
-      const cmd = generatePlanCommand(filePath, annFilePath);
+      const cmd = generateAnnotateCommand(filePath, annFilePath);
       onExecute(cmd);
       baselineIdsRef.current = collectIds(annotations);
       setBaselineVer(v => v + 1);
@@ -445,7 +445,7 @@ export const PlanAnnotationRenderer = forwardRef<PlanAnnotationRendererHandle, P
     const modulePath = deriveModulePath(filePath);
     try {
       const { path: annFilePath } = await writeTaskAnnotations(token, sessionId, modulePath, annJson);
-      onSend(generatePlanCommand(filePath, annFilePath));
+      onSend(generateAnnotateCommand(filePath, annFilePath));
       baselineIdsRef.current.add(annId);
       setBaselineVer(v => v + 1);
       flashStatus('ok', 'Sent 1 annotation');
