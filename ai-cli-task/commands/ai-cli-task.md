@@ -24,6 +24,7 @@ Single entry point for task lifecycle management in the `AiTasks/` directory.
 ```
 AiTasks/
 ├── .index.json                # Root index (task module listing, JSON array)
+├── .type-registry.md          # Auto-expanding type registry (seed + discovered types, shared across tasks)
 ├── .experiences/              # Cross-task knowledge base (by type, distilled from completed tasks)
 │   ├── .summary.md            # Condensed index of all experience files (overwritten on each new entry)
 │   ├── software.md            # Lessons from completed software tasks
@@ -128,38 +129,23 @@ Notes: `worktree` is empty string `""` if not using worktree. `depends_on` entri
 
 #### Type Field
 
-The `type` field identifies the task's domain, set by `plan` (generate mode) after analyzing `.target.md`. All subsequent sub-commands (`check`, `exec`) read this field to adapt their behavior.
+The `type` field identifies the task's domain. It is **auto-discovered** by `research` during the first `plan` phase — `init` does not accept a `--type` argument. All subsequent sub-commands (`check`, `exec`) read this field to adapt their behavior.
 
-| Type | Description | Examples |
-|------|-------------|---------|
-| `software` | Programming, API, database, UI development | Web app, CLI tool, library |
-| `image-processing` | Image/video manipulation, rendering, visual | Filters, thumbnails, format conversion |
-| `video-production` | Video editing, compositing, VFX, motion graphics | Non-linear editing, color grading, visual effects, titling |
-| `dsp` | Digital signal processing, audio, frequency analysis | FFT, audio filters, spectrum analysis |
-| `data-pipeline` | Data transformation, ETL, migration | CSV processing, DB migration, data cleaning |
-| `infrastructure` | DevOps, deployment, CI/CD, containers | Docker setup, deploy scripts, monitoring |
-| `documentation` | Docs, README, translation, content | API docs, user guides, i18n |
-| `ml` | Machine learning, model training, datasets | Model fine-tuning, data labeling, evaluation |
-| `literary` | Fiction, poetry, creative writing, essays | Novel chapters, poetry collections, literary criticism |
-| `screenwriting` | Film/TV scripts, storyboards, dialogue | Feature scripts, episode scripts, scene breakdowns |
-| `science:physics` | Physics research and simulation | Mechanics, optics, quantum, astrophysics, condensed matter |
-| `science:chemistry` | Chemical research, molecular modeling | Synthesis routes, reaction kinetics, molecular dynamics |
-| `science:biology` | Biological research, bioinformatics | Genomics, proteomics, phylogenetics, systems biology |
-| `science:medicine` | Medical/pharmaceutical research | Drug discovery, clinical data analysis, pharmacokinetics |
-| `science:math` | Mathematics, statistics, formal proofs | Theorem proving, numerical analysis, statistical modeling |
-| `science:econ` | Economics, quantitative finance | Econometrics, market modeling, risk analysis |
-| `mechatronics` | Embedded systems, robotics, PLC, control systems | Motor control, PID tuning, sensor integration, SCADA |
-| `ai-skill` | AI skill/plugin/agent/prompt development | Claude Code skills, MCP servers, prompt engineering, agent workflows |
-| `chip-design` | IC/FPGA/ASIC design, RTL development, verification | Verilog/VHDL RTL, synthesis, STA, formal verification, physical design |
-| (custom) | Any domain not listed above | Must match `[a-zA-Z0-9_:-]+` (e.g., `robotics`, `game-design`) |
+**Type format**: Single type (`software`) or pipe-separated hybrid (`data-pipeline|ml`). Parsing: `type.split('|')` → `[0]` is primary, `[1:]` are secondary domains.
+
+**Seed types**: Predefined types are maintained in `init/references/seed-types.md` and used to initialize `AiTasks/.type-registry.md` on first `init`. The registry is auto-expanded by `research` when new domains are discovered. See `init/references/seed-types.md` for the full table (19 seed types including software, DSP, ML, science subtypes, chip-design, etc.).
 
 Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_taxonomy) — use `science:<domain>` for unlisted fields (e.g., `science:astro`, `science:neuro`, `science:materials`).
 
-**Type determination**: Type is determined during planning via a research-informed process (see `plan/references/type-profiling.md`). For clear domains, the predefined type is assigned directly. For unclear or custom domains, `plan` runs web searches to identify the field and builds a `.type-profile.md` with domain methodology, tools, verification standards, and implementation patterns. Type may be refined during re-plan if the task's nature changes.
+**Auto-discovery**: Type is determined automatically by `research` during the first `plan` phase (see `plan/references/type-profiling.md`). Research analyzes `.target.md` + web search to identify the domain, detects hybrid indicators, and writes the type to `.index.json`. No user input is needed — `init` creates tasks with `type: ""`, which `research` fills in.
+
+**Auto-expanding registry**: `AiTasks/.type-registry.md` holds all known types (seed + dynamically discovered). When `research` identifies a domain not in the registry, it appends a new row automatically. The predefined table above is a **seed**, not a ceiling — new domains are registered on demand.
+
+**Hybrid types**: Tasks spanning multiple domains use pipe-separated format (e.g., `data-pipeline|ml`). The first segment is primary (drives architecture), subsequent segments are secondary (add domain-specific verification and implementation concerns). All phases read experience files and apply methodology for **all** segments.
 
 **Type profile**: Every task module gets a `.type-profile.md` during planning. This file is the **authoritative** domain methodology source for the task — all phases (verify, check, exec) read it first, before falling back to static reference tables. The profile is updated progressively as research/verify/check/exec discover new domain information.
 
-**Type field validation**: Custom type values must match `[a-zA-Z0-9_:-]+` — no spaces, path separators, or dots. `init` (from `--type` argument) and `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>.md` filename to prevent path traversal.
+**Type field validation**: Each pipe-separated segment must match `[a-zA-Z0-9_:-]+`. Full type field regex: `[a-zA-Z0-9_:|-]+`. `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>.md` filename to prevent path traversal.
 
 **Unknown type handling**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it reads `.type-profile.md` for task-specific methodology. If `.type-profile.md` also doesn't exist (legacy task), it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec).
 
@@ -411,7 +397,7 @@ Without worktree mode, only one task should be actively operated at a time. Sub-
 
 ### .experiences/ Write Protection
 
-`AiTasks/.experiences/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experiences/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file.
+`AiTasks/.experiences/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experiences/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file. For hybrid types (`A|B`), `report` writes to experience files for **all** pipe-separated segments (e.g., both `A.md` and `B.md`).
 
 ### .references/ Write Protection
 
@@ -465,9 +451,9 @@ skills/<name>/
 
 ### init
 
-`/ai-cli-task:init <module_name> [--title "..."] [--tags t1,t2] [--type <type>] [--worktree]`
+`/ai-cli-task:init <module_name> [--title "..."] [--tags t1,t2] [--worktree]`
 
-Create task module directory + `.index.json` (status `draft`) + `.target.md` template (domain-specific if `--type` given). Create git branch `task/<module_name>`, checkout to it (or create worktree with `--worktree`). Module name: ASCII letters/digits/hyphens/underscores (`[a-zA-Z0-9_-]+`).
+Create task module directory + `.index.json` (status `draft`, type empty) + `.target.md` template. Create git branch `task/<module_name>`, checkout to it (or create worktree with `--worktree`). Type is auto-discovered by `research` during planning. Module name: ASCII letters/digits/hyphens/underscores (`[a-zA-Z0-9_-]+`).
 
 ### plan
 

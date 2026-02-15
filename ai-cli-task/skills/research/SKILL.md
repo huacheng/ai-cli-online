@@ -71,16 +71,19 @@ Callable independently for preparatory research before any phase, or to suppleme
 5. **Read** `.bugfix/` latest file if exists — understand what went wrong (for re-plan gap targeting)
 6. **Read** `.analysis/` latest file if exists — understand evaluation feedback (for re-plan gap targeting)
 7. **Read** `AiTasks/.references/.summary.md` if exists — inventory of existing references
-8. **Type validation & refinement** (see `plan/references/type-profiling.md`):
+8. **Type discovery & refinement** (see `plan/references/type-profiling.md`):
+   - **Read** `AiTasks/.type-registry.md` if exists — known types (seed + previously discovered). If missing, read `init/references/seed-types.md` as fallback
    - If `--caller plan` and `.type-profile.md` doesn't exist or confidence is `low`:
      - Web search `.target.md` domain keywords to identify the actual field
-     - Compare against predefined types — detect single match, hybrid indicators, or custom domain
-     - If user specified `--type` at init: validate it against research findings, override if contradicted
+     - Compare against type registry — detect single match, hybrid indicators, or novel domain
+     - For hybrid tasks: write type as `A|B` pipe-separated format (e.g., `data-pipeline|ml`)
+     - For novel domains: **register** new type in `AiTasks/.type-registry.md` (append row with date + source task)
      - Write or update `.type-profile.md` with classification, methodology, verification standards, implementation patterns
-     - Update `type` in `.index.json` if classification changed
+     - Update `type` in `.index.json` (use `A|B` format for hybrids)
    - If `--caller verify|check|exec` and `.type-profile.md` exists:
      - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section)
      - If inadequate or missing: web search for domain-specific methodology for this phase
+     - If type classification changed (e.g., discovered secondary domain): update type in `.index.json` to `A|B` format, register new type if needed
      - Update `.type-profile.md` with findings, append to refinement log
 9. **Read** `references/task-type-intelligence.md` — look up the intelligence matrix for the task `type` × calling `phase` (from `--caller`, default `plan`). This determines **what direction** to research (architecture vs testing tools vs evaluation standards vs implementation details)
 10. **Gap analysis**:

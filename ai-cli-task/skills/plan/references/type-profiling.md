@@ -1,48 +1,67 @@
 # Dynamic Type Profiling
 
-Task type is NOT a one-shot decision. It is a **continuously refined classification** that evolves through research, planning, and execution. User-provided types are treated as initial hints, not gospel — they must be validated and may be corrected.
+Task type is NOT a one-shot decision. It is a **continuously refined classification** that evolves through research, planning, and execution. Types are **auto-discovered** from `.target.md` analysis and web research — no user input required at `init` time.
 
 ## Core Principles
 
 1. **Type is a hypothesis, not a label** — every type assignment starts as a hypothesis that must be validated by research
-2. **User-specified types are hints** — `init --type X` sets a starting point, but research/plan may discover the actual domain differs
-3. **Hybrid types are first-class** — many real tasks span multiple domains; the type system must represent this, not force a single category
-4. **Progressive refinement** — type confidence grows across phases: target analysis → research → plan → verify/check/exec feedback
+2. **Fully automatic discovery** — `init` does not accept a `--type` argument; type is determined by `research` during the first `plan` phase, based on `.target.md` content + web research
+3. **Hybrid types are first-class** — many real tasks span multiple domains; represented as `A|B` pipe-separated format (e.g., `data-pipeline|ml`)
+4. **Auto-expanding type registry** — when research discovers a domain not in the predefined table, it registers the new type in `AiTasks/.type-registry.md` automatically. The predefined table is a seed, not a ceiling
+5. **Progressive refinement** — type confidence grows across phases: target analysis → research → plan → verify/check/exec feedback
+
+## Type Format in `.index.json`
+
+The `type` field uses a simple string with pipe separator for hybrids:
+
+| Pattern | Example | Meaning |
+|---------|---------|---------|
+| `<type>` | `software` | Single domain |
+| `<A>\|<B>` | `data-pipeline\|ml` | Hybrid — A is primary, B is secondary |
+| `<A>\|<B>\|<C>` | `software\|infrastructure\|dsp` | Multi-hybrid — first is primary, rest are secondary (rare) |
+
+**Validation regex**: Each segment must match `[a-zA-Z0-9_:-]+`. Full type field: `[a-zA-Z0-9_:|-]+` (pipe allowed as separator). Parsing: `type.split('|')` → `[0]` is primary, `[1:]` are secondary.
+
+**Experiences mapping**: For hybrid type `A|B`, `report` writes to **both** `AiTasks/.experiences/A.md` and `AiTasks/.experiences/B.md`. Plan reads experience files for all segments.
 
 ## Type Determination Flow
 
 ```
                     ┌──────────────────────────────────────────┐
                     │         .target.md analysis               │
-                    │  + user hint (init --type, if provided)   │
+                    │  (no user-specified type — auto only)     │
                     └──────────────┬───────────────────────────┘
                                    │
                     ┌──────────────▼───────────────────────────┐
                     │         research (--caller plan)          │
                     │  • Web search domain keywords             │
                     │  • Identify field, methodology, tools     │
-                    │  • Compare against predefined types       │
+                    │  • Compare against type registry + seed   │
                     │  • Detect hybrid indicators               │
+                    │  • Register new types if needed           │
                     └──────────────┬───────────────────────────┘
                                    │
                     ┌──────────────▼───────────────────────────┐
                     │         Type classification               │
                     │                                           │
-                    │  ├─ Single predefined type match          │
+                    │  ├─ Single known type match               │
+                    │  │  → type: "software"                    │
                     │  │  confidence: high                      │
                     │  │                                        │
-                    │  ├─ Hybrid of 2+ predefined types         │
-                    │  │  primary + secondary, weighted         │
+                    │  ├─ Hybrid of 2+ types                    │
+                    │  │  → type: "data-pipeline|ml"            │
                     │  │  confidence: medium → high after plan  │
                     │  │                                        │
-                    │  └─ Custom (no predefined type fits)      │
-                    │     research-built profile is sole ref    │
+                    │  └─ New type (not in registry)            │
+                    │     → register in .type-registry.md       │
+                    │     → type: "quantum-computing"           │
                     │     confidence: low → medium → high       │
                     └──────────────┬───────────────────────────┘
                                    │
                     ┌──────────────▼───────────────────────────┐
                     │     Write .type-profile.md                │
                     │     Write type to .index.json             │
+                    │     Update .type-registry.md (if new)     │
                     └──────────────────────────────────────────┘
                                    │
               ┌────────────────────┼────────────────────┐
@@ -52,52 +71,64 @@ Task type is NOT a one-shot decision. It is a **continuously refined classificat
          if standards wrong   if patterns wrong    if nature changed
 ```
 
-## User-Specified Type Validation
+## Auto-Expanding Type Registry
 
-When `init --type X` was used, the user's type is NOT automatically trusted:
+### Location
 
-| Scenario | Action |
-|----------|--------|
-| User type matches `.target.md` + research findings | Accept user type, confidence `high` |
-| User type partially matches (right general area) | Accept but refine — add specifics to profile, may adjust to sub-type |
-| User type contradicts `.target.md` + research | Override user type with research-informed classification. Log reason in profile "Rationale" |
-| User type is vague (e.g., `software` for a specialized task) | Refine to more specific type (e.g., `software` → `data-pipeline` if task is clearly ETL) |
+`AiTasks/.type-registry.md` — shared across all tasks, auto-maintained by `research`.
 
-research MUST validate user-specified types by checking:
-- Do the `.target.md` keywords match the type's typical domain vocabulary?
-- Do the referenced tools/technologies belong to this type?
-- Does the task workflow match the type's standard lifecycle?
+### Format
+
+```markdown
+# Type Registry
+
+Auto-maintained by research. Predefined seed types + dynamically discovered types.
+
+| Type | Description | Discovered | Source Task |
+|------|-------------|------------|-------------|
+| software | Programming, API, database, UI development | (seed) | — |
+| dsp | Digital signal processing, audio, frequency analysis | (seed) | — |
+| data-pipeline | Data transformation, ETL, migration | (seed) | — |
+| quantum-computing | Quantum circuit design and simulation | 2024-03-15 | quantum-sim |
+| game-design | Game mechanics, level design, balancing | 2024-04-02 | rpg-prototype |
+```
+
+### Lifecycle
+
+1. **Seed**: `init` creates `.type-registry.md` (if missing) with the predefined types from `commands/ai-cli-task.md` as seed rows
+2. **Grow**: When `research` classifies a type not in the registry, it appends a new row with discovery date and source task module name
+3. **Read**: `research` reads the registry during type classification to match against known types (both seed and discovered)
+4. **Shared**: The registry is a shared resource — types discovered by one task benefit future tasks. No lock needed (append-only, one writer at a time via task `.lock`)
+
+### Why Auto-Expand?
+
+Human-defined type tables have two inherent problems:
+- **Lag**: New domains emerge faster than maintainers can update tables
+- **Insufficiency**: Maintainers can't anticipate every domain a user might work in
+
+Auto-expansion solves both: research identifies the domain from `.target.md` + web search, registers it if new, and builds a comprehensive `.type-profile.md` immediately. Future tasks in the same domain benefit from the registry entry.
 
 ## Hybrid Type System
 
-Many real tasks don't fit a single category. The type system supports three classification levels:
-
-### Level 1: Single Type
-```markdown
-- **Assigned type**: `software`
-- **Classification**: single
-- **Confidence**: high
+### Single Type
+```
+.index.json type: "software"
 ```
 Task clearly belongs to one domain. All phases use that domain's methodology.
 
-### Level 2: Primary + Secondary
-```markdown
-- **Assigned type**: `data-pipeline`
-- **Classification**: hybrid
-- **Primary**: `data-pipeline` (weight: 70%)
-- **Secondary**: `ml` (weight: 30%)
-- **Confidence**: medium
+### Hybrid Type (pipe-separated)
 ```
-Task spans two domains. Planning, verification, and execution draw from both — primary domain drives architecture, secondary domain adds specialized concerns. For example: "Build an ETL pipeline that feeds into ML model training" → primary data-pipeline (the pipeline is the main deliverable), secondary ml (training integration needs ML-specific verification).
+.index.json type: "data-pipeline|ml"
+```
+Task spans two domains. Primary (`data-pipeline`) drives architecture and workflow; secondary (`ml`) adds specialized verification and implementation concerns.
 
-### Level 3: Custom / Novel
-```markdown
-- **Assigned type**: `quantum-computing`
-- **Classification**: custom
-- **Nearest predefined**: `science:physics` (partial match)
-- **Confidence**: low → research-dependent
+Example: "Build an ETL pipeline that feeds into ML model training" → `data-pipeline|ml` — the pipeline is the main deliverable (primary), ML training integration needs ML-specific verification (secondary).
+
+### Custom / Novel Type
 ```
-Task is in a domain not covered by predefined types. `.type-profile.md` is the **sole** methodology reference. Profile must be especially thorough.
+.index.json type: "quantum-computing"
+```
+Task is in a domain not covered by existing registry types. `research` registers it and builds `.type-profile.md` as the **sole** methodology reference. Profile must be especially thorough.
 
 ## .type-profile.md Structure
 
@@ -107,16 +138,15 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
 # Type Profile: <type>
 
 ## Domain Classification
-- **Assigned type**: `<type>`
+- **Assigned type**: `<type>` (e.g., `data-pipeline|ml`)
 - **Classification**: single | hybrid | custom
 - **Primary**: `<type>` (weight: N%)       ← hybrid only
 - **Secondary**: `<type>` (weight: N%)     ← hybrid only
-- **Nearest predefined**: `<type>`         ← custom only
+- **Nearest known**: `<type>`              ← custom only
 - **Confidence**: high | medium | low
-- **Rationale**: <why this type was chosen, including validation against .target.md>
-- **User hint**: `<init --type value>` | (none)  ← for audit trail
+- **Rationale**: <why this type was chosen, based on .target.md + research>
 - **Refinement log**:
-  - <date> plan: initial classification based on .target.md + research
+  - <date> research: initial classification based on .target.md + web research
   - <date> verify: updated verification standards after discovering X
   - <date> exec: refined implementation patterns after encountering Y
 
@@ -163,27 +193,30 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
 
 research has **three type-related responsibilities**:
 
-### 1. Type validation (when called from plan)
-- Compare `.target.md` keywords against predefined type vocabularies
+### 1. Type discovery (when called from plan)
+- Analyze `.target.md` keywords against type registry (`AiTasks/.type-registry.md`)
 - Web search to identify the actual domain field
-- Validate or override user-specified type
 - Detect hybrid indicators (keywords from multiple domains)
+- Classify and write `type` to `.index.json` using `A|B` format for hybrids
+- Register new types in `.type-registry.md` if not already known
 
 ### 2. Type refinement (when called from any phase)
 - Each phase may discover that the current type classification is incomplete
 - research collects additional domain info and updates `.type-profile.md`
-- Type itself may change (e.g., `software` → `software` + `infrastructure` hybrid)
+- Type itself may change (e.g., `software` → `software|infrastructure` hybrid)
+- Updated type written back to `.index.json` with pipe format
 
-### 3. Custom type profiling (when no predefined type fits)
+### 3. Custom type profiling (when no registry type fits)
 - Comprehensive web research to build the domain profile from scratch
 - Must cover all four profile sections with web-sourced best practices
-- Identify the nearest predefined type(s) for partial methodology reuse
+- Identify the nearest known type(s) for partial methodology reuse
+- Register the new type in `.type-registry.md` for future tasks
 
 ## Integration with Lifecycle Phases
 
 All phases read `.type-profile.md` as their **first** source of domain methodology:
 
-1. **research** reads entire profile → validates type, identifies gaps, collects phase-directed intelligence
+1. **research** reads entire profile → discovers/validates type, identifies gaps, collects phase-directed intelligence
 2. **plan** reads all sections → selects methodology, generates domain-appropriate plan
 3. **verify** reads "Verification Standards" → determines what to test and how
 4. **check** reads "Verification Standards" + "Quality metrics" → sets evaluation criteria
@@ -191,4 +224,4 @@ All phases read `.type-profile.md` as their **first** source of domain methodolo
 
 When `.type-profile.md` conflicts with static reference tables, the **profile takes precedence** (it's task-specific and research-informed, while tables are generic defaults).
 
-When `.type-profile.md` is a hybrid profile, phases must consider **both** primary and secondary domain requirements — e.g., verification for a `data-pipeline + ml` hybrid must include both data integrity checks AND model metric benchmarks.
+When type is hybrid (e.g., `data-pipeline|ml`), phases must consider **all** domain segments — e.g., verification for `data-pipeline|ml` must include both data integrity checks AND model metric benchmarks.

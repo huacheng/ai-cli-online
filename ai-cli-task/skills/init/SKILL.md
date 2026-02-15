@@ -11,9 +11,6 @@ arguments:
   - name: tags
     description: "Comma-separated tags (e.g., feature,backend,urgent)"
     required: false
-  - name: type
-    description: "Task type for domain-specific .target.md template (e.g., software, dsp, literary)"
-    required: false
   - name: worktree
     description: "Create isolated git worktree for parallel execution (flag, no value)"
     required: false
@@ -26,7 +23,7 @@ Create a new task module under the project's `AiTasks/` directory with the stand
 ## Usage
 
 ```
-/ai-cli-task:init <module_name> [--title "Task Title"] [--tags feature,backend] [--type software] [--worktree]
+/ai-cli-task:init <module_name> [--title "Task Title"] [--tags feature,backend] [--worktree]
 ```
 
 ## Directory Structure Created
@@ -117,7 +114,7 @@ Created automatically by `init` if `AiTasks/` directory does not exist (initiali
 ## Execution Steps
 
 1. **Validate** module_name: ASCII letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`), no whitespace, no leading dot, no path separators
-2. **Check** `AiTasks/` directory exists; create with root `.index.json` if missing (initialized as `[]`)
+2. **Check** `AiTasks/` directory exists; create with root `.index.json` if missing (initialized as `[]`). Also create `AiTasks/.type-registry.md` with seed types if missing (read `references/seed-types.md` for the predefined type table; see `plan/references/type-profiling.md` for registry format)
 3. **Check** `AiTasks/<module_name>/` does not already exist; abort with error if it does
 4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
 5. **Check working tree clean**: verify no uncommitted changes (`git status --porcelain`). If dirty, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first
@@ -136,11 +133,7 @@ Created automatically by `init` if `AiTasks/` directory does not exist (initiali
    - `tags`: parsed from `--tags` argument or `[]`
    - `branch`: `task/<module_name>`
    - `worktree`: `.worktrees/task-<module_name>` (or empty if no worktree)
-11. **Create** `AiTasks/<module_name>/.target.md` using domain-specific template:
-    - If `--type` is specified, validate value matches `[a-zA-Z0-9_:-]+`; reject with error if invalid
-    - If `--type` is specified and a matching template exists in `references/target-templates/<type>.md`, copy it (replacing `<title>` placeholder)
-    - If `--type` is specified, also set `.index.json` `type` field to the given value
-    - Otherwise, use the default template:
+11. **Create** `AiTasks/<module_name>/.target.md` with default template (type is auto-discovered by `research` during planning):
     ```markdown
     # Task Target: <title>
 

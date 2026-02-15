@@ -24,12 +24,12 @@ Generate an implementation plan from `.target.md`. Annotation processing is hand
    - **First plan** (status `draft`/`planning`, no existing `.plan.md`): invoke research with `--scope full --caller plan` — research will analyze `.target.md`, validate/override any user-specified type, detect hybrid domains, build `.type-profile.md`, and collect comprehensive references
    - **Re-plan** (status `re-planning`/`review`/`executing`): invoke research with `--scope gap --caller plan` — incremental type refinement and reference collection
 3. **Read** `.type-profile.md` — research has created or updated this. Verify the type classification makes sense in context. If plan disagrees with research's classification, update `.type-profile.md` with rationale and adjust `type` in `.index.json`
-4. Validate type value matches `[a-zA-Z0-9_:-]+`. Ensure `type` in `.index.json` is set
+4. Validate type value: each pipe-separated segment matches `[a-zA-Z0-9_:-]+`, full field matches `[a-zA-Z0-9_:|-]+`. Ensure `type` in `.index.json` is set
 5. Read `.summary.md` if exists (condensed context from prior runs — primary context source)
 6. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
 7. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
 8. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
-9. Read `AiTasks/.experiences/<type>.md` if exists — cross-task experience from completed tasks of the same domain type (for hybrid types, read experience files for **both** primary and secondary types)
+9. Read `AiTasks/.experiences/<type>.md` if exists — cross-task experience from completed tasks of the same domain type. For hybrid types (`A|B`), read experience files for **all** pipe-separated segments (e.g., both `A.md` and `B.md`)
 10. **Read** `AiTasks/.references/.summary.md` if exists — find relevant external reference files by keyword matching against task requirements. Read matched `.references/<topic>.md` files for domain knowledge
 11. Read project codebase for context (relevant files, CLAUDE.md conventions)
 12. Read `.notes/` latest file only if exists (prior research findings and experience)
