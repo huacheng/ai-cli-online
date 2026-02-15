@@ -182,7 +182,7 @@ When ACCEPT, the `merge` sub-command handles refactoring, merge, conflict resolu
 
 Verification methods MUST match the task domain. Read `type` from `.index.json` and apply domain-appropriate verification. If test methods are mismatched for the task type → verdict is NEEDS_REVISION.
 
-> **See `references/task-type-verification.md`** for the full domain reference table, determination rules, and requirements.
+> **See `init/references/seed-types/<type>.md`** for per-type seed methodology (indicators, verification approach). Shared profiles in `AiTasks/.type-profiles/` take precedence when available.
 
 ## Notes
 

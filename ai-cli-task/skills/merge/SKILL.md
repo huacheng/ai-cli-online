@@ -1,6 +1,6 @@
 ---
 name: merge
-description: Merge completed task branch to main — with conflict resolution, verification retry, and cleanup
+description: "Merge completed task branch to main — with conflict resolution, verification retry, and cleanup. Triggered after check post-exec ACCEPT verdict confirms all tests pass."
 arguments:
   - name: task_module
     description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"

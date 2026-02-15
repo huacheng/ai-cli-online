@@ -1,6 +1,6 @@
 ---
 name: exec
-description: Execute the implementation plan for a reviewed task module
+description: "Execute the implementation plan for a reviewed task module. Triggered after check PASS (from review status) or on NEEDS_FIX continuation (from executing status with fix guidance)."
 arguments:
   - name: task_module
     description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
@@ -53,8 +53,8 @@ Read the `type` field from `.index.json` to determine the task domain. Execution
 For each implementation step:
 
 1. **Read** relevant files (source code, configs, scripts, documentation)
-2. **Implement** the change using **domain-appropriate methods** as described in the plan (see `references/task-type-execution.md` for the full domain implementation table)
-3. **Verify** the step succeeded against `.test/` criteria using **domain-appropriate verification** (see `references/task-type-execution.md` for the full domain verification table)
+2. **Implement** the change using **domain-appropriate methods** as described in the plan (see `init/references/seed-types/<type>.md` for per-type seed methodology, or `.type-profile.md` for task-specific guidance)
+3. **Verify** the step succeeded against `.test/` criteria using **domain-appropriate verification** (see per-type seed file or `.type-profile.md` for domain verification methods)
 4. **Record** what was done (files changed, commands run, tools invoked, approach taken)
 5. **Create** `.notes/<YYYY-MM-DD>-<summary>-exec.md` when implementation deviates from plan, an unexpected workaround is needed, or a non-obvious API behavior is discovered. Skip for straightforward steps that follow the plan exactly
 6. **Update** `.notes/.summary.md` — overwrite with condensed summary of ALL notes files in `.notes/`

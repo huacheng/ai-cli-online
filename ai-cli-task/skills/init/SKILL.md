@@ -1,6 +1,6 @@
 ---
 name: init
-description: Initialize a new task module in AiTasks/ directory with system files, git branch, and optional worktree
+description: "Initialize a new task module in AiTasks/ directory with system files, git branch, and optional worktree. Use when starting a new feature, bug fix, or refactoring task that needs structured lifecycle tracking."
 arguments:
   - name: module_name
     description: "Name of the task module directory to create (e.g., auth-refactor, add-search)"
@@ -114,7 +114,7 @@ Created automatically by `init` if `AiTasks/` directory does not exist (initiali
 ## Execution Steps
 
 1. **Validate** module_name: ASCII letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`), no whitespace, no leading dot, no path separators
-2. **Check** `AiTasks/` directory exists; create with root `.index.json` if missing (initialized as `[]`). Also create `AiTasks/.type-registry.md` with seed types if missing (read `references/seed-types.md` for the predefined type table; see `plan/references/type-profiling.md` for registry format)
+2. **Check** `AiTasks/` directory exists; create with root `.index.json` if missing (initialized as `[]`). Also create `AiTasks/.type-registry.md` with seed types if missing (read `references/seed-types/.summary.md` for the predefined type index; see `plan/references/type-profiling.md` for registry format)
 3. **Check** `AiTasks/<module_name>/` does not already exist; abort with error if it does
 4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
 5. **Check working tree clean**: verify no uncommitted changes (`git status --porcelain`). If dirty, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first

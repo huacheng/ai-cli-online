@@ -186,13 +186,11 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
 
 ### Problem
 
-Per-task `.type-profile.md` is task-specific and non-shared. When research discovers a new type `quantum-computing` for task A and builds a comprehensive profile, task B with the same type starts from scratch — duplicating the same web searches, the same methodology discovery.
-
-The static reference tables (`task-type-intelligence.md`, `task-type-planning.md`, etc.) only cover the 19 seed types. They can't anticipate every domain.
+Per-task `.type-profile.md` is task-specific and non-shared. When task A builds a comprehensive domain profile (verification tools, implementation patterns, phase intelligence), task B with the same type starts from scratch — duplicating the same web searches and methodology discovery. This applies to ALL types: both new types not in static tables and seed types whose static table entries are generic defaults lacking task-derived experience.
 
 ### Solution: `AiTasks/.type-profiles/`
 
-A shared directory of type profiles, auto-maintained by `research` and `report`:
+A shared directory of type profiles, auto-maintained by `research` and `report` for **all** types (seed and discovered):
 
 ```
 AiTasks/.type-profiles/
@@ -205,8 +203,10 @@ AiTasks/.type-profiles/
 
 | Phase | Trigger | Action |
 |-------|---------|--------|
-| **research** | Builds `.type-profile.md` for a type NOT in static reference tables | Copy profile to `AiTasks/.type-profiles/<primary-type>.md` (create or overwrite if confidence is higher) |
+| **research** | Builds or updates `.type-profile.md` for **any** type (seed or discovered) | Copy profile to `AiTasks/.type-profiles/<primary-type>.md` (create or overwrite if confidence is higher) |
 | **report** | Task completes with a refined `.type-profile.md` | Merge refinements back to `AiTasks/.type-profiles/<primary-type>.md` (append refinement log, update sections that changed) |
+
+**Note**: ALL types sync to shared profiles — including seed types. Over time, shared profiles become richer than static reference tables because they incorporate real task execution experience (tool discoveries, verified patterns, phase-specific intelligence). Static tables remain as initial fallback only.
 
 ### Read Priority Chain
 
@@ -214,7 +214,7 @@ When research needs domain intelligence for a type, it checks sources in this or
 
 ```
 1. AiTasks/.type-profiles/<type>.md     ← shared profile from prior tasks (most specific)
-2. Static reference tables               ← seed types only (task-type-intelligence.md, etc.)
+2. Per-type seed files                   ← init/references/seed-types/<type>.md (factory defaults)
 3. Web search from scratch              ← fallback for completely unknown types
 ```
 

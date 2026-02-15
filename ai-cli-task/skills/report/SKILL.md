@@ -1,6 +1,6 @@
 ---
 name: report
-description: Generate a completion report for a finished task module
+description: "Generate a completion report for a finished task module. Triggered after merge completes, or manually for blocked/cancelled tasks to document progress and lessons learned."
 arguments:
   - name: task_module
     description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
@@ -84,7 +84,7 @@ The report is written to `AiTasks/<module_name>/.report.md` and also printed to 
 10. **Compose** report in requested format
 11. **Write** to `.report.md`
 12. **Distill experience**: If task status is `complete` and `type` is non-empty, validate each pipe-separated segment matches `[a-zA-Z0-9_:-]+`, then extract key learnings and append to `AiTasks/.experiences/<segment>.md` for **each** segment (e.g., type `data-pipeline|ml` → write to both `data-pipeline.md` and `ml.md`). Create file if not exists. Acquire `AiTasks/.experiences/.lock` before writing (see Concurrency Protection in `commands/ai-cli-task.md`). Each entry is a section headed `### <module> (<date>)` containing: what worked, what didn't, key decisions, tools/patterns discovered. If `.experiences/<segment>.md` exceeds 500 lines, compact it by summarizing older entries. Update `AiTasks/.experiences/.summary.md` — overwrite with condensed index of all experience files (filename, type/domain, key learnings summary, date range). Release lock after write
-13. **Sync shared type profile**: If `.type-profile.md` exists and the task's primary type is NOT in the static reference tables (i.e., it was dynamically discovered), merge refined profile back to `AiTasks/.type-profiles/<primary-type>.md`. Acquire `AiTasks/.type-profiles/.lock` before writing. If shared profile already exists, update sections that have higher-confidence info (check refinement log dates). Append task's refinement log entries. Release lock after write
+13. **Sync shared type profile**: If `.type-profile.md` exists, merge refined profile back to `AiTasks/.type-profiles/<primary-type>.md` for ALL types (seed and discovered alike — shared profiles accumulate cross-task intelligence that static tables cannot). Acquire `AiTasks/.type-profiles/.lock` before writing. If shared profile already exists, update sections that have higher-confidence info (check refinement log dates). Append task's refinement log entries. Release lock after write
 14. **Git commit**: `-- ai-cli-task(<module>):report generate completion report`
 15. **Write** `.auto-signal`: `{ step: "report", result: "(generated)", next: "(stop)", checkpoint: "" }`
 16. **Print** report to screen

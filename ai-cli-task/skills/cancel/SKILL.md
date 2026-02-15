@@ -1,6 +1,6 @@
 ---
 name: cancel
-description: Cancel a task module — set status to cancelled, stop auto if running, optionally clean up worktree
+description: "Cancel a task module — set status to cancelled, stop auto if running, optionally clean up worktree. Use when a task becomes infeasible, is deprioritized, or needs to be abandoned."
 arguments:
   - name: task_module
     description: "Path to the task module directory (e.g., AiTasks/auth-refactor)"
