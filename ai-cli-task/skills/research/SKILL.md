@@ -73,19 +73,23 @@ Callable independently for preparatory research before any phase, or to suppleme
 7. **Read** `AiTasks/.references/.summary.md` if exists — inventory of existing references
 8. **Type discovery & refinement** (see `plan/references/type-profiling.md`):
    - **Read** `AiTasks/.type-registry.md` if exists — known types (seed + previously discovered). If missing, read `init/references/seed-types.md` as fallback
+   - **Read** `AiTasks/.type-profiles/<type>.md` if exists — shared profile from prior tasks (check for each pipe segment of current type). This provides a starting point, eliminating redundant web searches
    - If `--caller plan` and `.type-profile.md` doesn't exist or confidence is `low`:
-     - Web search `.target.md` domain keywords to identify the actual field
+     - If shared profile exists → use as starting point for `.type-profile.md`, then refine per-task
+     - If no shared profile → web search `.target.md` domain keywords to identify the actual field
      - Compare against type registry — detect single match, hybrid indicators, or novel domain
      - For hybrid tasks: write type as `A|B` pipe-separated format (e.g., `data-pipeline|ml`)
      - For novel domains: **register** new type in `AiTasks/.type-registry.md` (append row with date + source task)
-     - Write or update `.type-profile.md` with classification, methodology, verification standards, implementation patterns
+     - Write or update `.type-profile.md` with all sections including **Phase Intelligence** (what to research per phase)
      - Update `type` in `.index.json` (use `A|B` format for hybrids)
+     - **Sync to shared**: if type is NOT in static reference tables → copy `.type-profile.md` to `AiTasks/.type-profiles/<primary-type>.md` (acquire `.type-profiles/.lock` first)
    - If `--caller verify|check|exec` and `.type-profile.md` exists:
      - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section)
      - If inadequate or missing: web search for domain-specific methodology for this phase
      - If type classification changed (e.g., discovered secondary domain): update type in `.index.json` to `A|B` format, register new type if needed
      - Update `.type-profile.md` with findings, append to refinement log
-9. **Read** `references/task-type-intelligence.md` — look up the intelligence matrix for the task `type` × calling `phase` (from `--caller`, default `plan`). This determines **what direction** to research (architecture vs testing tools vs evaluation standards vs implementation details)
+     - **Sync to shared**: if profile was significantly updated → merge changes to `AiTasks/.type-profiles/<primary-type>.md`
+9. **Determine research direction**: Read `.type-profile.md` "Phase Intelligence" section first. If it has direction for the calling phase, use it. Otherwise fall back to `references/task-type-intelligence.md` static matrix for the task `type` × calling `phase` (from `--caller`, default `plan`). For types not in the static matrix, use `.type-profile.md` as sole direction source
 10. **Gap analysis**:
     - Extract topic keywords from steps 2-6 (technologies, libraries, APIs, patterns, methodologies, domain concepts)
     - Cross-reference with intelligence matrix from step 9 — ensure collection targets match the calling phase's needs
@@ -111,7 +115,7 @@ Callable independently for preparatory research before any phase, or to suppleme
     | jest-testing.md | Jest testing framework | unit test, coverage, mocking | verify | 2024-01-16 |
     ```
 14. **Release** `AiTasks/.references/.lock`
-15. **Git commit**: `-- ai-cli-task(<module>):research collect references` (skip if no files written; include `.type-profile.md` if updated)
+15. **Git commit**: `-- ai-cli-task(<module>):research collect references` (skip if no files written; include `.type-profile.md` and `AiTasks/.type-profiles/` if updated)
 16. **Write** `.auto-signal`: `{ "step": "research", "result": "(collected)" or "(sufficient)", "next": "<caller>", "checkpoint": "post-research" }` — `next` field routes back to the calling phase (default: `plan`; if `--caller verify` → `verify`; if `--caller check` → `check`; if `--caller exec` → `exec`)
 
 ## Output
@@ -120,8 +124,10 @@ Callable independently for preparatory research before any phase, or to suppleme
 |--------|----------|---------|
 | Reference files | `AiTasks/.references/<topic>.md` | Domain knowledge per topic (kebab-case filename) |
 | Reference index | `AiTasks/.references/.summary.md` | Keyword-searchable index of all reference files |
+| Type registry | `AiTasks/.type-registry.md` | Auto-expanding type list (new types appended) |
+| Shared profiles | `AiTasks/.type-profiles/<type>.md` | Cross-task type profiles (for types not in static tables) |
 
-Research does **NOT** modify any task module files (`.index.json`, `.summary.md`, etc.). It only writes to the shared `.references/` directory.
+Research writes to shared directories (`AiTasks/.references/`, `.type-registry.md`, `.type-profiles/`) and to the task module's `.type-profile.md` and `.index.json` `type` field. It does **NOT** modify other task module files (`.summary.md`, `.plan.md`, etc.).
 
 ## State Transitions
 
@@ -193,4 +199,5 @@ Each `<topic>.md` should follow:
 - **Evidence over assumptions**: Always verify claims via shell commands — `curl` official docs, check actual installed versions, read source code. Do not rely solely on internal knowledge
 - **Concurrency**: Research acquires `AiTasks/.references/.lock` before writing and releases on completion. If the lock is held (another task is writing), wait and retry (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **Idempotent**: Running research multiple times with `--scope gap` is safe — it only adds missing topics, never removes or overwrites existing reference content (append-only for existing files)
-- **Shared resource**: `.references/` is shared across all task modules. References collected for one task benefit future tasks in the same domain. This is by design — domain knowledge compounds
+- **Shared resources**: `.references/`, `.type-registry.md`, and `.type-profiles/` are shared across all task modules. References and type profiles collected for one task benefit future tasks in the same domain. This is by design — domain knowledge compounds
+- **Shared profile priority**: When building `.type-profile.md`, check `AiTasks/.type-profiles/<type>.md` first. If it exists, use as starting point instead of researching from scratch. Only web search for topics not covered by the shared profile

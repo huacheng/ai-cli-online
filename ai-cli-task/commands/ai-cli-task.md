@@ -32,6 +32,8 @@ AiTasks/
 ├── .references/               # External reference materials (by topic, collected by research sub-command)
 │   ├── .summary.md            # Condensed index of all reference files (overwritten on each new entry)
 │   └── <topic>.md             # One file per topic, kebab-case (e.g., express-middleware.md)
+├── .type-profiles/            # Shared type profiles (auto-maintained by research/report for non-seed types)
+│   └── <type>.md              # Cross-task domain profile (methodology, verification, patterns, phase intelligence)
 └── <module-name>/             # One directory per task module
     ├── .index.json            # Task metadata (JSON) — machine-readable
     ├── .target.md             # Requirements / objectives (human-authored)
@@ -410,6 +412,10 @@ If `.index.json` fails to parse (malformed JSON), sub-commands MUST attempt reco
 1. **Git recovery**: `git show HEAD:AiTasks/<module>/.index.json` — restore from latest committed version
 2. **If git recovery fails**: Reconstruct minimal `.index.json` with `"status": "draft"`, `"phase": ""`, preserve only what's parseable
 3. **Log**: Record corruption event and recovery action in `.analysis/<date>-index-recovery.md`
+
+### .type-profiles/ Write Protection
+
+`AiTasks/.type-profiles/<type>.md` is a shared resource across tasks. When `research` or `report` writes to it, they MUST acquire `AiTasks/.type-profiles/.lock` using the same lock protocol above. This prevents concurrent tasks from corrupting shared type profiles.
 
 ### Lifecycle Hooks (Extension Point)
 

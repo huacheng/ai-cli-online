@@ -150,6 +150,13 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
   - <date> verify: updated verification standards after discovering X
   - <date> exec: refined implementation patterns after encountering Y
 
+## Phase Intelligence
+<!-- What to research for each lifecycle phase in this domain -->
+- **plan**: <collection direction — architecture/design patterns, key sources>
+- **verify**: <collection direction — testing frameworks/tools, key sources>
+- **check**: <collection direction — quality standards/benchmarks, key sources>
+- **exec**: <collection direction — API docs/implementation recipes, key sources>
+
 ## Domain Methodology
 <!-- How projects in this domain are typically structured and executed -->
 - **Design approach**: <architecture/design methodology standard in this domain>
@@ -174,6 +181,52 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
 <!-- Where this profile information came from -->
 - <URL or reference for each claim above>
 ```
+
+## Shared Type Profiles
+
+### Problem
+
+Per-task `.type-profile.md` is task-specific and non-shared. When research discovers a new type `quantum-computing` for task A and builds a comprehensive profile, task B with the same type starts from scratch — duplicating the same web searches, the same methodology discovery.
+
+The static reference tables (`task-type-intelligence.md`, `task-type-planning.md`, etc.) only cover the 19 seed types. They can't anticipate every domain.
+
+### Solution: `AiTasks/.type-profiles/`
+
+A shared directory of type profiles, auto-maintained by `research` and `report`:
+
+```
+AiTasks/.type-profiles/
+├── quantum-computing.md     # Discovered by task quantum-sim
+├── game-design.md           # Discovered by task rpg-prototype
+└── bioinformatics.md        # Discovered by task genome-analysis
+```
+
+### Write Triggers
+
+| Phase | Trigger | Action |
+|-------|---------|--------|
+| **research** | Builds `.type-profile.md` for a type NOT in static reference tables | Copy profile to `AiTasks/.type-profiles/<primary-type>.md` (create or overwrite if confidence is higher) |
+| **report** | Task completes with a refined `.type-profile.md` | Merge refinements back to `AiTasks/.type-profiles/<primary-type>.md` (append refinement log, update sections that changed) |
+
+### Read Priority Chain
+
+When research needs domain intelligence for a type, it checks sources in this order:
+
+```
+1. AiTasks/.type-profiles/<type>.md     ← shared profile from prior tasks (most specific)
+2. Static reference tables               ← seed types only (task-type-intelligence.md, etc.)
+3. Web search from scratch              ← fallback for completely unknown types
+```
+
+If `AiTasks/.type-profiles/<type>.md` exists, research reads it as the starting point for `.type-profile.md`, then refines per-task. This eliminates redundant web searches across tasks in the same domain.
+
+### Concurrency
+
+Shared profiles use the same lock protocol: acquire `AiTasks/.type-profiles/.lock` before writing (see Concurrency Protection in `commands/ai-cli-task.md`).
+
+### For Hybrid Types
+
+For type `A|B`, shared profiles are stored by **primary** type: `AiTasks/.type-profiles/A.md`. The profile itself contains secondary domain info in its sections. If `B` also has a standalone profile, research reads both.
 
 ## Refinement Across Phases
 
