@@ -1,7 +1,7 @@
 import { execFile as execFileCb, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import { createHash } from 'crypto';
-import { mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const _execFile = promisify(execFileCb);
@@ -208,7 +208,16 @@ export async function getCwd(sessionName: string): Promise<string> {
   const { stdout } = await tmuxExec([
     'list-panes', '-t', `=${sessionName}`, '-F', '#{pane_current_path}',
   ], { encoding: 'utf-8' });
-  return stdout.trim();
+  let cwd = stdout.trim();
+  // tmux appends " (deleted)" when the CWD directory has been removed (e.g. /tmp after cleanup)
+  if (cwd.endsWith(' (deleted)')) {
+    cwd = cwd.slice(0, -' (deleted)'.length);
+  }
+  // Fall back to DEFAULT_WORKING_DIR or HOME if the path no longer exists
+  if (!cwd || !existsSync(cwd)) {
+    cwd = process.env.DEFAULT_WORKING_DIR || process.env.HOME || '/root';
+  }
+  return cwd;
 }
 
 /** 获取 tmux pane 当前运行的命令名称 */

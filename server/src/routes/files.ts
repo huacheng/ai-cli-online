@@ -4,14 +4,16 @@ import { createReadStream, mkdirSync } from 'fs';
 import { copyFile, unlink, stat, mkdir, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 import { resolveSession } from '../middleware/auth.js';
 import { getCwd } from '../tmux.js';
 import { listFiles, validatePath, validatePathNoSymlink, validateNewPath, MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE } from '../files.js';
 
 const router = Router();
 
-// Multer setup for file uploads
-const UPLOAD_TMP_DIR = '/tmp/ai-cli-online-uploads';
+// Multer setup for file uploads — use server/data/ instead of /tmp to survive tmpfs cleanup
+const __files_dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOAD_TMP_DIR = join(__files_dirname, '../../data/uploads');
 mkdirSync(UPLOAD_TMP_DIR, { recursive: true, mode: 0o700 });
 
 const upload = multer({
