@@ -113,7 +113,7 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
    - `mid-exec`: requires status `executing`
    - `post-exec`: requires status `executing`
 3. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, verdict is BLOCKED with dependency details
-4. **Read** `.type-profile.md` if exists — "Verification Standards" and "Quality metrics" sections are the **primary** source for evaluation criteria. If check reveals the profile's standards are inadequate for this domain, update the relevant sections with findings
+4. **Read** `.type-profile.md` if exists — "Verification Standards", "Quality metrics", and "Audit Adaptation" sections are the **primary** source for evaluation criteria and domain-specific audit checkpoints. If check reveals the profile's standards are inadequate for this domain, update the relevant sections with findings
 5. **Read** all relevant files per checkpoint (use `.summary.md` as primary context, latest file only from each history directory)
 6. **Scan** `AiTasks/.references/.summary.md` if exists — find relevant external reference files to inform evaluation criteria and domain best practices
 7. **Gap check**: if `.type-profile.md` lacks evaluation criteria OR `.references/` lacks domain evaluation standards/benchmarks for the task `type`, trigger `research --scope gap --caller check` to collect missing references before proceeding
@@ -194,5 +194,5 @@ Verification methods MUST match the task domain. Read `type` from `.index.json` 
 - Check writes test results to `.test/<date>-<checkpoint>-results.md` (e.g., `2024-01-15-post-exec-results.md`) documenting test outcomes
 - `depends_on` in `.index.json` MUST be validated: if any dependency is not met (simple string → `complete`, extended object → at-or-past `min_status`), verdict is BLOCKED (not just flagged as risk)
 - **Concurrency**: Check acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
-- **Five-perspective audit**: For thorough plan evaluation, apply security / performance / extensibility / consistency / correctness checks systematically. See `references/five-perspective-audit.md` for the full checklist
+- **Six-perspective audit**: For thorough evaluation, apply security / architecture / performance / extensibility / consistency / correctness checks systematically, adapted to the task's domain type. See `references/six-perspective-audit.md` for the full checklist and domain adaptation table
 - **verify integration**: The `verify` sub-command can pre-run tests independently. When recent `verify` results exist (same day, matching checkpoint), check incorporates them instead of re-running. This is optional — check works standalone

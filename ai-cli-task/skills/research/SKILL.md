@@ -80,11 +80,11 @@ Callable independently for preparatory research before any phase, or to suppleme
      - Compare against type registry — detect single match, hybrid indicators, or novel domain
      - For hybrid tasks: write type as `A|B` pipe-separated format (e.g., `data-pipeline|ml`)
      - For novel domains: **register** new type in `AiTasks/.type-registry.md` (append row with date + source task)
-   d. **Write** or update `.type-profile.md` with all sections including **Phase Intelligence** (what to research per phase)
+   d. **Write** or update `.type-profile.md` with all sections including **Phase Intelligence** and **Audit Adaptation** (per-perspective domain checkpoints — use seed tables from `check/references/six-perspective-audit.md` Domain Adaptation as starting point, supplement with web research for novel types)
    e. **Update** `type` in `.index.json` (use `A|B` format for hybrids)
    f. **Sync to shared**: copy `.type-profile.md` to `AiTasks/.type-profiles/<primary-type>.md` (acquire `.type-profiles/.lock` first; apply directory-safe transform: replace `:` with `-` in type segment when used as filename, e.g., `science:astro` → `science-astro`). For ALL types — seed types also benefit from cross-task profile accumulation. Release lock after write
    g. **If `--caller verify|check|exec`** and `.type-profile.md` exists:
-     - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section)
+     - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section; check caller → "Audit Adaptation" + "Verification Standards" sections)
      - If inadequate or missing: web search for domain-specific methodology for this phase
      - If type classification changed (e.g., discovered secondary domain): update type in `.index.json` to `A|B` format, register new type if needed
      - Update `.type-profile.md` with findings, append to refinement log

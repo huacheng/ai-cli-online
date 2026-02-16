@@ -190,6 +190,16 @@ Every task module gets a `.type-profile.md`. This is the **authoritative** domai
 - **Known pitfalls**: <frequent mistakes, anti-patterns>
 - **Tool chain**: <specific tools and their roles>
 
+## Audit Adaptation
+<!-- Domain-specific checkpoints that augment the six-perspective base (see check/references/six-perspective-audit.md) -->
+<!-- research populates from seed tables + web research; check/verify/exec refine from experience -->
+- **Security**: <+domain-specific security concerns>
+- **Architecture**: <+domain-specific structural concerns>
+- **Performance**: <+domain-specific efficiency concerns>
+- **Extensibility**: <+domain-specific extension concerns>
+- **Consistency**: <+domain-specific convention concerns>
+- **Correctness**: <+domain-specific verification concerns>
+
 ## Sources
 <!-- Where this profile information came from -->
 - <URL or reference for each claim above>
@@ -250,7 +260,7 @@ For type `A|B`, shared profiles are stored by **primary** type: `AiTasks/.type-p
 | research | Entire profile (gap detection) | All sections (new domain info) | Always — research is the primary type intelligence source |
 | plan | All sections (methodology selection) | Domain Classification, Methodology | Initial creation; re-plan if nature changed |
 | verify | Verification Standards | Verification Standards | Testing approach proved inadequate for this domain |
-| check | Verification Standards, Quality metrics | Verification Standards | Evaluation criteria mismatched domain norms |
+| check | Verification Standards, Quality metrics, Audit Adaptation | Verification Standards, Audit Adaptation | Evaluation criteria or audit checkpoints mismatched domain norms |
 | exec | Implementation Patterns, Key tools | Implementation Patterns | Discovered tools/patterns differ from profile |
 
 **Refinement log**: Every update appends to the "Refinement log" in Domain Classification, creating an audit trail of how the type understanding evolved.
@@ -285,7 +295,7 @@ All phases read `.type-profile.md` as their **first** source of domain methodolo
 1. **research** reads entire profile → discovers/validates type, identifies gaps, collects phase-directed intelligence
 2. **plan** reads all sections → selects methodology, generates domain-appropriate plan
 3. **verify** reads "Verification Standards" → determines what to test and how
-4. **check** reads "Verification Standards" + "Quality metrics" → sets evaluation criteria
+4. **check** reads "Verification Standards" + "Quality metrics" + "Audit Adaptation" → sets evaluation criteria and domain-specific audit checkpoints
 5. **exec** reads "Implementation Patterns" + "Key tools" → chooses tools and approach
 
 When `.type-profile.md` conflicts with static reference tables, the **profile takes precedence** (it's task-specific and research-informed, while tables are generic defaults).
