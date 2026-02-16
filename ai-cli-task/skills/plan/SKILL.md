@@ -7,14 +7,14 @@ arguments:
     required: true
 ---
 
-# /ai-cli-task:plan — Plan Generation
+# /moonview:plan — Plan Generation
 
 Generate an implementation plan from `.target.md`. Annotation processing is handled by the `annotate` sub-command.
 
 ## Usage
 
 ```
-/ai-cli-task:plan <task_module> --generate
+/moonview:plan <task_module> --generate
 ```
 
 ## Execution Steps

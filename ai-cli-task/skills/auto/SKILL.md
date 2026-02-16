@@ -11,14 +11,14 @@ arguments:
     default: start
 ---
 
-# /ai-cli-task:auto — Autonomous Execution Loop
+# /moonview:auto — Autonomous Execution Loop
 
 Coordinate the full task lifecycle autonomously: plan → verify → check → exec → verify → check(mid) → exec → verify → check(post) → merge → report, with self-correction on failures. Runs as a **single Claude session** that internally dispatches sub-commands, preserving context across all steps.
 
 ## Usage
 
 ```
-/ai-cli-task:auto <task_module_path> [--start|--stop|--status]
+/moonview:auto <task_module_path> [--start|--stop|--status]
 ```
 
 ## Architecture
@@ -31,7 +31,7 @@ Auto mode runs as a **single long-lived Claude session** that internally loops t
 ┌─────────────────────────────────────────────────┐
 │  Claude (single session)                         │
 │                                                  │
-│  /ai-cli-task:auto <module>                      │
+│  /moonview:auto <module>                      │
 │    ├→ execute plan logic    ─┐                   │
 │    ├→ execute check logic    │  internal loop    │
 │    ├→ execute exec logic     │  (shared context) │
@@ -281,7 +281,7 @@ When `POST /api/sessions/:id/task-auto` is called:
 
 1. **Validate**: check no active auto loop for this session or task_dir
 2. **Insert** `task_auto` row into SQLite
-3. **Send** `claude "/ai-cli-task:auto <taskDir>"` to the session's PTY
+3. **Send** `claude "/moonview:auto <taskDir>"` to the session's PTY
 4. **Start** `fs.watch` on `taskDir` for `.auto-signal` changes
 5. **Start** heartbeat polling timer (60s interval)
 
@@ -319,7 +319,7 @@ CREATE TABLE task_auto (
 - **Context management**: proactive `/compact` at ≥ 70% context window usage, with `.summary.md` as compaction safety net
 - **Quota exhaustion**: detected and handled as wait (not stall), timeout clock paused during quota-wait
 - **Pause on blocked**: Auto stops immediately on `blocked` status (Claude's internal loop exits)
-- **Manual override**: User can `/ai-cli-task:auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
+- **Manual override**: User can `/moonview:auto --stop` at any time, or daemon writes `.auto-stop` via `DELETE` API
 - **Graceful stop**: Claude checks for `.auto-stop` before each iteration, ensuring clean exit between steps (not mid-step)
 - **Single instance per session**: Only one auto loop per session (enforced by SQLite PK). If an auto task is already running, `POST` returns 409 Conflict
 - **Single instance per task**: UNIQUE constraint on `task_dir` prevents same task from running in multiple sessions
@@ -366,7 +366,7 @@ On backend server restart, auto state is recovered from SQLite:
    a. **Delete stale `.auto-stop`** if exists in `task_dir` (prevents restarted Claude from immediately exiting due to leftover stop file from pre-crash state)
    b. Check terminal state via `tmux capture-pane`:
       - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
-      - If shell prompt visible (Claude exited) → restart: send `claude "/ai-cli-task:auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
+      - If shell prompt visible (Claude exited) → restart: send `claude "/moonview:auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
    c. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
    d. Start heartbeat polling timer
    e. Re-establish `fs.watch` on `task_dir` for `.auto-signal`
@@ -376,7 +376,7 @@ On restart, Claude's auto loop re-reads `.index.json` and `.summary.md` to recon
 
 ## Notes
 
-- Auto mode starts with a single `claude "/ai-cli-task:auto <module>"` CLI invocation; all subsequent steps execute within that same session
+- Auto mode starts with a single `claude "/moonview:auto <module>"` CLI invocation; all subsequent steps execute within that same session
 - The daemon's only active intervention is writing `.auto-stop`; all other daemon activity is passive monitoring
 - `.auto-signal` and `.auto-stop` are transient files — should be in `.gitignore`
 - The daemon logs all signal events and stall detections to server console for debugging

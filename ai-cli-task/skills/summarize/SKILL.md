@@ -10,14 +10,14 @@ arguments:
     required: false
 ---
 
-# /ai-cli-task:summarize — Context Summary Regeneration
+# /moonview:summarize — Context Summary Regeneration
 
 Regenerate `.summary.md` files for a task module. Used to recover lost context or refresh stale summaries after manual edits.
 
 ## Usage
 
 ```
-/ai-cli-task:summarize <task_module_path> [--all]
+/moonview:summarize <task_module_path> [--all]
 ```
 
 ## When to Use

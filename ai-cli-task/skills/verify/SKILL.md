@@ -11,14 +11,14 @@ arguments:
     default: full
 ---
 
-# /ai-cli-task:verify — Test Execution & Verification
+# /moonview:verify — Test Execution & Verification
 
 Run domain-adapted tests and verification procedures for a task module, producing structured result files. Does not render a verdict — that is the responsibility of `check`.
 
 ## Usage
 
 ```
-/ai-cli-task:verify <task_module_path> [--checkpoint quick|full|step-N]
+/moonview:verify <task_module_path> [--checkpoint quick|full|step-N]
 ```
 
 ## Checkpoints

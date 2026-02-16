@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PlanAnnotationRenderer } from './PlanAnnotationRenderer';
 import type { PlanAnnotationRendererHandle } from './PlanAnnotationRenderer';
 import { PlanFileBrowser } from './PlanFileBrowser';
@@ -301,6 +301,71 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
     document.addEventListener('mouseup', onMouseUp);
   }, [fbWidth]);
 
+  // Current task module detection from selected file
+  const currentModule = useMemo((): { name: string; dir: string } | null => {
+    if (!planDir || !planSelectedFile) return null;
+    if (!planSelectedFile.startsWith(planDir + '/')) return null;
+    const relative = planSelectedFile.substring(planDir.length + 1);
+    const firstSlash = relative.indexOf('/');
+    if (firstSlash < 0) return null;
+    const moduleName = relative.substring(0, firstSlash);
+    if (!moduleName || moduleName.startsWith('.')) return null;
+    return { name: moduleName, dir: `${planDir}/${moduleName}` };
+  }, [planDir, planSelectedFile]);
+
+  const moduleDir = currentModule?.dir;
+
+  // Task status polling (.index.json)
+  const [taskMeta, setTaskMeta] = useState<{ status: string; phase: string; type: string; completed_steps: number; title: string } | null>(null);
+  const taskMetaMtimeRef = useRef(0);
+  useEffect(() => { setTaskMeta(null); taskMetaMtimeRef.current = 0; }, [moduleDir]);
+  useEffect(() => {
+    if (!moduleDir || !connected) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const result = await fetchFileContent(token, sessionId, `${moduleDir}/.index.json`, taskMetaMtimeRef.current || undefined);
+        if (cancelled) return;
+        if (result) {
+          taskMetaMtimeRef.current = result.mtime;
+          try {
+            const data = JSON.parse(result.content);
+            setTaskMeta({ status: data.status || 'draft', phase: data.phase || '', type: data.type || '', completed_steps: data.completed_steps || 0, title: data.title || '' });
+          } catch { /* invalid JSON */ }
+        }
+      } catch { /* file not found or error */ }
+    };
+    poll();
+    const iv = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [moduleDir, connected, token, sessionId]);
+
+  // Auto signal polling
+  const [autoSignal, setAutoSignal] = useState<{ step: string; result: string; next: string; iteration?: number } | null>(null);
+  useEffect(() => { setAutoSignal(null); }, [moduleDir]);
+  useEffect(() => {
+    if (!moduleDir || !connected) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const result = await fetchFileContent(token, sessionId, `${moduleDir}/.auto-signal`);
+        if (cancelled) return;
+        if (result) {
+          try { const data = JSON.parse(result.content); setAutoSignal({ step: data.step, result: data.result, next: data.next, iteration: data.iteration }); } catch { setAutoSignal(null); }
+        }
+      } catch { if (!cancelled) setAutoSignal(null); }
+    };
+    poll();
+    const iv = setInterval(poll, 2000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [moduleDir, connected, token, sessionId]);
+
+  // Auto start handler
+  const handleAutoStart = useCallback(() => {
+    if (!currentModule || !onSendToTerminal) return;
+    onSendToTerminal(`/ai-cli-task:auto AiTasks/${currentModule.name}`);
+  }, [currentModule, onSendToTerminal]);
+
   return (
     <div style={{
       display: 'flex',
@@ -409,6 +474,43 @@ export function PlanPanel({ sessionId, token, connected, onRequestFileStream, on
           )}
         </div>
       </div>
+
+      {/* Task status bar */}
+      {currentModule && taskMeta && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '2px 8px',
+          backgroundColor: 'var(--bg-secondary)', borderTop: '1px solid var(--border)',
+          fontSize: 11, flexShrink: 0, minHeight: 22,
+        }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 500 }} title={taskMeta.title}>{currentModule.name}</span>
+          <span style={{
+            color: taskMeta.status === 'complete' ? 'var(--accent-green)'
+              : taskMeta.status === 'executing' || taskMeta.status === 'review' ? 'var(--accent-blue)'
+              : taskMeta.status === 'blocked' ? 'var(--accent-red)'
+              : taskMeta.status === 'cancelled' ? 'var(--text-secondary)'
+              : 'var(--accent-yellow)',
+            fontWeight: 500,
+          }}>{taskMeta.status}</span>
+          {taskMeta.phase && <span style={{ color: 'var(--text-secondary)' }}>({taskMeta.phase})</span>}
+          {autoSignal ? (
+            <span style={{ color: 'var(--accent-yellow)' }}>
+              {autoSignal.step}:{autoSignal.result} → {autoSignal.next}
+              {autoSignal.iteration != null && ` #${autoSignal.iteration}`}
+            </span>
+          ) : (
+            <button className="pane-btn" onClick={handleAutoStart}
+              disabled={!connected || taskMeta.status === 'complete' || taskMeta.status === 'cancelled'}
+              style={{ color: 'var(--accent-green)', fontWeight: 500, fontSize: 11,
+                ...((!connected || taskMeta.status === 'complete' || taskMeta.status === 'cancelled') ? { opacity: 0.4 } : {}) }}
+              title="Start auto mode for this task">
+              Auto ▶
+            </button>
+          )}
+          {taskMeta.completed_steps > 0 && (
+            <span style={{ color: 'var(--text-secondary)', marginLeft: 'auto' }}>step {taskMeta.completed_steps}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

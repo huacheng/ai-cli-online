@@ -15,14 +15,14 @@ arguments:
     default: plan
 ---
 
-# /ai-cli-task:research — Reference Collection & Organization
+# /moonview:research — Reference Collection & Organization
 
 Collect external domain knowledge and organize it into `AiTasks/.references/` to support all lifecycle phases: planning (implementation strategy), verification (testing tools and criteria), evaluation (domain standards), and execution (technical details). Acts as the intelligence arm of the task lifecycle — separating research from other phases for clearer logic.
 
 ## Usage
 
 ```
-/ai-cli-task:research <task_module_path> [--scope full|gap]
+/moonview:research <task_module_path> [--scope full|gap]
 ```
 
 | Scope | When Used | Behavior |
@@ -56,8 +56,8 @@ Each phase reads `AiTasks/.references/.summary.md` at entry. If the existing ref
 ### 3. Standalone (manual)
 
 ```
-/ai-cli-task:research <task_module> --scope full
-/ai-cli-task:research <task_module> --scope gap
+/moonview:research <task_module> --scope full
+/moonview:research <task_module> --scope gap
 ```
 
 Callable independently for preparatory research before any phase, or to supplement references mid-execution.

@@ -13,17 +13,17 @@ arguments:
     required: false
 ---
 
-# /ai-cli-task:list — Read-Only Task Query
+# /moonview:list — Read-Only Task Query
 
 Query task status, details, and relationships. Pure read-only — no files written, no status changes, no git commits.
 
 ## Usage
 
 ```
-/ai-cli-task:list                           # List all tasks
-/ai-cli-task:list <task_module>             # Single task details
-/ai-cli-task:list --deps                    # Dependency graph (all tasks)
-/ai-cli-task:list --timeline <task_module>  # Status transition timeline
+/moonview:list                           # List all tasks
+/moonview:list <task_module>             # Single task details
+/moonview:list --deps                    # Dependency graph (all tasks)
+/moonview:list --timeline <task_module>  # Status transition timeline
 ```
 
 ## Modes

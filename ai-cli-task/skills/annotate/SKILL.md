@@ -14,14 +14,14 @@ arguments:
     default: interactive
 ---
 
-# /ai-cli-task:annotate — Annotation Processing
+# /moonview:annotate — Annotation Processing
 
 Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types: Insert, Delete, Replace, Comment. Each is triaged for cross-impact and conflict before execution.
 
 ## Usage
 
 ```
-/ai-cli-task:annotate <task_file_path> <annotation_file_path> [--silent]
+/moonview:annotate <task_file_path> <annotation_file_path> [--silent]
 ```
 
 ## Annotation Types
