@@ -137,7 +137,6 @@ For long-running executions, intermediate progress can be observed by:
 - When `--step N` is used, the executor verifies prerequisites for that step are met, then signals `(step-N)` on completion for mid-exec checkpoint
 - After successful execution of all steps, the user should run `/ai-cli-task:check --checkpoint post-exec`
 - Per-step verification against `.test/` criteria is done during execution; full test suite / acceptance testing is part of the post-exec evaluation by `check`
-- **No mental math**: When implementation involves calculations (offsets, sizing, algorithm parameters, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: When uncertain about APIs, library usage, or compatibility, use shell commands to verify (curl official docs, check installed versions, read node_modules source, etc.) before implementing
 - **Concurrency**: Exec acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **Reference collection**: Primary reference collection is handled by the `research` sub-command before planning. During execution, if you discover valuable implementation details via web searches, you may still save findings to `AiTasks/.references/<topic>.md` and update `.summary.md` — acquire `AiTasks/.references/.lock` before writing (see `.references/ Write Protection` in `commands/ai-cli-task.md`)

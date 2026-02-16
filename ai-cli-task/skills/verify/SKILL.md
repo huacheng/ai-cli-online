@@ -90,5 +90,4 @@ Result values: `(pass)`, `(fail)`, `(partial)` — see Result Values table above
 - **check integration**: `check` can optionally invoke `verify` internally, or read pre-existing `verify` results from `.test/`. When recent `verify` results exist (same day, matching checkpoint), `check` incorporates them instead of re-running tests
 - **exec integration**: Per-step verification in `exec` can optionally invoke `verify --checkpoint step-N` for domain-specific testing. For lightweight checks (build + lint), inline verification is sufficient
 - **Domain adaptation**: Verification strategy MUST match the task `type` — use `.type-profile.md` first, then per-type seed file `init/references/seed-types/<type>.md` for domain-specific testing procedures, tools, and thresholds. Supplement with web search for current best practices
-- **No mental math**: When verification involves numerical comparisons (thresholds, metrics, performance benchmarks), write a script and run it in shell instead of computing mentally
 - **Concurrency**: Verify acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

@@ -403,6 +403,10 @@ AiTasks/.references/.lock
 AiTasks/.type-profiles/.lock
 ```
 
+### Computation Rule
+
+**No mental math.** When ANY sub-command involves numerical reasoning — performance estimates, size calculations, capacity limits, threshold comparisons, algorithm parameters, benchmarks, option evaluation — write a script and run it in shell instead of computing mentally. Scripts produce verifiable, reproducible results.
+
 ---
 
 ## Input Validation

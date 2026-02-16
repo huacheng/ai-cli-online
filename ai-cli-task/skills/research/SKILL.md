@@ -195,7 +195,6 @@ Each `<topic>.md` should follow:
 
 ## Notes
 
-- **No mental math**: When research involves evaluating options (library comparison, performance benchmarks, compatibility matrices), write a script and run it in shell instead of reasoning from memory
 - **Evidence over assumptions**: Always verify claims via shell commands — `curl` official docs, check actual installed versions, read source code. Do not rely solely on internal knowledge
 - **Concurrency**: Research acquires `AiTasks/.references/.lock` before writing and releases on completion. If the lock is held (another task is writing), wait and retry (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **Idempotent**: Running research multiple times with `--scope gap` is safe — it only adds missing topics, never removes or overwrites existing reference content (append-only for existing files)

@@ -83,7 +83,6 @@ Plan methodology MUST adapt to the task domain. Different domains require differ
 
 - All plan research should consider the full context of the task module (read `.target.md` and `.plan.md`)
 - When researching implementation plans, use the project codebase as context (read relevant project files)
-- **No mental math**: When planning involves calculations (performance estimates, size limits, capacity, etc.), write a script and run it in shell instead of computing mentally
 - **Evidence-based decisions**: Primary domain research is handled by the `research` sub-command (step 2). For plan-specific decisions, use shell commands to verify claims (curl docs/APIs, npm info, etc.) rather than relying solely on internal knowledge
 - **Concurrency**: Plan acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`). Reference writing is handled by the `research` sub-command (which manages its own `.references/.lock`)
 - **Task-type-aware test design**: `.test/` criteria must use domain-appropriate verification methods (e.g., unit tests for code, SSIM/PSNR for image processing, SNR for audio/DSP, schema validation for data pipelines). Research established best practices for the task domain before writing test criteria. See `check/SKILL.md` Task-Type-Aware Verification section for the full domain reference table
