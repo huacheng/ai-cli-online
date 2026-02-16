@@ -87,8 +87,7 @@ TimeoutStopSec=10
 
 # 安全加固
 NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=${RUN_HOME} /tmp /var/tmp
+ProtectSystem=full
 PrivateTmp=false
 
 [Install]
