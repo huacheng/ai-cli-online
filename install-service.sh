@@ -88,8 +88,8 @@ TimeoutStopSec=10
 # 安全加固
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=${RUN_HOME}
-PrivateTmp=true
+ReadWritePaths=${RUN_HOME} /tmp /var/tmp
+PrivateTmp=false
 
 [Install]
 WantedBy=multi-user.target
