@@ -29,7 +29,7 @@ Generate an implementation plan from `.target.md`. Annotation processing is hand
 6. Read `.analysis/` latest file only if exists (address check feedback from NEEDS_REVISION)
 7. Read `.bugfix/` latest file only if exists (address most recent mid-exec issue from REPLAN)
 8. Read `.test/` latest criteria and results files if exists (incorporate lessons learned)
-9. Read `AiTasks/.experiences/<type>.md` if exists — cross-task experience from completed tasks of the same domain type. For hybrid types (`A|B`), read experience files for **all** pipe-separated segments (e.g., both `A.md` and `B.md`)
+9. Read `AiTasks/.experiences/<type>/.summary.md` if exists — condensed cross-task experience from completed tasks of the same domain type (apply directory-safe transform: `:` → `-` in type for directory name, e.g., `science:astro` → `science-astro`). For hybrid types (`A|B`), read summary files for **all** pipe-separated segments. If summary references specific entries relevant to current task, read those `AiTasks/.experiences/<type>/<module>.md` files for detail
 10. **Read** `AiTasks/.references/.summary.md` if exists — find relevant external reference files by keyword matching against task requirements. Read matched `.references/<topic>.md` files for domain knowledge
 11. Read project codebase for context (relevant files, CLAUDE.md conventions)
 12. Read `.notes/` latest file only if exists (prior research findings and experience)
@@ -43,7 +43,7 @@ Generate an implementation plan from `.target.md`. Annotation processing is hand
 20. Write task-level `.summary.md` with condensed context: plan overview, key decisions, requirements summary, known constraints (integrate from directory summaries)
 21. Update `.index.json`: set `type` field (if not already set or if task nature changed), status → `planning` (from `draft`/`planning`/`blocked`) or `re-planning` (from `review`/`executing`/`re-planning`), update timestamp. If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`. Reset `completed_steps` to `0` (new/revised plan invalidates prior progress)
 22. **Git commit**: `-- ai-cli-task(<module>):plan generate implementation plan`
-23. **Write** `.auto-signal`: `{ step: "plan", result: "(generated)", next: "verify", checkpoint: "post-plan" }`
+23. **Write** `.auto-signal`: `{ "step": "plan", "result": "(generated)", "next": "verify", "checkpoint": "post-plan", "timestamp": "..." }`
 24. Report plan summary to user
 
 **Context management**: When `.summary.md` exists, read it as the primary context source instead of reading all files from `.analysis/`, `.bugfix/`, `.notes/`. Only read the latest (last by filename sort) file from each directory for detailed info on the most recent assessment/issue/note.

@@ -144,6 +144,8 @@ Phase 1: Planning
                             │
                             NEEDS_REVISION ──→ plan (retry)
 
+  Re-entry: if phase == "needs-plan" → plan; if phase == "needs-check" → verify → check
+
 Phase 2: Execution
   exec ─┬─ (mid-exec) ──→ verify ──→ check(mid-exec) ─── CONTINUE ──→ exec (resume)
         │                                    │
@@ -242,10 +244,10 @@ Because all steps run in one session, Claude naturally retains:
 The `.summary.md` file is still written by each sub-command as a **compaction safety net** — if the context window overflows and compaction occurs, `.summary.md` provides the condensed recovery context. But during normal auto execution, live conversation context is the primary source of truth.
 
 **Compaction recovery**: If context compaction occurs mid-loop, Claude loses the iteration counter and current step position. To recover:
-1. Read `.auto-signal` — the `iteration` field gives the last completed iteration count; `step` and `next` give the position in the loop
+1. Read `.auto-signal` — the `iteration` field gives the last completed iteration count; `step` and `next` give the position in the loop. **If `.auto-signal` doesn't exist** (cleaned up or never written): fall back to step 2 — use `.index.json` status for position recovery and start iteration from 0
 2. Read `.index.json` — status confirms the current lifecycle phase
 3. Read `.summary.md` — condensed task context from the last sub-command
-4. Resume the loop from `next` step at `iteration + 1`
+4. Resume the loop from `next` step at `iteration + 1` (or from status-based entry point if `.auto-signal` was missing)
 
 ## Backend REST API
 

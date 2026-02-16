@@ -26,9 +26,10 @@ AiTasks/
 ├── .index.json                # Root index (task module listing, JSON array)
 ├── .type-registry.md          # Auto-expanding type registry (seed + discovered types, shared across tasks)
 ├── .experiences/              # Cross-task knowledge base (by type, distilled from completed tasks)
-│   ├── .summary.md            # Condensed index of all experience files (overwritten on each new entry)
-│   ├── software.md            # Lessons from completed software tasks
-│   └── <type>.md              # One file per task type (append-only, compacted at 500 lines)
+│   ├── .summary.md            # Top-level index of all type directories (overwritten on each new entry)
+│   └── <type>/                # One directory per task type
+│       ├── .summary.md        # Condensed summary of all experiences for this type (overwritten on each new entry)
+│       └── <module>.md        # Individual task experience (one file per completed task)
 ├── .references/               # External reference materials (by topic, collected by research sub-command)
 │   ├── .summary.md            # Condensed index of all reference files (overwritten on each new entry)
 │   └── <topic>.md             # One file per topic, kebab-case (e.g., express-middleware.md)
@@ -93,19 +94,46 @@ Writers should keep `.summary.md` under ~200 lines. It is a context window optim
 
 ### Global Directory .summary.md Format
 
-`.experiences/.summary.md` and `.references/.summary.md` serve as keyword indexes for fast file discovery. Overwritten on each new entry. Recommended structure:
+`.experiences/.summary.md` and `.references/.summary.md` serve as keyword indexes for fast file discovery. Overwritten on each new entry.
+
+**Top-level `.experiences/.summary.md`** — indexes all type directories:
 
 ```markdown
 # Experiences Index
-<!-- or: # References Index -->
+
+| Type | Tasks | Keywords | Updated |
+|------|-------|----------|---------|
+| software | 5 | testing, API design, error handling | 2024-01-15 |
+| dsp | 2 | FFT, audio filters, sample rate | 2024-01-20 |
+```
+
+**Per-type `.experiences/<type>/.summary.md`** — condensed summary of all experiences for that type:
+
+```markdown
+# software Experiences
+
+## Key Patterns
+- [Distilled recurring patterns across all completed tasks]
+
+## Entries
+
+| Module | Date | Key Learnings |
+|--------|------|---------------|
+| task-api-v2 | 2024-01-15 | REST versioning headers, Bull queue |
+| task-auth | 2024-01-10 | JWT rotation, timing-safe compare |
+```
+
+**`.references/.summary.md`** — same table format as before:
+
+```markdown
+# References Index
 
 | File | Domain/Topic | Keywords | Updated |
 |------|-------------|----------|---------|
-| software.md | software | testing, API design, error handling | 2024-01-15 |
-| dsp.md | dsp | FFT, audio filters, sample rate | 2024-01-20 |
+| express-middleware.md | backend | routing, middleware chain | 2024-01-15 |
 ```
 
-Skills read this `.summary.md` first, match keywords against their current task requirements, then read only the matched `<topic>.md` files. This avoids reading all files in the directory.
+Skills read the relevant `.summary.md` first, match keywords against their current task requirements, then drill into matched files. This avoids reading all files in the directory.
 
 Topic filenames in `.references/` use kebab-case: `[a-z0-9]+(-[a-z0-9]+)*` (e.g., `express-middleware.md`, `ffmpeg-filters.md`). No uppercase, no underscores, no dots (except the `.md` extension).
 
@@ -147,7 +175,9 @@ Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_tax
 
 **Type profile**: Every task module gets a `.type-profile.md` during planning. This file is the **authoritative** domain methodology source for the task — all phases (verify, check, exec) read it first, before falling back to static reference tables. The profile is updated progressively as research/verify/check/exec discover new domain information.
 
-**Type field validation**: Each pipe-separated segment must match `[a-zA-Z0-9_:-]+`. Full type field regex: `[a-zA-Z0-9_:|-]+`. `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>.md` filename to prevent path traversal.
+**Type field validation**: Each pipe-separated segment must match `[a-zA-Z0-9_:-]+`. Full type field regex: `[a-zA-Z0-9_:|-]+`. `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>/` directory name to prevent path traversal.
+
+**Directory-safe transform**: When using a type segment as a directory name (e.g., `.experiences/<segment>/`, `.type-profiles/<segment>.md`), replace `:` with `-` (e.g., `science:astro` → `science-astro`). The original type value in `.index.json` is unchanged.
 
 **Unknown type handling**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it reads `.type-profile.md` for task-specific methodology. If `.type-profile.md` also doesn't exist (legacy task), it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec).
 
@@ -393,14 +423,14 @@ Validation is performed by resolving the absolute path and confirming it starts 
 Without worktree mode, only one task should be actively operated at a time. Sub-commands that modify state (`plan`, `exec`, `check`, `merge`) MUST check for an active lockfile (`AiTasks/<module>/.lock`) before proceeding:
 
 1. **Acquire**: Attempt to create `AiTasks/<module>/.lock` with `O_CREAT | O_EXCL` (atomic create-if-not-exists). Write `{ session, pid, timestamp }` to identify the holder
-2. **If lock exists**: Read lock content, check if holding process is still alive (kill -0). If dead → remove stale lock and retry. If alive → REJECT with error identifying the holding session
+2. **If lock exists**: Read lock content, check if holding process is still alive (kill -0). If dead → remove stale lock and retry. If alive → REJECT with error identifying the holding session. No retry — the caller (user or auto) decides whether to retry
 3. **Release**: Delete `.lock` on sub-command completion (including error paths)
 4. **Worktree mode**: Lock not required — each worktree has its own copy of AiTasks/ files
-5. **Stale lock recovery**: Use rename-based recovery instead of delete+create. When detecting a stale lock (holder dead): `rename` the stale `.lock` to `.lock.stale.<pid>`, then acquire normally with `O_CREAT | O_EXCL`. If the rename fails (another process already recovered), retry from step 1. Clean up `.lock.stale.*` files after successful acquisition
+5. **Stale lock recovery**: Use rename-based recovery instead of delete+create. When detecting a stale lock (holder dead): `rename` the stale `.lock` to `.lock.stale.<pid>`, then acquire normally with `O_CREAT | O_EXCL`. If the rename fails (another process already recovered), retry from step 1. Clean up ALL `.lock.stale.*` files in the same directory immediately after successful lock acquisition
 
 ### .experiences/ Write Protection
 
-`AiTasks/.experiences/<type>.md` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experiences/.lock` using the same lock protocol above. This prevents concurrent task completions from corrupting the experience file. For hybrid types (`A|B`), `report` writes to experience files for **all** pipe-separated segments (e.g., both `A.md` and `B.md`).
+`AiTasks/.experiences/<type>/` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experiences/.lock` before any write. This prevents concurrent task completions from corrupting shared files. For hybrid types (`A|B`), `report` writes to directories for **all** pipe-separated segments (e.g., both `A/` and `B/`). Lock scope covers: creating type directory, writing `<module>.md`, updating per-type `.summary.md`, and updating top-level `.summary.md`.
 
 ### .references/ Write Protection
 

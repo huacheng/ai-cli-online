@@ -72,7 +72,7 @@ For each implementation step:
 
 1. **Read** `.index.json` — validate status is `review` or `executing`
 2. **Validate dependencies**: read `depends_on` from `.index.json`, check each dependency module's `.index.json` status against its required level (simple string → `complete`, extended object → at-or-past `min_status`). If any dependency is not met, REJECT with error listing blocking dependencies
-3. **Update** `.index.json` status to `executing`, update timestamp
+3. **Update** `.index.json` status to `executing`, clear `phase` to `""`, update timestamp
 4. **Discover** all implementation steps from `.plan.md`
 5. **Detect completed steps**: read `completed_steps` field from `.index.json` to determine progress; skip steps ≤ `completed_steps`
 6. **If NEEDS_FIX resumption**: determine fix source by reading **both** `.bugfix/` and `.analysis/` latest files, using the most recent file (by filename date) as the primary fix guidance. `.bugfix/` entries indicate mid-exec issues; `.analysis/` entries indicate post-exec issues. Address fix items before continuing remaining steps
@@ -86,10 +86,10 @@ For each implementation step:
 9. **After all steps** (or on failure):
    - Update `.index.json` timestamp
    - Write task-level `.summary.md` with condensed context: current progress, steps completed, key decisions, issues encountered, remaining work (integrate from directory summaries)
-   - If all steps complete: signal `{ step: "exec", result: "(done)", next: "verify", checkpoint: "post-exec" }`
-   - If significant issue: signal `{ step: "exec", result: "(mid-exec)", next: "verify", checkpoint: "mid-exec" }`
-   - If `--step N` single step complete: signal `{ step: "exec", result: "(step-N)", next: "verify", checkpoint: "mid-exec" }`
-   - If blocking dependency: signal `{ step: "exec", result: "(blocked)", next: "(stop)" }`
+   - If all steps complete: signal `{ "step": "exec", "result": "(done)", "next": "verify", "checkpoint": "post-exec", "timestamp": "..." }`
+   - If significant issue: signal `{ "step": "exec", "result": "(mid-exec)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }`
+   - If `--step N` single step complete: signal `{ "step": "exec", "result": "(step-N)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }`
+   - If blocking dependency: signal `{ "step": "exec", "result": "(blocked)", "next": "(stop)", "checkpoint": "", "timestamp": "..." }`
 10. **Report** execution summary with per-step results
 
 ## State Transitions
@@ -103,7 +103,7 @@ For each implementation step:
 ## Progress Tracking
 
 Execution progress is tracked via `.index.json` fields:
-- `completed_steps`: integer, incremented after each step completes successfully. Reset to `0` when plan changes (by `plan` sub-command on re-plan)
+- `completed_steps`: integer, incremented after each step completes successfully. Reset to `0` when plan changes (by `plan` sub-command on re-plan). **Validation**: must be integer >= 0. If value is invalid (negative, non-integer), reset to 0 with warning
 - `updated`: timestamp of last execution activity
 
 For long-running executions, intermediate progress can be observed by:

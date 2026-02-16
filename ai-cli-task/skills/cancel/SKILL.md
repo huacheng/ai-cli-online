@@ -38,7 +38,7 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
    - If not found (404): no auto loop running, skip
    - Delete `.auto-signal` file if exists
    - Delete `.auto-stop` file if exists
-   - Delete `.lock` file if exists (release any stale lock from the cancelled session)
+   - Delete `.lock` file if exists — first read lock content and verify the holder matches the auto session being cancelled (same `session` or dead `pid`). If held by a different live session, log warning but still delete (cancel is a deliberate override)
 3. **If uncommitted changes exist**, git commit snapshot: `-- ai-cli-task(<module>):cancel pre-cancel snapshot`
 4. **Update** `.index.json`:
    - Set `status` to `cancelled`

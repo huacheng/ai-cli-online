@@ -1,5 +1,18 @@
 # Dynamic Type Profiling
 
+## Table of Contents
+
+- [Core Principles](#core-principles)
+- [Type Format in .index.json](#type-format-in-indexjson)
+- [Type Determination Flow](#type-determination-flow)
+- [Auto-Expanding Type Registry](#auto-expanding-type-registry)
+- [Hybrid Type System](#hybrid-type-system)
+- [.type-profile.md Structure](#type-profilemd-structure)
+- [Shared Type Profiles](#shared-type-profiles)
+- [Refinement Across Phases](#refinement-across-phases)
+- [research's Role in Type Discovery](#researchs-role-in-type-discovery)
+- [Integration with Lifecycle Phases](#integration-with-lifecycle-phases)
+
 Task type is NOT a one-shot decision. It is a **continuously refined classification** that evolves through research, planning, and execution. Types are **auto-discovered** from `.target.md` analysis and web research — no user input required at `init` time.
 
 ## Core Principles
@@ -22,7 +35,7 @@ The `type` field uses a simple string with pipe separator for hybrids:
 
 **Validation regex**: Each segment must match `[a-zA-Z0-9_:-]+`. Full type field: `[a-zA-Z0-9_:|-]+` (pipe allowed as separator). Parsing: `type.split('|')` → `[0]` is primary, `[1:]` are secondary.
 
-**Experiences mapping**: For hybrid type `A|B`, `report` writes to **both** `AiTasks/.experiences/A.md` and `AiTasks/.experiences/B.md`. Plan reads experience files for all segments.
+**Experiences mapping**: For hybrid type `A|B`, `report` writes to **both** `AiTasks/.experiences/A/<module>.md` and `AiTasks/.experiences/B/<module>.md`, updating per-type `.summary.md` in each directory. Plan reads `.summary.md` for all segments, drilling into individual entries when relevant.
 
 ## Type Determination Flow
 
@@ -203,8 +216,8 @@ AiTasks/.type-profiles/
 
 | Phase | Trigger | Action |
 |-------|---------|--------|
-| **research** | Builds or updates `.type-profile.md` for **any** type (seed or discovered) | Copy profile to `AiTasks/.type-profiles/<primary-type>.md` (create or overwrite if confidence is higher) |
-| **report** | Task completes with a refined `.type-profile.md` | Merge refinements back to `AiTasks/.type-profiles/<primary-type>.md` (append refinement log, update sections that changed) |
+| **research** | Builds or updates `.type-profile.md` for **any** type (seed or discovered) | Copy profile to `AiTasks/.type-profiles/<primary-type>.md` (create or overwrite if confidence is higher). Apply directory-safe transform: replace `:` with `-` in type for filename |
+| **report** | Task completes with a refined `.type-profile.md` | Merge refinements back to `AiTasks/.type-profiles/<primary-type>.md` (append refinement log, update sections that changed). Apply directory-safe transform for `:` in type |
 
 **Note**: ALL types sync to shared profiles — including seed types. Over time, shared profiles become richer than static reference tables because they incorporate real task execution experience (tool discoveries, verified patterns, phase-specific intelligence). Static tables remain as initial fallback only.
 
@@ -213,7 +226,7 @@ AiTasks/.type-profiles/
 When research needs domain intelligence for a type, it checks sources in this order:
 
 ```
-1. AiTasks/.type-profiles/<type>.md     ← shared profile from prior tasks (most specific)
+1. AiTasks/.type-profiles/<type>.md     ← shared profile from prior tasks (most specific; apply directory-safe transform: `:` → `-`)
 2. Per-type seed files                   ← init/references/seed-types/<type>.md (factory defaults)
 3. Web search from scratch              ← fallback for completely unknown types
 ```

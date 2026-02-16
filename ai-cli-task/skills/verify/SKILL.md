@@ -38,16 +38,16 @@ Run domain-adapted tests and verification procedures for a task module, producin
 5. **Read** `.summary.md` if exists — condensed context for understanding verification scope
 6. **Read** `AiTasks/.references/.summary.md` if exists — keyword match against task domain → read matched `.references/<topic>.md` files for domain verification guidance (testing frameworks, tools, best practices)
 7. **Gap check**: if `.type-profile.md` lacks verification standards OR `.references/` lacks testing/verification knowledge for the task `type`, trigger `research --scope gap --caller verify` to collect missing references before proceeding
-8. **Determine** verification strategy: use `.type-profile.md` "Verification Standards" first, supplement with per-type seed file `init/references/seed-types/<type>.md` (verify section), combine with `.references/` domain knowledge. If verification reveals that `.type-profile.md` standards are inadequate, update its "Verification Standards" section with findings
-8. **Execute** verification procedures per checkpoint scope:
+8. **Determine** verification strategy: use `.type-profile.md` "Verification Standards" first, supplement with per-type seed file `init/references/seed-types/<type>.md` (verify section), combine with `.references/` domain knowledge. If verification reveals that `.type-profile.md` standards are inadequate, update its "Verification Standards" section with findings. For hybrid types (`A|B`), read seed files and experience for all segments
+9. **Execute** verification procedures per checkpoint scope:
    - `quick`: build, lint, type check — fast feedback loop
    - `full`: all `.test/` criteria, acceptance tests from `.target.md`, regression tests
    - `step-N`: only criteria associated with step N from `.test/` criteria file
-9. **Write** `.test/<YYYY-MM-DD>-<checkpoint>-results.md` with structured test outcomes (pass/fail per criterion, raw output, metrics)
-10. **Update** `.test/.summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
-11. **Git commit**: `-- ai-cli-task(<module>):verify <checkpoint> verification`
-12. **Write** `.auto-signal`: `{ "step": "verify", "result": "(pass|fail|partial)", "next": "check", "checkpoint": "<checkpoint>", "timestamp": "..." }`
-13. **Report** results summary to user
+10. **Write** `.test/<YYYY-MM-DD>-<checkpoint>-results.md` with structured test outcomes (pass/fail per criterion, raw output, metrics)
+11. **Update** `.test/.summary.md` — overwrite with condensed summary of ALL criteria & results files in `.test/`
+12. **Git commit**: `-- ai-cli-task(<module>):verify <checkpoint> verification`
+13. **Write** `.auto-signal`: `{ "step": "verify", "result": "(pass|fail|partial)", "next": "check", "checkpoint": "<checkpoint>", "timestamp": "..." }`
+14. **Report** results summary to user
 
 ## Result Values
 

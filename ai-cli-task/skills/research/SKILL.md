@@ -72,23 +72,23 @@ Callable independently for preparatory research before any phase, or to suppleme
 6. **Read** `.analysis/` latest file if exists — understand evaluation feedback (for re-plan gap targeting)
 7. **Read** `AiTasks/.references/.summary.md` if exists — inventory of existing references
 8. **Type discovery & refinement** (see `plan/references/type-profiling.md`):
-   - **Read** `AiTasks/.type-registry.md` if exists — known types (seed + previously discovered). If missing, read `init/references/seed-types/.summary.md` as fallback
-   - **Read** `AiTasks/.type-profiles/<type>.md` if exists — shared profile from prior tasks (check for each pipe segment of current type). This provides a starting point, eliminating redundant web searches
-   - If `--caller plan` and `.type-profile.md` doesn't exist or confidence is `low`:
+   a. **Read** `AiTasks/.type-registry.md` if exists — known types (seed + previously discovered). If missing, read `init/references/seed-types/.summary.md` as fallback
+   b. **Read** `AiTasks/.type-profiles/<type>.md` if exists — shared profile from prior tasks (check for each pipe segment of current type; apply directory-safe transform: `:` → `-` in type for filename). This provides a starting point, eliminating redundant web searches
+   c. **If `--caller plan`** and `.type-profile.md` doesn't exist or confidence is `low`:
      - If shared profile exists → use as starting point for `.type-profile.md`, then refine per-task
      - If no shared profile → web search `.target.md` domain keywords to identify the actual field
      - Compare against type registry — detect single match, hybrid indicators, or novel domain
      - For hybrid tasks: write type as `A|B` pipe-separated format (e.g., `data-pipeline|ml`)
      - For novel domains: **register** new type in `AiTasks/.type-registry.md` (append row with date + source task)
-     - Write or update `.type-profile.md` with all sections including **Phase Intelligence** (what to research per phase)
-     - Update `type` in `.index.json` (use `A|B` format for hybrids)
-     - **Sync to shared**: copy `.type-profile.md` to `AiTasks/.type-profiles/<primary-type>.md` (acquire `.type-profiles/.lock` first). For ALL types — seed types also benefit from cross-task profile accumulation
-   - If `--caller verify|check|exec` and `.type-profile.md` exists:
+   d. **Write** or update `.type-profile.md` with all sections including **Phase Intelligence** (what to research per phase)
+   e. **Update** `type` in `.index.json` (use `A|B` format for hybrids)
+   f. **Sync to shared**: copy `.type-profile.md` to `AiTasks/.type-profiles/<primary-type>.md` (acquire `.type-profiles/.lock` first; apply directory-safe transform: replace `:` with `-` in type segment when used as filename, e.g., `science:astro` → `science-astro`). For ALL types — seed types also benefit from cross-task profile accumulation. Release lock after write
+   g. **If `--caller verify|check|exec`** and `.type-profile.md` exists:
      - Check if current phase's section in profile is adequate (e.g., verify caller → "Verification Standards" section)
      - If inadequate or missing: web search for domain-specific methodology for this phase
      - If type classification changed (e.g., discovered secondary domain): update type in `.index.json` to `A|B` format, register new type if needed
      - Update `.type-profile.md` with findings, append to refinement log
-     - **Sync to shared**: if profile was significantly updated → merge changes to `AiTasks/.type-profiles/<primary-type>.md`
+     - **Sync to shared**: if profile was significantly updated → merge changes to `AiTasks/.type-profiles/<primary-type>.md` (apply directory-safe transform for `:` in type, acquire `.type-profiles/.lock`, release after write)
 9. **Determine research direction**: Read `.type-profile.md` "Phase Intelligence" section first. If it has direction for the calling phase, use it. Otherwise fall back to per-type seed file `init/references/seed-types/<type>.md` for the calling phase's methodology. For types not in seed files, use `.type-profile.md` as sole direction source
 10. **Gap analysis**:
     - Extract topic keywords from steps 2-6 (technologies, libraries, APIs, patterns, methodologies, domain concepts)
@@ -116,7 +116,7 @@ Callable independently for preparatory research before any phase, or to suppleme
     ```
 14. **Release** `AiTasks/.references/.lock`
 15. **Git commit**: `-- ai-cli-task(<module>):research collect references` (skip if no files written; include `.type-profile.md` and `AiTasks/.type-profiles/` if updated)
-16. **Write** `.auto-signal`: `{ "step": "research", "result": "(collected)" or "(sufficient)", "next": "<caller>", "checkpoint": "post-research" }` — `next` field routes back to the calling phase (default: `plan`; if `--caller verify` → `verify`; if `--caller check` → `check`; if `--caller exec` → `exec`)
+16. **Write** `.auto-signal`: `{ "step": "research", "result": "(collected)" or "(sufficient)", "next": "<caller>", "checkpoint": "post-research", "timestamp": "..." }` — `next` field routes back to the calling phase (default: `plan`; if `--caller verify` → `verify`; if `--caller check` → `check`; if `--caller exec` → `exec`)
 
 ## Output
 

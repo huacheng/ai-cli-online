@@ -131,7 +131,7 @@ When writing to any history directory (`.analysis/`, `.bugfix/`, `.test/`), also
 ```
 post-plan PASS:          planning → review
 post-plan PASS:          re-planning → review, phase: "" (cleared)
-post-plan NEEDS_REVISION: (no change, files committed). If current status is `re-planning`, set `phase: needs-plan`
+post-plan NEEDS_REVISION: (no change, files committed). If current status is `re-planning`, set `phase: needs-plan`; if `planning`, phase stays `""`
 post-plan BLOCKED:       → blocked
 
 mid-exec CONTINUE:       (no change)
