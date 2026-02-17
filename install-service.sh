@@ -20,6 +20,10 @@ RUN_HOME=$(eval echo "~${RUN_USER}")
 
 # Node.js 路径
 NODE_BIN=$(su - "$RUN_USER" -c "which node" 2>/dev/null || true)
+# Fallback: source nvm if plain login shell didn't find node
+if [[ -z "$NODE_BIN" ]]; then
+  NODE_BIN=$(su - "$RUN_USER" -c "source ~/.nvm/nvm.sh 2>/dev/null; which node" 2>/dev/null || true)
+fi
 if [[ -z "$NODE_BIN" ]]; then
   echo "[错误] 未找到 node，请先安装 Node.js >= 18"
   exit 1
@@ -28,6 +32,9 @@ NODE_DIR=$(dirname "$NODE_BIN")
 NODE_VERSION=$("$NODE_BIN" --version)
 
 NPM_BIN=$(su - "$RUN_USER" -c "which npm" 2>/dev/null || true)
+if [[ -z "$NPM_BIN" ]]; then
+  NPM_BIN=$(su - "$RUN_USER" -c "source ~/.nvm/nvm.sh 2>/dev/null; which npm" 2>/dev/null || true)
+fi
 if [[ -z "$NPM_BIN" ]]; then
   echo "[错误] 未找到 npm"
   exit 1
@@ -81,7 +88,7 @@ Restart=on-failure
 RestartSec=5
 
 # 进程管理
-KillMode=mixed
+KillMode=process
 KillSignal=SIGTERM
 TimeoutStopSec=10
 
