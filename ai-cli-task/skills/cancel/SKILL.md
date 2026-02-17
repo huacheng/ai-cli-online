@@ -38,7 +38,7 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
    - If not found (404): no auto loop running, skip
    - Delete `.auto-signal` file if exists
    - Delete `.auto-stop` file if exists
-   - Delete `.lock` file if exists — first read lock content and verify the holder matches the auto session being cancelled (same `session` or dead `pid`). If held by a different live session, log warning but still delete (cancel is a deliberate override)
+   - Delete `.lock` file if exists — first read lock content and verify the holder: (a) if holder `pid` is dead → delete lock (stale); (b) if holder `session` matches the auto session being cancelled → delete lock (same session); (c) if held by a **different live session** → REJECT with error identifying the holding session — user must stop that session first or use `cancel` from the holding session. Cancel does NOT force-override locks held by other live sessions to prevent concurrent write corruption
 3. **If uncommitted changes exist**, git commit snapshot: `-- ai-cli-task(<module>):cancel pre-cancel snapshot`
 4. **Update** `.index.json`:
    - Set `status` to `cancelled`
@@ -48,7 +48,7 @@ Cancel a task module, stopping any active auto loop and optionally cleaning up t
 6. **Git commit**: `-- ai-cli-task(<module>):cancel user cancelled`
 7. **If `--cleanup`**:
    - Remove worktree: `git worktree remove .worktrees/task-<module>`
-   - Delete branch: `git branch -D task/<module>` (only if fully merged or with `--force`)
+   - Delete branch: `git branch -d task/<module>` (safe delete — warns if unmerged). If `-d` fails because branch has unmerged work, report warning to user with the unmerged commit count. User can explicitly re-run with `git branch -D` if they want to force-delete
 8. **Report** cancellation result
 
 ## State Transitions

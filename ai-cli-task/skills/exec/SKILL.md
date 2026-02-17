@@ -88,7 +88,7 @@ For each implementation step:
    - Write task-level `.summary.md` with condensed context: current progress, steps completed, key decisions, issues encountered, remaining work (integrate from directory summaries)
    - If all steps complete: signal `{ "step": "exec", "result": "(done)", "next": "verify", "checkpoint": "post-exec", "timestamp": "..." }`
    - If significant issue: signal `{ "step": "exec", "result": "(mid-exec)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }`
-   - If `--step N` single step complete: signal `{ "step": "exec", "result": "(step-N)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }`
+   - If `--step N` single step complete (manual invocation only — auto mode does not use `--step`): signal `{ "step": "exec", "result": "(step-N)", "next": "verify", "checkpoint": "mid-exec", "timestamp": "..." }`
    - If blocking dependency: signal `{ "step": "exec", "result": "(blocked)", "next": "(stop)", "checkpoint": "", "timestamp": "..." }`
 10. **Report** execution summary with per-step results
 
@@ -141,3 +141,4 @@ For long-running executions, intermediate progress can be observed by:
 - **Concurrency**: Exec acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)
 - **Reference collection**: Primary reference collection is handled by the `research` sub-command before planning. During execution, if you discover valuable implementation details via web searches, you may still save findings to `AiTasks/.references/<topic>.md` and update `.summary.md` — acquire `AiTasks/.references/.lock` before writing (see `.references/ Write Protection` in `commands/ai-cli-task.md`)
 - **verify integration**: Per-step verification can optionally invoke `verify --checkpoint step-N` for domain-specific testing. For lightweight checks (build + lint), inline verification is sufficient
+- **Auto-mode safety boundaries**: When exec runs within `auto` mode (unattended), the following operations are PROHIBITED unless the plan explicitly calls for them: modifying `.env` or credential files, running destructive commands (`rm -rf`, `git push --force`, `DROP TABLE`), installing system-level packages (`apt install`, `brew install`), sending external requests (email, webhook, API calls to production). Violation → stop execution and signal `(mid-exec)` for human review

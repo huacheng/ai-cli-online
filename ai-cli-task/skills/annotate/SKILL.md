@@ -37,24 +37,25 @@ Process `.tmp-annotations.json` from the Plan panel. Supports 4 annotation types
 
 ## Execution Steps
 
-1. **Read** the task file at the given absolute path
-2. **Read** `.index.json` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
-3. **Read** the annotation file (`.tmp-annotations.json`)
-4. **Read** `.target.md` + `.plan.md` + `.test/` (latest criteria) for full context
-5. **Parse** all annotation arrays
-6. **Triage** each annotation by type and condition
-7. **Assess** cross-impacts and conflicts against ALL files in the module
-8. **Execute** changes per severity level
-9. **Update** the task file with resolved changes and inline markers for pending items
-10. **Update** `.index.json` in the task module:
+1. **Validate paths**: Both `task_file_path` and `annotation_file_path` must resolve (after symlink resolution) to a location under the project's `AiTasks/` directory. Reject with error if either path escapes `AiTasks/` (prevents path traversal via `..` or symlinks). Additionally, `annotation_file_path` basename must be `.tmp-annotations.json` — reject any other filename
+2. **Read** the task file at the validated absolute path
+3. **Read** `.index.json` — validate status is not `complete` or `cancelled`. If either, REJECT with error: tasks in terminal status cannot be modified
+4. **Read** the annotation file (`.tmp-annotations.json`)
+5. **Read** `.target.md` + `.plan.md` + `.test/` (latest criteria) for full context
+6. **Parse** all annotation arrays
+7. **Triage** each annotation by type and condition
+8. **Assess** cross-impacts and conflicts against ALL files in the module
+9. **Execute** changes per severity level
+10. **Update** the task file with resolved changes and inline markers for pending items
+11. **Update** `.index.json` in the task module:
     - Update `status` per State Transitions table: `draft`→`planning`, `review`/`executing`→`re-planning`, `blocked`→`planning`, others keep current
     - If the **new** status is `re-planning`, set `phase: needs-check`. For all other **new** statuses, clear `phase` to `""`
     - Update `updated` timestamp
-11. **Write** `.summary.md` with condensed context reflecting annotation changes
-12. **Clean up** the `.tmp-annotations.json` file (delete after processing)
-13. **Git commit**: `-- ai-cli-task(<module>):annotate annotations processed`
-14. **Write** `.auto-signal`: `{ "step": "annotate", "result": "(processed)", "next": "verify", "checkpoint": "post-plan", "timestamp": "..." }`
-15. **Generate** execution report (print to screen or append to file per mode)
+12. **Write** `.summary.md` with condensed context reflecting annotation changes
+13. **Clean up** the `.tmp-annotations.json` file (delete after processing)
+14. **Git commit**: `-- ai-cli-task(<module>):annotate annotations processed`
+15. **Write** `.auto-signal`: `{ "step": "annotate", "result": "(processed)", "next": "verify", "checkpoint": "post-plan", "timestamp": "..." }`
+16. **Generate** execution report (print to screen or append to file per mode)
 
 ## State Transitions
 

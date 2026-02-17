@@ -76,7 +76,7 @@ Evaluates progress during execution when issues are encountered.
 
 Evaluates whether execution results meet the task requirements.
 
-**Reads:** `.target.md` + `.plan.md` + `.summary.md` (if exists) + `.test/` (all criteria + latest results) + `.analysis/` (latest file only) + code changes + test results
+**Reads:** `.target.md` + `.plan.md` + `.summary.md` (if exists) + `.test/.summary.md` (primary; drill into individual `.test/` files only if summary is missing or insufficient) + `.analysis/` (latest file only) + code changes + test results
 
 **Evaluation Criteria:**
 

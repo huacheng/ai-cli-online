@@ -111,5 +111,5 @@ Report is always a terminal step — `next` is always `(stop)`.
 - For `blocked` tasks, the report documents what was completed and what blocks remain
 - For `cancelled` tasks, the report documents the reason for cancellation
 - The report serves as a permanent record even after task files are archived
-- For `complete` tasks, report includes change history via `git log --oneline --all --grep="ai-cli-task(<module>)"` (uses commit message pattern, works even after task branch deletion)
+- For `complete` tasks, report includes change history via `git log --oneline --all --fixed-strings --grep="ai-cli-task(<module>)"` (uses `--fixed-strings` to avoid regex interpretation of parentheses; works even after task branch deletion)
 - **Concurrency**: Report acquires `AiTasks/<module>/.lock` before proceeding and releases on completion (see Concurrency Protection in `commands/ai-cli-task.md`)

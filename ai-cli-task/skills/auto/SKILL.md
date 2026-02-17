@@ -132,6 +132,8 @@ Claude Code may stall mid-execution. The daemon detects stalls via heartbeat pol
 
 Proactive `/compact` at >= 70% context usage prevents overflow. `.summary.md` files provide compaction recovery context. Quota exhaustion is NOT a stall — daemon enters quota-wait mode with timeout clock paused.
 
+**Compaction frequency limit**: If 3 or more compactions occur within the same iteration (indicating the task generates more context per sub-command than compaction can reclaim), the auto loop should stop with a warning: "context budget insufficient for this task — consider breaking into smaller sub-tasks or increasing context window". The daemon tracks compaction count per iteration via the `iteration` field in `.auto-signal`.
+
 > **See `references/context-quota.md`** for the full context management strategy, quota exhaustion handling (daemon + Claude behavior), and SQLite `quota_wait_since` extension.
 
 ## State Machine
@@ -190,7 +192,9 @@ The auto skill runs this loop within a single Claude session:
 3. Cleanup: delete .auto-signal, report final status
 ```
 
-**Signal ownership in auto mode**: Each sub-command's SKILL.md includes a "write `.auto-signal`" step. In auto mode, the auto loop **subsumes** that step — Claude writes the signal once at step 2d (with the `iteration` field included). The sub-command's own signal-write instruction is skipped to avoid double-writing. In manual (non-auto) execution, sub-commands write `.auto-signal` themselves (without `iteration` field).
+**Signal ownership in auto mode**: Each sub-command's SKILL.md includes a "write `.auto-signal`" step. In auto mode, the auto loop **subsumes** that step — Claude writes the signal once at step 2e (with the `iteration` field included). The sub-command's own signal-write instruction is skipped to avoid double-writing. In manual (non-auto) execution, sub-commands write `.auto-signal` themselves (without `iteration` field).
+
+**How to detect auto mode** (for inline execution): When executing a sub-command's steps inline within the auto loop, skip any step that says "Write `.auto-signal`". The auto loop's step 2e handles it. This is implicit — the auto loop code simply does not execute the signal-write step from each SKILL.md. No environment variable or flag is needed because auto mode always uses inline execution (Read + execute steps), never Skill tool invocation.
 
 ### Entry Point (Status-Based Routing)
 
@@ -199,7 +203,7 @@ The auto skill runs this loop within a single Claude session:
 | `draft` | Validate `.target.md` has substantive content (not just template placeholders) → if empty, stop and report "fill `.target.md` first". Otherwise execute plan (generate mode) |
 | `planning` | Execute verify → check (post-plan) |
 | `review` | Execute exec |
-| `executing` | Execute verify → check (post-exec) |
+| `executing` | Execute verify → check (post-exec). **Note**: even if `completed_steps` < total, auto enters via post-exec verification first — check detects incomplete work and routes back to exec via NEEDS_FIX, adding one extra iteration. This avoids re-parsing `.plan.md` to count total steps at entry |
 | `re-planning` | Read `phase` field: if `needs-plan` → execute plan (generate); if `needs-check` → execute verify → check (post-plan); if empty → default to plan (generate, safe fallback) |
 | `complete` | Execute report, then stop |
 | `blocked` | Stop loop, report blocking reason |
@@ -229,7 +233,7 @@ After each step, Claude evaluates the result and determines the next step intern
 | merge | success | report | — | Merge complete, generate report |
 | merge | conflict | (stop) | — | Merge conflict unresolvable |
 | research | (collected)/(sufficient) | `<caller>` (plan/verify/check/exec) | post-research | References collected, resume calling phase |
-| verify | (pass/fail/partial) | check | — | Verification done, check renders verdict |
+| verify | (pass/fail/partial) | check | (from trigger context) | Verification done, check renders verdict. Auto loop uses the **triggering context** to determine check checkpoint: plan→post-plan, exec(done)→post-exec, exec(mid-exec)→mid-exec |
 | annotate | (processed) | verify | post-plan | Annotations processed, verify then assess |
 | report | (any) | (stop) | — | Loop complete |
 
@@ -348,8 +352,9 @@ When auto mode stops (complete, blocked, cancelled, or manual stop), cleanup is 
 **Daemon-side** (backend, after detecting loop exit or stop):
 1. Stop heartbeat polling timer
 2. Stop `fs.watch` on task directory
-3. Remove `task_auto` row from SQLite (clears all stall detection state)
-4. Frontend status indicator clears on next poll
+3. **Delete stale files**: remove `.auto-signal`, `.auto-signal.tmp`, and `.auto-stop` from `task_dir` if they exist (Claude-side cleanup may have been skipped due to crash/kill)
+4. Remove `task_auto` row from SQLite (clears all stall detection state)
+5. Frontend status indicator clears on next poll
 
 The daemon detects loop exit by: (a) receiving a `DELETE` API call (user stop), (b) heartbeat detecting shell prompt (Claude exited), or (c) `.auto-signal` with `next: "(stop)"` (natural completion). In all cases, daemon performs its cleanup steps above.
 
@@ -366,7 +371,7 @@ On backend server restart, auto state is recovered from SQLite:
    a. **Delete stale `.auto-stop`** if exists in `task_dir` (prevents restarted Claude from immediately exiting due to leftover stop file from pre-crash state)
    b. Check terminal state via `tmux capture-pane`:
       - If Claude auto session still running → re-establish monitoring (fs.watch + heartbeat)
-      - If shell prompt visible (Claude exited) → restart: send `claude "/moonview:auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point)
+      - If shell prompt visible (Claude exited) → restart with backoff: send `claude "/moonview:auto <task_dir>"` to PTY (Claude's internal loop reads `.index.json` to determine resume point). **Restart limit**: max 3 restarts per `task_dir`. Track restart count in a new SQLite column `restart_count INTEGER DEFAULT 0`. If exceeded, set row status to `'failed'` and log error "auto loop exceeded restart limit — likely crash loop, manual intervention required". Do NOT delete the row — leave for admin inspection
    c. Reset `stall_count` to `0` and `last_capture_hash` to `""` (fresh monitoring baseline)
    d. Start heartbeat polling timer
    e. Re-establish `fs.watch` on `task_dir` for `.auto-signal`

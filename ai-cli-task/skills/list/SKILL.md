@@ -67,8 +67,10 @@ Nodes colored by status: green (complete), blue (executing/review), yellow (plan
 Extract status transition history from git log:
 
 ```
-git log --oneline --grep="ai-cli-task(<module>)"
+git log --oneline --fixed-strings --grep="ai-cli-task(<module>)"
 ```
+
+Use `--fixed-strings` to prevent `(` and `)` in the pattern from being interpreted as regex metacharacters.
 
 Parse commit messages to reconstruct the timeline of status changes with timestamps.
 

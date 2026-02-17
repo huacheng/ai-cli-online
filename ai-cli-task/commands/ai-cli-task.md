@@ -177,7 +177,7 @@ Scientific research types follow [arXiv taxonomy](https://arxiv.org/category_tax
 
 **Type field validation**: Each pipe-separated segment must match `[a-zA-Z0-9_:-]+`. Full type field regex: `[a-zA-Z0-9_:|-]+`. `plan` MUST validate before writing to `.index.json`. `report` MUST validate before using as `.experiences/<type>/` directory name to prevent path traversal.
 
-**Directory-safe transform**: When using a type segment as a directory name (e.g., `.experiences/<segment>/`, `.type-profiles/<segment>.md`), replace `:` with `-` (e.g., `science:astro` → `science-astro`). The original type value in `.index.json` is unchanged.
+**Directory-safe transform**: When using a type segment as a directory name (e.g., `.experiences/<segment>/`, `.type-profiles/<segment>.md`), replace `:` with `-` (e.g., `science:astro` → `science-astro`). The original type value in `.index.json` is unchanged. **Collision note**: avoid registering types whose names differ only by `:` vs `-` (e.g., `science-astro` and `science:astro` both map to `science-astro/`). The type registry should treat these as the same type.
 
 **Unknown type handling**: When `check` or `exec` encounters a `type` value not matching any known domain in the reference tables, it reads `.type-profile.md` for task-specific methodology. If `.type-profile.md` also doesn't exist (legacy task), it falls back to `software` methodology and records a warning in `.analysis/` (check) or `.notes/` (exec).
 
@@ -221,7 +221,7 @@ Every (state, sub-command) combination. `→X` = transitions to X. `=` = stays s
 | `blocked` | →`planning` | →`planning` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | →`cancelled` |
 | `cancelled` | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | ⊘ | — (write) | ⊘ |
 
-**Legend:** `→X` transition, `=X` self-loop (stays same status), `⊘` rejected, `—` no status change.
+**Legend:** `→X` transition, `=X` self-loop (stays same status), `⊘` rejected, `—` no status change. Phase sub-state changes are not shown in this matrix — see each skill's State Transitions section for `phase` field details (e.g., `check` REPLAN sets `phase: needs-plan`; `plan`/`annotate` on `re-planning` sets `phase: needs-check`).
 
 **Verification properties:**
 - Every non-terminal state has ≥1 exit path (no deadlock)
@@ -419,6 +419,7 @@ All sub-commands that accept `<task_module>` MUST validate the path before proce
 | **Module name** | Must match `[a-zA-Z0-9_-]+` (ASCII letters/digits/hyphens/underscores only) | `auth-refactor` ✓, `../../foo` ✗ |
 | **No symlinks** | Task module directory must not be a symlink (prevent symlink-based escape) | REJECT if `lstat` ≠ `stat` |
 | **Existence** | Directory must exist (except for `init` which creates it) | REJECT if missing |
+| **User text sanitization** | All user-provided text written to `.index.json` or `.md` files (e.g., `--title`, `--reason`, `--tags`) must be sanitized: strip HTML comments (`<!-- ... -->`), ANSI escape sequences, and control characters (except `\n`). This prevents hidden content injection when values appear in `.summary.md` or other markdown files | Sanitize before write |
 
 Validation is performed by resolving the absolute path and confirming it starts with the project's `AiTasks/` prefix. This prevents path traversal attacks where a crafted module name could read/write files outside the task directory.
 
@@ -432,25 +433,25 @@ Without worktree mode, only one task should be actively operated at a time. Sub-
 4. **Worktree mode**: Lock not required — each worktree has its own copy of AiTasks/ files
 5. **Stale lock recovery**: Use rename-based recovery instead of delete+create. When detecting a stale lock (holder dead): `rename` the stale `.lock` to `.lock.stale.<pid>`, then acquire normally with `O_CREAT | O_EXCL`. If the rename fails (another process already recovered), retry from step 1. Clean up ALL `.lock.stale.*` files in the same directory immediately after successful lock acquisition
 
-### .experiences/ Write Protection
+### Shared Directory Write Protection
 
-`AiTasks/.experiences/<type>/` is a shared resource across tasks. When `report` writes to it (experience distillation), it MUST acquire `AiTasks/.experiences/.lock` before any write. This prevents concurrent task completions from corrupting shared files. For hybrid types (`A|B`), `report` writes to directories for **all** pipe-separated segments (e.g., both `A/` and `B/`). Lock scope covers: creating type directory, writing `<module>.md`, updating per-type `.summary.md`, and updating top-level `.summary.md`.
+Three shared directories require locks before writing (all use the same lock protocol as module locks above):
 
-### .references/ Write Protection
+| Directory | Lock File | Writers | Scope |
+|-----------|-----------|---------|-------|
+| `.experiences/<type>/` | `.experiences/.lock` | `report` | Create type dir, write `<module>.md`, update per-type and top-level `.summary.md`. For hybrid types (`A\|B`), covers all segments |
+| `.references/` | `.references/.lock` | `research`, `exec` | Write `<topic>.md`, update `.summary.md` |
+| `.type-profiles/` | `.type-profiles/.lock` | `research`, `report` | Write `<type>.md` shared profiles |
 
-`AiTasks/.references/<topic>.md` is a shared resource across tasks. The `research` sub-command is the primary writer (invoked by `plan` or standalone). When any sub-command (`research`, `exec`) writes to `.references/`, it MUST acquire `AiTasks/.references/.lock` using the same lock protocol above. This prevents concurrent tasks from corrupting the reference files.
+### .index.json Safety
 
-### .index.json Corruption Recovery
+**Atomic write**: All sub-commands that modify `.index.json` MUST write atomically — write to `.index.json.tmp` first, then `rename` to `.index.json`. POSIX `rename` is atomic, preventing concurrent readers from seeing partially written JSON.
 
-If `.index.json` fails to parse (malformed JSON), sub-commands MUST attempt recovery before failing:
+**Corruption recovery**: If `.index.json` fails to parse (malformed JSON):
 
 1. **Git recovery**: `git show HEAD:AiTasks/<module>/.index.json` — restore from latest committed version
 2. **If git recovery fails**: Reconstruct minimal `.index.json` with `"status": "draft"`, `"phase": ""`, preserve only what's parseable
 3. **Log**: Record corruption event and recovery action in `.analysis/<date>-index-recovery.md`
-
-### .type-profiles/ Write Protection
-
-`AiTasks/.type-profiles/<type>.md` is a shared resource across tasks. When `research` or `report` writes to it, they MUST acquire `AiTasks/.type-profiles/.lock` using the same lock protocol above. This prevents concurrent tasks from corrupting shared type profiles.
 
 ### Lifecycle Hooks (Extension Point)
 
@@ -468,6 +469,8 @@ Status transitions can optionally trigger external notifications. If `AiTasks/.h
 ```
 
 Hooks are **best-effort** — failures are logged but do not block the status transition. This is an optional extension; the system works without `AiTasks/.hooks.md`.
+
+**Implementation**: Sub-commands that change task status (`plan`, `check`, `exec`, `merge`, `cancel`, `annotate`) SHOULD check for `AiTasks/.hooks.md` after updating `.index.json`. If the file exists, read it, find the matching `## on_<new_status>` section, and execute the shell command (with 10s timeout). Pass `MODULE`, `STATUS`, `TITLE` as environment variables. Hook execution happens AFTER the git commit step — a hook failure does not roll back the status change.
 
 ---
 
@@ -498,9 +501,7 @@ Create task module directory + `.index.json` (status `draft`, type empty) + `.ta
 
 ### plan
 
-```
-/moonview:plan <task_module> --generate
-```
+`/moonview:plan <task_module> [--generate]`
 
 Research codebase + `.target.md` → write implementation plan to `.plan.md` → status `planning`. Annotation processing is handled by the `annotate` sub-command.
 
@@ -554,39 +555,7 @@ Generate `.report.md` from all task artifacts. Informational only — no status 
 
 Single-session autonomous loop: plan → verify → check → exec → verify → check(mid) → exec → verify → check(post) → merge → report, with self-correction. A single Claude session internally orchestrates all steps; the backend daemon monitors progress via `fs.watch` on `.auto-signal` and enforces safety limits.
 
-**Status-based first entry:**
-
-| Status | First Action |
-|--------|-------------|
-| `draft` | Validate `.target.md` has content → plan --generate (stop if empty) |
-| `planning` | verify → check --checkpoint post-plan |
-| `re-planning` | Read `phase`: `needs-plan` → plan --generate; `needs-check` → verify → check --checkpoint post-plan; empty → plan --generate (safe default) |
-| `review` | exec |
-| `executing` | verify → check --checkpoint post-exec |
-| `complete` | report → stop |
-| `blocked` / `cancelled` | stop |
-
-**Signal-based subsequent routing** (`next` field breaks self-loops):
-
-| step | result | next | checkpoint |
-|------|--------|------|------------|
-| check | PASS | exec | — |
-| check | NEEDS_REVISION | plan | — |
-| check | CONTINUE | exec | — |
-| check | ACCEPT | merge | — |
-| check | NEEDS_FIX | exec | mid-exec / post-exec |
-| check | REPLAN / BLOCKED | plan / (stop) | — |
-| plan | (any) | verify | post-plan |
-| exec | (done) | verify | post-exec |
-| exec | (mid-exec) | verify | mid-exec |
-| exec | (step-N) | verify | mid-exec | ← manual `--step N` only |
-| exec | (blocked) | (stop) | — |
-| research | (collected)/(sufficient) | `<caller>` (plan/verify/check/exec) | post-research |
-| verify | (pass/fail/partial) | check | — |
-| annotate | (processed) | verify | post-plan |
-| merge | success | report | — |
-| merge | conflict | (stop) | — |
-| report | (any) | (stop) | — |
+Entry point and routing details are in `skills/auto/SKILL.md` — status-based first entry table, signal-based routing table, and state machine diagram.
 
 **Safety**: max iterations (default 20), timeout (default 30 min), stop on `blocked`, one auto per session (SQLite PK), one auto per task (UNIQUE).
 

@@ -76,13 +76,17 @@ Examples:
 
 ## .auto-signal
 
-| Checkpoint | Signal |
+The `checkpoint` field in verify's signal carries **the verification scope** (what was tested), not the check checkpoint. When `check` receives verify results, it uses the **invoking context** (status + triggering signal) to determine its own checkpoint — NOT verify's checkpoint field.
+
+| Verify Scope | Signal |
 |------------|--------|
 | quick | `{ "step": "verify", "result": "(pass)", "next": "check", "checkpoint": "quick", "timestamp": "..." }` |
 | full | `{ "step": "verify", "result": "(pass)", "next": "check", "checkpoint": "full", "timestamp": "..." }` |
 | step-N | `{ "step": "verify", "result": "(pass)", "next": "check", "checkpoint": "step-N", "timestamp": "..." }` |
 
 Result values: `(pass)`, `(fail)`, `(partial)` — see Result Values table above.
+
+**Auto routing note**: In the auto loop, verify's checkpoint field is informational for the daemon. The auto loop determines the correct `check` checkpoint from the triggering context (e.g., after `plan` → `check --checkpoint post-plan`; after `exec (done)` → `check --checkpoint post-exec`; after `exec (mid-exec)` → `check --checkpoint mid-exec`).
 
 ## Notes
 

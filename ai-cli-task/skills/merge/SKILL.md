@@ -54,11 +54,11 @@ If merge conflict detected:
 
 On successful merge:
 
-1. **Update** `.index.json` status → `complete`, update timestamp
+1. **Update** `.index.json` status → `complete`, clear `branch` to `""` (branch will be deleted), update timestamp
 2. **Write** `.summary.md` with final task summary: completion status, plan overview, key changes, verification outcome, lessons learned (integrate from directory summaries)
-3. **If worktree exists**: `git worktree remove .worktrees/task-<module>`
-4. **Delete** merged branch: `git branch -d task/<module>`
-5. **Commit** state: `-- ai-cli-task(<module>):merge task completed`
+3. **Git commit** state FIRST: `-- ai-cli-task(<module>):merge task completed` — commit state changes before any destructive cleanup, so status is persisted even if cleanup fails
+4. **If worktree exists**: `git worktree remove .worktrees/task-<module>` (failure is non-fatal — log warning, continue)
+5. **Delete** merged branch: `git branch -d task/<module>` (failure is non-fatal — branch may already be deleted or have extra commits; log warning, continue)
 
 ## Execution Steps
 
@@ -73,7 +73,7 @@ On successful merge:
    b. Attempt resolution (up to 3 tries)
    c. Each resolution: fix conflicts → verify (build + test) → if pass commit, if fail abort and retry
    d. If all 3 attempts fail → stay `executing`, abort merge, report unresolvable conflicts
-8. **Phase 4**: Post-merge cleanup (status update → `complete`, write `.summary.md`, worktree removal, branch deletion)
+8. **Phase 4**: Post-merge cleanup (status update → `complete`, write `.summary.md`, git commit state FIRST, then worktree removal + branch deletion — cleanup failures are non-fatal)
 9. **Write** `.auto-signal` to the **main worktree's** `AiTasks/<module>/` directory (NOT the task worktree's copy) — MUST be written AFTER Phase 4 status update to `complete`, so the daemon reads correct status when routing to `report`. In worktree mode, the task directory exists in both locations; writing to main ensures the signal survives worktree removal. The daemon's `fs.watch` MUST monitor the main worktree path. **Resolve main worktree path**: read `.git` file in task worktree → extract `gitdir` → resolve to main worktree root. Or use `git -C <main-repo> rev-parse --show-toplevel`
 10. **Report** merge result
 

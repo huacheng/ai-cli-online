@@ -117,7 +117,7 @@ Created automatically by `init` if `AiTasks/` directory does not exist (initiali
 2. **Check** `AiTasks/` directory exists; create with root `.index.json` if missing (initialized as `[]`). Also create `AiTasks/.type-registry.md` with seed types if missing (read `references/seed-types/.summary.md` for the predefined type index; see `plan/references/type-profiling.md` for registry format). **First-time setup**: if `AiTasks/` was just created, append gitignore entries to project `.gitignore` (create if missing): `.worktrees/`, `AiTasks/**/.tmp-annotations.json`, `AiTasks/**/.auto-signal`, `AiTasks/**/.auto-signal.tmp`, `AiTasks/**/.auto-stop`, `AiTasks/**/.lock`, `AiTasks/.experiences/.lock`, `AiTasks/.references/.lock`, `AiTasks/.type-profiles/.lock`
 3. **Check** `AiTasks/<module_name>/` does not already exist; abort with error if it does
 4. **Check branch collision**: verify `task/<module_name>` branch does not already exist (`git branch --list task/<module_name>`). If exists, abort with error suggesting `--cleanup` the old task or choose a different name
-5. **Check working tree clean**: verify no uncommitted changes (`git status --porcelain`). If dirty, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first
+5. **Check working tree clean**: verify no uncommitted changes to tracked files (`git status --porcelain` then filter out `??` untracked entries). Untracked and gitignored files (e.g., stale `.auto-signal`, `AiTasks/` ephemeral files) do NOT block init. If tracked files have modifications, abort with error — branch should be created from a clean state to avoid mixing unrelated changes. User should commit or stash first
 6. **Git**: create branch `task/<module_name>` from current HEAD
 7. **If `--worktree`**: `git worktree add .worktrees/task-<module_name> task/<module_name>`
 8. **If not worktree**: `git checkout task/<module_name>`
@@ -163,9 +163,9 @@ Created automatically by `init` if `AiTasks/` directory does not exist (initiali
 ## Notes
 
 - Module names are ASCII only: letters, digits, hyphens, underscores (`[a-zA-Z0-9_-]+`). No whitespace, no leading dot, no path separators. Examples: `auth-refactor`, `add-search-v2`
-- The `.target.md` is for human authoring — users fill in requirements via the Plan annotation panel
+- The `.target.md` is for human authoring — users fill in requirements via the Plan annotation panel. The default template (Objective / Requirements / Constraints) is domain-generic; users may freely restructure it for their domain (e.g., Synopsis / Characters for literary tasks). The `plan` skill reads `.target.md` content, not its structure
 - System files (dot-prefixed) should not be manually edited except `.target.md`
 - After init, the typical workflow is: edit `.target.md` → `/moonview:plan` → `/moonview:check` → `/moonview:exec`
 - With `--worktree`, the task runs in an isolated directory; multiple tasks can execute simultaneously
 - **Branch collision check**: if `task/<module_name>` branch already exists (from a previous cancelled/completed task), init aborts. User should delete the old branch first (`git branch -d task/<name>`) or choose a different module name
-- **Clean working tree**: init requires no uncommitted changes to avoid mixing unrelated work into the task branch. User should `git commit` or `git stash` first
+- **Clean working tree**: init requires no uncommitted changes to **tracked** files — untracked/gitignored files are allowed. User should `git commit` or `git stash` tracked changes first
