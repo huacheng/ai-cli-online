@@ -138,9 +138,9 @@ export function shellQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
-/** Generate /ai-cli-task:annotate command for a single file */
+/** Generate /moonview:annotate command for a single file */
 export function generateAnnotateCommand(filePath: string, annFilePath: string): string {
-  return `/ai-cli-task:annotate ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
+  return `/moonview:annotate ${shellQuote(filePath)} ${shellQuote(annFilePath)} --silent`;
 }
 
 /** Derive module path: AiTasks/<module>/ from a full file path */
