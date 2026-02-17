@@ -9,7 +9,7 @@
     {
       "name": "ai-cli-task",
       "description": "Structured task lifecycle management with 13 skills: init, plan, research, check, verify, exec, merge, report, auto, cancel, list, annotate, summarize. Git-integrated workflow with branch-per-task, worktree support, and annotation-driven planning.",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "author": {
         "name": "huacheng"
       },
