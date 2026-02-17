@@ -279,7 +279,7 @@ export async function restoreFromServer(
             connected: false,
             sessionResumed: false,
             error: null,
-            panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false },
+            panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false, gitHistoryOpen: false },
           };
         }
       }

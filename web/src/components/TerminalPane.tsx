@@ -2,6 +2,7 @@ import { memo, useRef, useState, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { TerminalView } from './TerminalView';
 import { PlanPanel } from './PlanPanel';
+import { GitHistoryPanel } from './GitHistoryPanel';
 import { MarkdownEditor, MarkdownEditorHandle } from './MarkdownEditor';
 import { DownloadPopup } from './DownloadPopup';
 import { uploadFiles, fetchCwd } from '../api/files';
@@ -38,7 +39,8 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
   const token = useStore((s) => s.token);
   const toggleChat = useStore((s) => s.toggleChat);
   const togglePlan = useStore((s) => s.togglePlan);
-  const { chatOpen, planOpen } = terminal.panels;
+  const toggleGitHistory = useStore((s) => s.toggleGitHistory);
+  const { chatOpen, planOpen, gitHistoryOpen } = terminal.panels;
 
   const outerRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
@@ -231,6 +233,14 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
             Task
           </button>
           <button
+            className={`pane-btn${gitHistoryOpen ? ' pane-btn--active' : ''}`}
+            onClick={() => toggleGitHistory(terminal.id)}
+            title="Toggle Git history panel"
+            aria-label="Toggle Git history panel"
+          >
+            Git
+          </button>
+          <button
             className="pane-btn"
             onClick={() => handleSplit(isNarrow ? 'vertical' : 'horizontal')}
             title={isNarrow ? 'Split vertical (screen too narrow for horizontal)' : 'Split horizontal (left/right)'}
@@ -249,18 +259,26 @@ export const TerminalPane = memo(function TerminalPane({ terminal }: TerminalPan
         </div>
       </div>
 
-      {/* Main area: Plan (left) | Right column (Terminal + Chat) */}
+      {/* Main area: Plan/Git (left) | Right column (Terminal + Chat) */}
       <div ref={topRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-        {planOpen && (
+        {(planOpen || gitHistoryOpen) && (
           <>
             <div style={{ width: `${planWidthPercent}%`, minWidth: 200, flexShrink: 0, overflow: 'hidden' }}>
-              <PlanPanel
-                sessionId={terminal.id}
-                token={token || ''}
-                connected={terminal.connected}
-                onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
-                onSendToTerminal={handlePlanSendToTerminal}
-              />
+              {planOpen && (
+                <PlanPanel
+                  sessionId={terminal.id}
+                  token={token || ''}
+                  connected={terminal.connected}
+                  onRequestFileStream={(path) => terminalViewRef.current?.requestFileStream(path)}
+                  onSendToTerminal={handlePlanSendToTerminal}
+                />
+              )}
+              {gitHistoryOpen && (
+                <GitHistoryPanel
+                  sessionId={terminal.id}
+                  token={token || ''}
+                />
+              )}
             </div>
             <div
               className="md-editor-divider-h"

@@ -68,7 +68,7 @@ export const useStore = create<AppState>((...args) => {
                   connected: false,
                   sessionResumed: false,
                   error: null,
-                  panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false },
+                  panels: tab.panelStates?.[id] || { chatOpen: false, planOpen: false, gitHistoryOpen: false },
                 };
               }
             }
@@ -153,7 +153,7 @@ export const useStore = create<AppState>((...args) => {
         connected: false,
         sessionResumed: false,
         error: null,
-        panels: { chatOpen: false, planOpen: false },
+        panels: { chatOpen: false, planOpen: false, gitHistoryOpen: false },
       };
       const leaf: LayoutNode = { type: 'leaf', terminalId: termId };
       const tab: TabState = {
@@ -251,7 +251,7 @@ export const useStore = create<AppState>((...args) => {
           connected: false,
           sessionResumed: false,
           error: null,
-          panels: tab.panelStates?.[tid] || { chatOpen: false, planOpen: false },
+          panels: tab.panelStates?.[tid] || { chatOpen: false, planOpen: false, gitHistoryOpen: false },
         };
       }
 
@@ -358,7 +358,7 @@ export const useStore = create<AppState>((...args) => {
           connected: false,
           sessionResumed: false,
           error: null,
-          panels: { chatOpen: false, planOpen: false },
+          panels: { chatOpen: false, planOpen: false, gitHistoryOpen: false },
         };
         const leaf: LayoutNode = { type: 'leaf', terminalId: id };
         const tab: TabState = {
@@ -399,7 +399,7 @@ export const useStore = create<AppState>((...args) => {
         connected: false,
         sessionResumed: false,
         error: null,
-        panels: { chatOpen: false, planOpen: false },
+        panels: { chatOpen: false, planOpen: false, gitHistoryOpen: false },
       };
       const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
 
@@ -474,7 +474,7 @@ export const useStore = create<AppState>((...args) => {
         connected: false,
         sessionResumed: false,
         error: null,
-        panels: { chatOpen: false, planOpen: false },
+        panels: { chatOpen: false, planOpen: false, gitHistoryOpen: false },
         ...(startCwd ? { startCwd } : {}),
       };
       const newLeaf: LayoutNode = { type: 'leaf', terminalId: id };
@@ -523,7 +523,7 @@ export const useStore = create<AppState>((...args) => {
       const state = get();
       if (state.terminalsMap[id]) return;
       const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
-      const panels = ownerTab?.panelStates?.[id] || { chatOpen: false, planOpen: false };
+      const panels = ownerTab?.panelStates?.[id] || { chatOpen: false, planOpen: false, gitHistoryOpen: false };
       const terminal: TerminalInstance = {
         id,
         connected: false,
@@ -586,7 +586,36 @@ export const useStore = create<AppState>((...args) => {
       const existing = state.terminalsMap[id];
       if (!existing) return;
 
-      const newPanels: PanelState = { ...existing.panels, planOpen: !existing.panels.planOpen };
+      const opening = !existing.panels.planOpen;
+      const newPanels: PanelState = {
+        ...existing.panels,
+        planOpen: opening,
+        ...(opening ? { gitHistoryOpen: false } : {}),
+      };
+      const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
+
+      const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
+      let newTabs = state.tabs;
+      if (ownerTab) {
+        const states = { ...ownerTab.panelStates, [id]: newPanels };
+        newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
+      }
+
+      set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+      persistTabs(toPersistable(get()));
+    },
+
+    toggleGitHistory: (id) => {
+      const state = get();
+      const existing = state.terminalsMap[id];
+      if (!existing) return;
+
+      const opening = !existing.panels.gitHistoryOpen;
+      const newPanels: PanelState = {
+        ...existing.panels,
+        gitHistoryOpen: opening,
+        ...(opening ? { planOpen: false } : {}),
+      };
       const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
 
       const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));

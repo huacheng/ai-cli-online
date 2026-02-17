@@ -20,6 +20,7 @@ export type LayoutNode = LeafNode | SplitNode;
 export interface PanelState {
   chatOpen: boolean;
   planOpen: boolean;
+  gitHistoryOpen: boolean;
 }
 
 export interface TerminalInstance {

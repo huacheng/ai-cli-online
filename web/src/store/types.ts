@@ -74,6 +74,7 @@ export interface CoreSlice {
   setTerminalError: (id: string, error: string | null) => void;
   toggleChat: (id: string) => void;
   togglePlan: (id: string) => void;
+  toggleGitHistory: (id: string) => void;
 
   setSplitSizes: (splitId: string, sizes: number[]) => void;
 

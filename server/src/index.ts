@@ -19,6 +19,7 @@ import sessionsRouter from './routes/sessions.js';
 import filesRouter from './routes/files.js';
 import editorRouter from './routes/editor.js';
 import settingsRouter from './routes/settings.js';
+import gitRouter from './routes/git.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -115,6 +116,7 @@ async function main() {
   app.use(filesRouter);
   app.use(editorRouter);
   app.use(settingsRouter);
+  app.use(gitRouter);
 
   // --- Static files ---
 
