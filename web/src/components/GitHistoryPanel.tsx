@@ -357,9 +357,6 @@ const CommitItem = memo(function CommitItem({
 
         {/* Commit info — single row */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: xsSize, color: 'var(--accent-yellow)', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
-            {commit.shortHash}
-          </span>
           <RefBadges refs={commit.refs} fontSize={fontSize} />
           <span style={{
             fontSize: smSize,
@@ -374,6 +371,9 @@ const CommitItem = memo(function CommitItem({
           </span>
           <span style={{ fontSize: xsSize, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}>
             {commit.author.split(' ')[0]} · {relativeTime(commit.date)}
+          </span>
+          <span style={{ fontSize: xsSize, color: 'var(--accent-yellow)', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, opacity: 0.6 }}>
+            {commit.shortHash}
           </span>
           <span style={{ fontSize: xsSize, color: 'var(--text-secondary)', flexShrink: 0 }}>
             {expanded ? '\u25BC' : '\u25B6'}
