@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type {
   TerminalInstance,
-  PanelState,
   LayoutNode,
   TabState,
 } from '../types';
@@ -15,6 +14,7 @@ import {
   splitLeafInTree,
   updateSplitSizes,
   removeTerminalFromState,
+  panelToggle,
 } from './helpers';
 import {
   loadTabs,
@@ -563,69 +563,17 @@ export const useStore = create<AppState>((...args) => {
     },
 
     toggleChat: (id) => {
-      const state = get();
-      const existing = state.terminalsMap[id];
-      if (!existing) return;
-
-      const newPanels: PanelState = { ...existing.panels, chatOpen: !existing.panels.chatOpen };
-      const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
-
-      const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
-      let newTabs = state.tabs;
-      if (ownerTab) {
-        const states = { ...ownerTab.panelStates, [id]: newPanels };
-        newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
-      }
-
-      set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+      panelToggle('chatOpen')(id, get, set);
       persistTabs(toPersistable(get()));
     },
 
     togglePlan: (id) => {
-      const state = get();
-      const existing = state.terminalsMap[id];
-      if (!existing) return;
-
-      const opening = !existing.panels.planOpen;
-      const newPanels: PanelState = {
-        ...existing.panels,
-        planOpen: opening,
-        ...(opening ? { gitHistoryOpen: false } : {}),
-      };
-      const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
-
-      const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
-      let newTabs = state.tabs;
-      if (ownerTab) {
-        const states = { ...ownerTab.panelStates, [id]: newPanels };
-        newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
-      }
-
-      set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+      panelToggle('planOpen', 'gitHistoryOpen')(id, get, set);
       persistTabs(toPersistable(get()));
     },
 
     toggleGitHistory: (id) => {
-      const state = get();
-      const existing = state.terminalsMap[id];
-      if (!existing) return;
-
-      const opening = !existing.panels.gitHistoryOpen;
-      const newPanels: PanelState = {
-        ...existing.panels,
-        gitHistoryOpen: opening,
-        ...(opening ? { planOpen: false } : {}),
-      };
-      const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
-
-      const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
-      let newTabs = state.tabs;
-      if (ownerTab) {
-        const states = { ...ownerTab.panelStates, [id]: newPanels };
-        newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
-      }
-
-      set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+      panelToggle('gitHistoryOpen', 'planOpen')(id, get, set);
       persistTabs(toPersistable(get()));
     },
 

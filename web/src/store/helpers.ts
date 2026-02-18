@@ -1,5 +1,52 @@
-import type { LayoutNode, SplitDirection, TabState } from '../types';
+import type { LayoutNode, PanelState, SplitDirection, TabState } from '../types';
 import type { AppState } from './types';
+
+// ---------------------------------------------------------------------------
+// Panel toggle factory
+// ---------------------------------------------------------------------------
+
+type PanelKey = keyof PanelState;
+
+export type PanelToggler = (
+  id: string,
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void,
+) => void;
+
+/**
+ * Returns an updater that toggles `panelKey` on a terminal's panels,
+ * optionally closing a mutually-exclusive panel when opening.
+ *
+ * Caller is responsible for calling `persistTabs()` after `set()`.
+ */
+export function panelToggle(
+  panelKey: PanelKey,
+  mutuallyExclusive?: PanelKey,
+): PanelToggler {
+  return (id, get, set) => {
+    const state = get();
+    const existing = state.terminalsMap[id];
+    if (!existing) return;
+
+    const opening = !existing.panels[panelKey];
+    const newPanels: PanelState = {
+      ...existing.panels,
+      [panelKey]: opening,
+      ...(opening && mutuallyExclusive ? { [mutuallyExclusive]: false } : {}),
+    };
+
+    const newTerminalsMap = { ...state.terminalsMap, [id]: { ...existing, panels: newPanels } };
+
+    const ownerTab = state.tabs.find((t) => t.terminalIds.includes(id));
+    let newTabs = state.tabs;
+    if (ownerTab) {
+      const states = { ...ownerTab.panelStates, [id]: newPanels };
+      newTabs = updateTab(state.tabs, ownerTab.id, (t) => ({ ...t, panelStates: states }));
+    }
+
+    set({ terminalsMap: newTerminalsMap, tabs: newTabs });
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Tree helpers — pure functions for layout tree manipulation

@@ -1,4 +1,4 @@
-import { API_BASE, authHeaders } from './client';
+import { sessionApi } from './apiClient';
 
 export interface CommitFile {
   path: string;
@@ -6,9 +6,16 @@ export interface CommitFile {
   deletions: number;
 }
 
+export interface RefInfo {
+  type: 'head' | 'branch' | 'remote' | 'tag';
+  name: string;
+}
+
 export interface CommitInfo {
   hash: string;
   shortHash: string;
+  parents: string[];
+  refs: RefInfo[];
   message: string;
   author: string;
   date: string;
@@ -21,21 +28,28 @@ export interface GitLogResponse {
   error?: string;
 }
 
+interface GitDiffResponse {
+  diff: string;
+}
+
+interface GitBranchesResponse {
+  current: string;
+  branches: string[];
+}
+
 export async function fetchGitLog(
   sessionId: string,
   token: string,
-  opts: { page?: number; limit?: number; file?: string } = {},
+  opts: { page?: number; limit?: number; file?: string; all?: boolean; branch?: string } = {},
 ): Promise<GitLogResponse> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set('page', String(opts.page));
-  if (opts.limit) params.set('limit', String(opts.limit));
-  if (opts.file) params.set('file', opts.file);
+  const query: Record<string, string> = {};
+  if (opts.page) query.page = String(opts.page);
+  if (opts.limit) query.limit = String(opts.limit);
+  if (opts.file) query.file = opts.file;
+  if (opts.all) query.all = 'true';
+  if (opts.branch) query.branch = opts.branch;
 
-  const qs = params.toString();
-  const url = `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/git-log${qs ? `?${qs}` : ''}`;
-  const resp = await fetch(url, { headers: authHeaders(token) });
-  if (!resp.ok) throw new Error(`git-log failed: ${resp.status}`);
-  return resp.json();
+  return sessionApi.get<GitLogResponse>(token, sessionId, 'git-log', query);
 }
 
 export async function fetchGitDiff(
@@ -44,12 +58,16 @@ export async function fetchGitDiff(
   commit: string,
   file?: string,
 ): Promise<string> {
-  const params = new URLSearchParams({ commit });
-  if (file) params.set('file', file);
+  const query: Record<string, string> = { commit };
+  if (file) query.file = file;
 
-  const url = `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/git-diff?${params}`;
-  const resp = await fetch(url, { headers: authHeaders(token) });
-  if (!resp.ok) throw new Error(`git-diff failed: ${resp.status}`);
-  const data = await resp.json();
+  const data = await sessionApi.get<GitDiffResponse>(token, sessionId, 'git-diff', query);
   return data.diff;
+}
+
+export async function fetchGitBranches(
+  sessionId: string,
+  token: string,
+): Promise<GitBranchesResponse> {
+  return sessionApi.get<GitBranchesResponse>(token, sessionId, 'git-branches');
 }

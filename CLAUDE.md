@@ -2,15 +2,16 @@
 
 ## 项目概述
 
-AI-CLI-Online 是在浏览器中运行的 AI 开发环境，专为运行 Claude Code、Codex CLI、Gemini CLI 或任意 AI CLI 而构建。通过 xterm.js + tmux 提供持久化终端会话，配合 Plan 批注面板和 Chat 编辑器，形成终端 + 规划 + 执行的一体化工作区。支持 ai-cli-task 插件的 13-skill 任务生命周期（init/plan/research/check/verify/exec/merge/report/auto/cancel/list/annotate/summarize），实现结构化 AI 任务的自主执行。
+AI-CLI-Online 是在浏览器中运行的 AI 开发环境，专为运行 Claude Code、Codex CLI、Gemini CLI 或任意 AI CLI 而构建。通过 xterm.js + tmux 提供持久化终端会话，配合 Plan 批注面板、Git History 面板和 Chat 编辑器，形成终端 + 规划 + 执行的一体化工作区。支持 ai-cli-task 插件的 13-skill 任务生命周期（init/plan/research/check/verify/exec/merge/report/auto/cancel/list/annotate/summarize），实现结构化 AI 任务的自主执行。
 
-核心能力：Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Plan | Xterm] + [Chat]，三区域可同时显示）、Plan 批注系统（AiTasks/ 目录多文件批注 + Mermaid 图表）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色）。
+核心能力：Tab 多标签页、多终端分屏（水平/垂直任意嵌套）、2D 网格面板布局（[Plan/Git | Xterm] + [Chat]，Plan/Git 互斥占左侧）、Plan 批注系统（AiTasks/ 目录多文件批注 + Mermaid 图表）、Git History 面板（提交浏览 + diff 查看 + 分支图可视化 + refs 徽章 + --all 分支切换）、Chat 编辑器（多行编辑 + 斜杠命令 + 草稿持久化）、Light/Dark 主题切换、鼠标选中自动复制 + 右键粘贴、capture-pane 滚动历史回看（带 ANSI 颜色）。
 
 ## 架构
 
 ```
 浏览器 (xterm.js + WebGL)
   ├── Plan 面板 (批注编辑器)
+  ├── Git History 面板 (提交浏览 + diff 查看 + 分支图可视化)
   ├── Chat 编辑器 (Markdown + /命令)
   └── 终端视图 (WebGL 渲染器)
         │
@@ -21,7 +22,7 @@ Express 服务 (Node.js)
   ├── tmux 会话管理
   ├── 文件传输 API
   ├── SQLite (草稿、批注、设置)
-  └── 路由模块 (sessions, files, editor, settings)
+  └── 路由模块 (sessions, files, editor, settings, git)
         │
         ↕ PTY / tmux sockets
         │
@@ -59,7 +60,8 @@ ai-cli-online/
 │           ├── sessions.ts   # 会话管理路由 (列表/删除/cwd/pane-command)
 │           ├── files.ts      # 文件传输路由 (列表/上传/下载/touch/mkdir/rm/file-content)
 │           ├── editor.ts     # 编辑器路由 (草稿/批注/task-annotations)
-│           └── settings.ts   # 设置路由 (字体大小/tabs-layout)
+│           ├── settings.ts   # 设置路由 (字体大小/tabs-layout)
+│           └── git.ts        # Git 历史路由 (提交日志/diff)
 ├── web/              # 前端应用 (React + Vite)
 │   └── src/
 │       ├── main.tsx          # React 入口 (ReactDOM.createRoot)
@@ -81,8 +83,12 @@ ai-cli-online/
 │       │   ├── useMermaidRender.ts      # Mermaid 图表渲染 hook (CDN 懒加载 + fallback)
 │       │   ├── usePanelResize.ts        # 通用面板拖拽 hook (水平/垂直, localStorage 持久化)
 │       │   └── usePasteFloat.ts         # 粘贴浮层 hook (文件粘贴上传)
+│       ├── utils/
+│       │   └── gitGraph.ts          # Lane 分配算法 (computeLanes + 调色板)
 │       ├── api/
 │       │   ├── client.ts          # API 基础配置 (API_BASE + authHeaders + 类型化请求)
+│       │   ├── apiClient.ts       # 类型化 API 客户端 (sessionApi.get/post/put/delete)
+│       │   ├── git.ts             # Git 历史 API (fetchGitLog/fetchGitDiff/fetchGitBranches)
 │       │   ├── files.ts           # 文件传输 API (上传/下载/列表/touch/mkdir/rm/downloadCwd)
 │       │   ├── annotations.ts     # 批注持久化 API (fetchAnnotation/saveAnnotation/writeTaskAnnotations)
 │       │   ├── docs.ts            # 文档内容 API (fetchFileContent, 支持 304)
@@ -102,6 +108,7 @@ ai-cli-online/
 │           ├── MarkdownEditor.tsx     # Chat 编辑器 (多行编辑 + 斜杠命令 + 草稿持久化)
 │           ├── MarkdownToc.tsx        # Markdown 目录导航 (heading 提取 + 锚点跳转)
 │           ├── ErrorBoundary.tsx      # React 错误边界
+│           ├── GitHistoryPanel.tsx     # Git History 面板 (提交列表 + diff 查看 + 分支图可视化)
 │           ├── SessionSidebar.tsx     # 会话侧边栏 (列表/恢复/删除/重命名/关闭终端)
 │           └── SplitPaneContainer.tsx # 递归布局渲染 (水平/垂直分割)
 ├── bin/              # npx 入口 (ai-cli-online.mjs)
@@ -130,6 +137,12 @@ npm run build
 
 # 生产模式启动
 npm start
+
+# 测试 (前后端)
+npm test
+
+# 测试 watch 模式 (仅后端)
+npm run test:watch
 
 # 一键构建并启动 (会清理旧进程)
 bash start.sh
@@ -257,7 +270,7 @@ serverSessions: ServerSession[];                  // 服务端会话列表
 
 ### 辅助模块
 
-- **store/helpers.ts**: 纯函数 — `removeLeafFromTree`, `splitLeafInTree`, `updateSplitSizes`, `getActiveTab`, `updateTab`, `removeTerminalFromState`
+- **store/helpers.ts**: 纯函数 — `panelToggle`, `removeLeafFromTree`, `splitLeafInTree`, `updateSplitSizes`, `getActiveTab`, `updateTab`, `removeTerminalFromState`
 - **store/persistence.ts**: Tab 持久化 — `loadTabs`/`persistTabs`/`persistTabsToServer`/`reconcileWithTmux`/`restoreFromServer`，使用 `bindStore` 模式避免循环依赖
 - **store/types.ts**: 类型定义 — `AppState = CoreSlice & SettingsSlice`, `PersistableFields`
 
@@ -267,12 +280,13 @@ serverSessions: ServerSession[];                  // 服务端会话列表
 interface PanelState {
   chatOpen: boolean;
   planOpen: boolean;
+  gitHistoryOpen: boolean;
 }
 ```
 
 每个 `TabState` 拥有独立的 `terminalIds`、`layout` 和 `panelStates`，Tab 间完全隔离。
 
-- `toggleChat(id)` / `togglePlan(id)` 独立切换面板，Chat 和 Plan 可同时打开
+- `toggleChat(id)` / `togglePlan(id)` / `toggleGitHistory(id)` 切换面板，Plan 与 Git History 互斥，Chat 独立
 - `toggleTheme()` 切换 Dark/Light 主题，同步更新 `document.documentElement.dataset.theme`
 - `setTerminalConnected/Resumed/Error` 仅更新目标终端对象，不触发其他面板重渲染
 - 全局 `latency` 由任意活跃 WebSocket 的 ping/pong RTT 更新
@@ -390,6 +404,14 @@ interface PanelState {
 | `GET` | `/api/settings/tabs-layout` | 获取 Tab 布局 |
 | `PUT` | `/api/settings/tabs-layout` | 保存 Tab 布局（支持 sendBeacon body token） |
 
+### Git 历史 (routes/git.ts)
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| `GET` | `/api/sessions/:sessionId/git-log` | 提交历史（query: `page`, `limit`, `file`, `all`），含 parents/refs |
+| `GET` | `/api/sessions/:sessionId/git-diff` | 指定 commit diff（query: `commit`, `file`） |
+| `GET` | `/api/sessions/:sessionId/git-branches` | 分支列表（返回 `current` + `branches`） |
+
 ### 实现细节
 - 认证中间件 (`middleware/auth.ts`) 懒读取 `process.env.AUTH_TOKEN`，兼容 ESM 中 dotenv 初始化顺序
 - CWD 通过 `tmux list-panes -F #{pane_current_path}` 获取，反映终端当前所在目录
@@ -440,10 +462,10 @@ interface PanelState {
 TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示：
 
 ```
-[Title bar: 连接状态 | CWD | Upload | Chat | Plan | 分割按钮]
+[Title bar: 连接状态 | CWD | Upload | Chat | Plan | Git | 分割按钮]
 [Main area: flex-direction: row]
-  ├─ [Plan 面板: planWidthPercent%]         ← 仅 planOpen 时
-  ├─ [水平分隔条: 2px, col-resize]          ← 仅 planOpen 时
+  ├─ [Plan/Git 面板: planWidthPercent%]     ← planOpen 或 gitHistoryOpen 时（互斥）
+  ├─ [水平分隔条: 2px, col-resize]          ← planOpen 或 gitHistoryOpen 时
   └─ [Right column: flex: 1, column]
       ├─ [Xterm 终端: flex: 1]
       ├─ [垂直分隔条: 4px, row-resize]      ← 仅 chatOpen 时
@@ -486,6 +508,13 @@ TerminalPane 采用 2D 网格布局，三个区域可独立开关、同时显示
   - Comment (4 元素): `["Line{N}:...before20chars", "selectedText", "comment", "after20chars..."]`
   - context_before 含行号前缀，context_after 含省略后缀，换行符显示为 `↵`
 - 关闭时聚合所有文件的未转发批注 → `onForwardToChat(summary)` 转发到 Chat 编辑器
+
+### Git History 面板 (GitHistoryPanel)
+
+与 Plan 面板互斥占据左侧，共享宽度拖拽。提交列表分页（30/页），搜索框文件路径过滤（300ms 防抖），
+展开查看文件变更（+N/-M），点击文件内联 unified diff（红/绿行），字体跟随全局 fontSize。
+分支图可视化（Lane 分配算法 + SVG 渲染），Ref 徽章（HEAD/branch/remote/tag），`--all` 按钮切换全分支视图。
+Lane 算法位于 `web/src/utils/gitGraph.ts`，`computeLanes()` 为每个 commit 分配 lane 编号并计算连线（straight/merge-in/branch-out）。
 
 ### Chat 编辑器面板 (MarkdownEditor)
 
