@@ -310,6 +310,7 @@ const CommitItem = memo(function CommitItem({
   const [diffFile, setDiffFile] = useState<string | null>(null);
   const [diffContent, setDiffContent] = useState<string>('');
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [copied, setCopied] = useState(false);
   const diffFileRef = useRef(diffFile);
   diffFileRef.current = diffFile;
 
@@ -372,8 +373,12 @@ const CommitItem = memo(function CommitItem({
           <span style={{ fontSize: xsSize, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}>
             {commit.author.split(' ')[0]} · {relativeTime(commit.date)}
           </span>
-          <span style={{ fontSize: xsSize, color: 'var(--accent-yellow)', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, opacity: 0.6 }}>
-            {commit.shortHash}
+          <span
+            title="Click to copy full hash"
+            style={{ fontSize: xsSize, color: copied ? 'var(--accent-green)' : 'var(--accent-yellow)', fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, opacity: copied ? 1 : 0.6, cursor: 'pointer', transition: 'color 0.2s, opacity 0.2s' }}
+            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(commit.hash).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
+          >
+            {copied ? 'Copied' : commit.shortHash}
           </span>
           <span style={{ fontSize: xsSize, color: 'var(--text-secondary)', flexShrink: 0 }}>
             {expanded ? '\u25BC' : '\u25B6'}
